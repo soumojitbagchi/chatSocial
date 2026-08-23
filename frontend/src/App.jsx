@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Navbar from './features/components/UI/Navbar';
 import Home from './features/components/UI/Home';
 import Footer from './features/components/UI/Footer';
-import LoginPage from './features/auth/LoginPage';
+import LoginPage from './features/auth/UI/LoginPage';
 import { 
   INITIAL_CHATS, 
   INITIAL_MESSAGES, 

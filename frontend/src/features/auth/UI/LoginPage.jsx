@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import AuthNavbar from './UI/AuthNavbar';
+import AuthNavbar from './AuthNavbar';
 import QRCodeCard from './QRCodeCard';
 import PhoneLoginCard from './PhoneLoginCard';
-import AuthFooter from './UI/AuthFooter';
+import AuthFooter from './AuthFooter';
 import '../style/auth.css';
 
 const LoginPage = ({ onLoginSuccess }) => {
