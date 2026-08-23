@@ -21,7 +21,8 @@ const Navbar = ({
   totalUnread = 26, 
   onNewChat, 
   activeTab, 
-  setActiveTab 
+  setActiveTab,
+  onLogout
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -56,11 +57,10 @@ const Navbar = ({
             height="22" 
             fill="currentColor"
           >
-            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2ZM17.56 16.68C17.33 17.33 16.42 17.88 15.65 18.05C15.12 18.16 14.44 18.25 12.13 17.29C9.17 16.07 7.27 13.06 7.12 12.86C6.98 12.67 5.92 11.26 5.92 9.8C5.92 8.34 6.66 7.63 6.95 7.33C7.2 7.07 7.56 6.96 7.92 6.96C8.04 6.96 8.16 6.97 8.26 6.97C8.56 6.98 8.71 7.01 8.91 7.48C9.16 8.08 9.77 9.56 9.84 9.71C9.92 9.87 9.99 10.07 9.88 10.28C9.78 10.5 9.69 10.6 9.54 10.77C9.39 10.95 9.25 11.08 9.09 11.27C8.92 11.45 8.74 11.65 8.95 12.01C9.15 12.36 9.85 13.51 10.88 14.43C12.21 15.62 13.3 16.01 13.69 16.17C14 16.3 14.19 16.27 14.37 16.07C14.59 15.81 15.3 14.98 15.54 14.64C15.77 14.3 16.01 14.35 16.32 14.47C16.64 14.59 18.34 15.43 18.69 15.61C19.04 15.78 19.27 15.86 19.35 16C19.43 16.14 19.43 16.8 19.19 17.45L17.56 16.68Z" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.2018L9.30278 12L12 13.7982L14.6972 12L12 10.2018ZM16.5 10.7982L19.1972 9L13 4.86852V8.46482L16.5 10.7982ZM20 10.8685L18.3028 12L20 13.1315V10.8685ZM16.5 13.2018L13 15.5352V19.1315L19.1972 15L16.5 13.2018ZM11 8.46482V4.86852L4.80278 9L7.5 10.7982L11 8.46482ZM4.80278 15L11 19.1315V15.5352L7.5 13.2018L4.80278 15ZM5.69722 12L4 10.8685V13.1315L5.69722 12ZM2 9C2 8.66565 2.1671 8.35342 2.4453 8.16795L11.4453 2.16795C11.7812 1.94402 12.2188 1.94402 12.5547 2.16795L21.5547 8.16795C21.8329 8.35342 22 8.66565 22 9V15C22 15.3344 21.8329 15.6466 21.5547 15.8321L12.5547 21.8321C12.2188 22.056 11.7812 22.056 11.4453 21.8321L2.4453 15.8321C2.1671 15.6466 2 15.3344 2 15V9Z"></path></svg>
           </svg>
         </div>
-        <h1 className="wa-brand-heading">WhatsApp</h1>
-        <span className="wa-brand-badge">Web</span>
+        <h1 className="wa-brand-heading">chatSocial</h1>
       </div>
 
       {/* Center Search Input (when search button toggled) */}
@@ -147,7 +147,13 @@ const Navbar = ({
               <Settings size={16} color="var(--wa-text-secondary)" />
               <span>Settings</span>
             </button>
-            <button className="wa-dropdown-item" onClick={() => { setShowMenu(false); }}>
+            <button 
+              className="wa-dropdown-item" 
+              onClick={() => { 
+                setShowMenu(false); 
+                if (onLogout) onLogout(); 
+              }}
+            >
               <LogOut size={16} color="#ef4444" />
               <span style={{ color: '#ef4444' }}>Log out</span>
             </button>

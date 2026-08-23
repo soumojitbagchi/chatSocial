@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navbar from './features/components/UI/Navbar';
 import Home from './features/components/UI/Home';
 import Footer from './features/components/UI/Footer';
+import LoginPage from './features/auth/LoginPage';
 import { 
   INITIAL_CHATS, 
   INITIAL_MESSAGES, 
@@ -13,12 +14,12 @@ import './App.css';
 import './features/components/style/components.css';
 
 const App = () => {
+  const [currentView, setCurrentView] = useState('login'); // 'login' | 'chat'
   const [activeTab, setActiveTab] = useState('chats');
   const [searchQuery, setSearchQuery] = useState('');
   const [chats, setChats] = useState(INITIAL_CHATS);
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [activeChatId, setActiveChatId] = useState('2'); // Default to '@bagchi10 (You)' as in reference
-
   // Calculate total unread count across all chats
   const totalUnread = chats.reduce((acc, chat) => acc + (chat.unread || 0), 0);
 
@@ -74,6 +75,12 @@ const App = () => {
     setSearchQuery('');
   };
 
+  if (currentView === 'login') {
+    return (
+      <LoginPage onLoginSuccess={() => setCurrentView('chat')} />
+    );
+  }
+
   return (
     <div className="wa-app">
       {/* Top Navbar */}
@@ -84,6 +91,7 @@ const App = () => {
         onNewChat={handleNewChat}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onLogout={() => setCurrentView('login')}
       />
 
       {/* Main Home / Body Canvas */}
