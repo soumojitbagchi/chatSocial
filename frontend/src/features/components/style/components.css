@@ -9,7 +9,7 @@
   --wa-bg-bubble-out: #005c4b;
   --wa-bg-bubble-in: #202c33;
   --wa-bg-hover: #202c33;
-  --wa-bg-active: #2a3942;
+  --wa-bg-active: #223542;
   --wa-green-primary: #00a884;
   --wa-green-bright: #25d366;
   --wa-green-badge: #00a884;
@@ -606,11 +606,12 @@
 .wa-chat-wallpaper {
   position: absolute;
   inset: 0;
-  opacity: 0.06;
+  opacity: 0.4;
   pointer-events: none;
-  background-image: radial-gradient(#202c33 1.5px, transparent 1.5px), radial-gradient(#202c33 1.5px, var(--wa-bg-chat) 1.5px);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
+  background-image: url('/whatsapp-wallpaper.jpg');
+  background-size: 474px auto;
+  background-repeat: repeat;
+  background-position: top left;
 }
 
 .wa-chat-header {
@@ -842,6 +843,38 @@
   color: var(--wa-green-bright);
 }
 
+
+/* Single Photo / Image Message */
+.wa-msg-photo-container {
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 0.25rem;
+  max-width: 320px;
+}
+
+.wa-msg-photo {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: cover;
+  display: block;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.wa-msg-photo:hover {
+  filter: brightness(0.94);
+}
+
+.wa-msg-caption {
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--wa-text-primary);
+  margin-top: 0.35rem;
+  display: block;
+}
 /* Composer / Input Footer */
 .wa-composer {
   min-height: 62px;
