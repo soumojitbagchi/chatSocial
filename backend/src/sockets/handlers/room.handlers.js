@@ -1,128 +1,124 @@
-import { roomData as Room } from "../../model/room.model.js";
+import * as roomService from "../../service/room.service.js";
 
-const activeMembers = new Map();
+// Tracks roomId -> Map<userId, Set<socketId>>
+const roomMembers = new Map();
 
 const roomHandler = (io, socket) => {
   const userId = socket.user?.id || socket.user?._id?.toString() || socket.id;
   const username = socket.user?.username || socket.user?.name || "Anonymous";
 
-  socket.on("create-room", async ({ roomName, description }) => {
+  socket.on("create-room", async ({ roomname, description } = {}) => {
     try {
-      if (!roomName || !roomName.trim()) {
-        return socket.emit("room:error", {
-          message: "Room name is required",
-        });
-      }
-      const isAlreadyExists = await Room.findOne({ roomname: roomName.trim() });
-      if (isAlreadyExists) {
-        return socket.emit("room:error", {
-          message: "Room already exists",
-        });
+      if (!roomname || !roomname.trim()) {
+        return socket.emit("room:error", { message: "Room name is required" });
       }
 
-      const room = await Room.create({
-        roomname: roomName.trim(),
+      const room = await roomService.createRoom({
+        roomname: roomname.trim(),
         description: description || "",
         createdBy: userId,
       });
+
       const roomId = room._id.toString();
-      if (!activeMembers.has(roomId)) {
-        activeMembers.set(roomId, new Set());
+
+      if (!roomMembers.has(roomId)) {
+        roomMembers.set(roomId, new Map());
       }
-      activeMembers.get(roomId).add(userId);
+      const usersInRoom = roomMembers.get(roomId);
+      if (!usersInRoom.has(userId)) {
+        usersInRoom.set(userId, new Set());
+      }
+      usersInRoom.get(userId).add(socket.id);
 
       socket.join(roomId);
 
       socket.emit("room:created", {
+        success: true,
         roomId,
-        roomName: room.roomname,
+        roomname: room.roomname,
         description: room.description,
-        createdBy: userId,
+        createdBy: room.createdBy,
       });
-
-      console.log(`Room ${roomId} created by ${userId}`);
     } catch (error) {
-      console.error("Error creating room:", error);
-      socket.emit("room:error", { message: "Failed to create room" });
+      socket.emit("room:error", { message: error.message || "Failed to create room" });
     }
   });
 
-  socket.on("join-room", async ({ roomId }) => {
+  socket.on("join-room", async ({ roomId } = {}) => {
     try {
       if (!roomId) {
         return socket.emit("room:error", { message: "Room ID is required" });
       }
 
-      const room = await Room.findById(roomId);
-      if (!room) {
-        return socket.emit("room:error", {
-          message: "Room not found",
-        });
-      }
+      const room = await roomService.getRoom(roomId);
+      const stringRoomId = room._id.toString();
 
-      if (!activeMembers.has(roomId)) {
-        activeMembers.set(roomId, new Set());
+      if (!roomMembers.has(stringRoomId)) {
+        roomMembers.set(stringRoomId, new Map());
       }
-      const member = activeMembers.get(roomId);
-      if (member.has(userId)) {
-        return socket.emit("room:error", {
-          message: "Already in room",
-        });
+      const usersInRoom = roomMembers.get(stringRoomId);
+      const isFirstSocketForUser = !usersInRoom.has(userId) || usersInRoom.get(userId).size === 0;
+
+      if (!usersInRoom.has(userId)) {
+        usersInRoom.set(userId, new Set());
       }
-      member.add(userId);
-      socket.join(roomId);
+      usersInRoom.get(userId).add(socket.id);
+
+      socket.join(stringRoomId);
 
       socket.emit("room:joined", {
-        roomId,
-        roomName: room.roomname,
+        success: true,
+        roomId: stringRoomId,
+        roomname: room.roomname,
+        description: room.description,
       });
 
-      socket.to(roomId).emit("user:joined", {
-        userId,
-        username,
-        roomId,
-      });
+      if (isFirstSocketForUser) {
+        socket.to(stringRoomId).emit("user:joined", {
+          userId,
+          username,
+          roomId: stringRoomId,
+        });
+      }
     } catch (error) {
-      console.error("Error joining room:", error);
-      socket.emit("room:error", { message: "Failed to join room" });
+      socket.emit("room:error", { message: error.message || "Failed to join room" });
     }
   });
 
-  socket.on("leave-room", ({ roomId }) => {
+  socket.on("leave-room", ({ roomId } = {}) => {
     try {
-      if (!roomId || !activeMembers.has(roomId)) {
-        return socket.emit("room:error", {
-          message: "Room not active",
-        });
-      }
-
-      const members = activeMembers.get(roomId);
-      if (!members.has(userId)) {
-        return socket.emit("room:error", {
-          message: "You are not in this room",
-        });
-      }
-
-      members.delete(userId);
-      if (members.size === 0) {
-        activeMembers.delete(roomId);
+      if (!roomId) {
+        return socket.emit("room:error", { message: "Room ID is required" });
       }
 
       socket.leave(roomId);
 
-      socket.emit("room:left", { roomId });
-      socket.to(roomId).emit("user:left", {
-        userId,
-        username,
-        roomId,
-      });
+      if (roomMembers.has(roomId)) {
+        const usersInRoom = roomMembers.get(roomId);
+        if (usersInRoom.has(userId)) {
+          const userSockets = usersInRoom.get(userId);
+          userSockets.delete(socket.id);
+          if (userSockets.size === 0) {
+            usersInRoom.delete(userId);
+            socket.to(roomId).emit("user:left", {
+              userId,
+              username,
+              roomId,
+            });
+          }
+        }
+        if (usersInRoom.size === 0) {
+          roomMembers.delete(roomId);
+        }
+      }
+
+      socket.emit("room:left", { success: true, roomId });
     } catch (error) {
-      console.error("Error leaving room:", error);
-      socket.emit("room:error", { message: "Failed to leave room" });
+      socket.emit("room:error", { message: error.message || "Failed to leave room" });
     }
   });
 
-  socket.on("switch-room", async ({ oldRoomId, newRoomId }) => {
+  socket.on("switch-room", async ({ oldRoomId, newRoomId } = {}) => {
     try {
       if (!oldRoomId || !newRoomId) {
         return socket.emit("room:error", {
@@ -136,70 +132,81 @@ const roomHandler = (io, socket) => {
         });
       }
 
-      const newRoom = await Room.findById(newRoomId);
-      if (!newRoom) {
-        return socket.emit("room:error", {
-          message: "Target room does not exist",
-        });
-      }
+      const targetRoom = await roomService.getRoom(newRoomId);
+      const targetRoomId = targetRoom._id.toString();
 
-      if (activeMembers.has(newRoomId) && activeMembers.get(newRoomId).has(userId)) {
-        return socket.emit("room:error", {
-          message: "Already in new room",
-        });
-      }
-
-      if (activeMembers.has(oldRoomId)) {
-        const oldMembers = activeMembers.get(oldRoomId);
-        oldMembers.delete(userId);
-        if (oldMembers.size === 0) {
-          activeMembers.delete(oldRoomId);
+      // Leave old room
+      socket.leave(oldRoomId);
+      if (roomMembers.has(oldRoomId)) {
+        const oldUsers = roomMembers.get(oldRoomId);
+        if (oldUsers.has(userId)) {
+          const oldSockets = oldUsers.get(userId);
+          oldSockets.delete(socket.id);
+          if (oldSockets.size === 0) {
+            oldUsers.delete(userId);
+            socket.to(oldRoomId).emit("user:left", {
+              userId,
+              username,
+              roomId: oldRoomId,
+            });
+          }
+        }
+        if (oldUsers.size === 0) {
+          roomMembers.delete(oldRoomId);
         }
       }
-      socket.leave(oldRoomId);
-      socket.to(oldRoomId).emit("user:left", {
-        userId,
-        username,
-        roomId: oldRoomId,
-      });
 
-      if (!activeMembers.has(newRoomId)) {
-        activeMembers.set(newRoomId, new Set());
+      // Join new room
+      if (!roomMembers.has(targetRoomId)) {
+        roomMembers.set(targetRoomId, new Map());
       }
-      activeMembers.get(newRoomId).add(userId);
-      socket.join(newRoomId);
+      const newUsers = roomMembers.get(targetRoomId);
+      const isFirstSocket = !newUsers.has(userId) || newUsers.get(userId).size === 0;
 
-      socket.to(newRoomId).emit("user:joined", {
-        userId,
-        username,
-        roomId: newRoomId,
-      });
+      if (!newUsers.has(userId)) {
+        newUsers.set(userId, new Set());
+      }
+      newUsers.get(userId).add(socket.id);
+
+      socket.join(targetRoomId);
+
+      if (isFirstSocket) {
+        socket.to(targetRoomId).emit("user:joined", {
+          userId,
+          username,
+          roomId: targetRoomId,
+        });
+      }
 
       socket.emit("room:switched", {
+        success: true,
         oldRoomId,
-        newRoomId,
-        roomName: newRoom.roomname,
+        newRoomId: targetRoomId,
+        roomname: targetRoom.roomname,
       });
     } catch (error) {
-      console.error("Error switching room:", error);
       socket.emit("room:error", {
-        message: "Failed to switch room",
+        message: error.message || "Failed to switch room",
       });
     }
   });
 
   socket.on("disconnect", () => {
-    activeMembers.forEach((members, roomId) => {
-      if (members.has(userId)) {
-        members.delete(userId);
-        socket.to(roomId).emit("user:left", {
-          userId,
-          username,
-          roomId,
-        });
-        if (members.size === 0) {
-          activeMembers.delete(roomId);
+    roomMembers.forEach((usersInRoom, roomId) => {
+      if (usersInRoom.has(userId)) {
+        const userSockets = usersInRoom.get(userId);
+        userSockets.delete(socket.id);
+        if (userSockets.size === 0) {
+          usersInRoom.delete(userId);
+          socket.to(roomId).emit("user:left", {
+            userId,
+            username,
+            roomId,
+          });
         }
+      }
+      if (usersInRoom.size === 0) {
+        roomMembers.delete(roomId);
       }
     });
   });
