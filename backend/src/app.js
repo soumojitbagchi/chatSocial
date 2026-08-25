@@ -1,5 +1,6 @@
 import express from "express"
 import authRoutes from "./routes/auth.routes.js"
+import roomRoutes from "./routes/room.routes.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import errorHandler from "./middleware/error.middleware.js"
@@ -14,6 +15,7 @@ app.use(cors({
 }))
 
 app.use("/api/auth", authRoutes)
+app.use("/api/rooms", roomRoutes)
 
 app.use(errorHandler)
 
