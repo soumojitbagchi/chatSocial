@@ -1,82 +1,71 @@
-import Message from "../../model/message.model.js";
+import * as messageService from "../../service/message.service.js";
 
 const messageHandlers = (io, socket) => {
     const currentUserId = socket.user?.id || socket.user?._id?.toString() || socket.id;
 
+    // Send message ,
     socket.on("sendMessage", async ({ roomId, text, message } = {}) => {
         try {
-            const messageText = (text || message || "").trim();
-
-            if (!roomId || !messageText) {
-                return socket.emit("message:error", { message: "Room ID and message text are required" });
-            }
-
-            const savedMessage = await Message.create({
+            const content = text || message;
+            const savedMessage = await messageService.createMessage({
                 userId: currentUserId,
                 roomId,
-                text: messageText,
+                text: content,
             });
 
-            const populatedMessage = await savedMessage.populate("userId", "name username");
-            io.to(roomId).emit("receiveMessage", populatedMessage);
+            io.to(roomId).emit("receiveMessage", savedMessage);
         } catch (error) {
-            console.error("Error in sendMessage:", error);
+            console.error("Error in sendMessage:", error.message);
             socket.emit("message:error", { message: error.message || "Failed to send message" });
         }
     });
 
+    // Edit message
     socket.on("editMessage", async ({ messageId, newMessage, text } = {}) => {
         try {
-            const updatedText = (newMessage || text || "").trim();
+            const content = newMessage || text;
+            const updatedMessage = await messageService.updateMessage({
+                messageId,
+                userId: currentUserId,
+                text: content,
+            });
 
-            if (!messageId || !updatedText) {
-                return socket.emit("message:error", { message: "Message ID and updated text are required" });
-            }
-
-            const targetMessage = await Message.findById(messageId);
-            if (!targetMessage) {
-                return socket.emit("message:error", { message: "Message not found" });
-            }
-
-            if (targetMessage.userId.toString() !== currentUserId.toString()) {
-                return socket.emit("message:error", { message: "Unauthorized to edit this message" });
-            }
-
-            targetMessage.text = updatedText;
-            targetMessage.edited = true;
-            await targetMessage.save();
-
-            const populated = await targetMessage.populate("userId", "name username");
-            const roomId = targetMessage.roomId.toString();
-            io.to(roomId).emit("messageUpdated", populated);
+            const roomId = updatedMessage.roomId.toString();
+            io.to(roomId).emit("messageUpdated", updatedMessage);
         } catch (error) {
-            console.error("Error in editMessage:", error);
+            console.error("Error in editMessage:", error.message);
             socket.emit("message:error", { message: error.message || "Failed to edit message" });
         }
     });
 
+    // Delete message (soft delete)
     socket.on("deleteMessage", async ({ messageId } = {}) => {
         try {
-            if (!messageId) {
-                return socket.emit("message:error", { message: "Message ID is required" });
-            }
+            const deletedMessage = await messageService.deleteMessage({
+                messageId,
+                userId: currentUserId,
+            });
 
-            const targetMessage = await Message.findById(messageId);
-            if (!targetMessage) {
-                return socket.emit("message:error", { message: "Message not found" });
-            }
-
-            if (targetMessage.userId.toString() !== currentUserId.toString()) {
-                return socket.emit("message:error", { message: "You are not authorized to delete this message" });
-            }
-
-            const roomId = targetMessage.roomId.toString();
-            await Message.findByIdAndDelete(messageId);
-
-            io.to(roomId).emit("messageDeleted", { messageId, roomId });
+            const roomId = deletedMessage.roomId.toString();
+            io.to(roomId).emit("messageDeleted", {
+                messageId,
+                roomId,
+                message: deletedMessage,
+            });
         } catch (error) {
-            console.error("Error in deleteMessage:", error);
+            console.error("Error in deleteMessage:", error.message);
             socket.emit("message:error", { message: error.message || "Failed to delete message" });
+        }
+    });
+
+    // Fetch message history for a room
+    socket.on("getMessages", async ({ roomId, limit, page } = {}) => {
+        try {
+            const messages = await messageService.getAllMessages({ roomId, limit, page });
+            socket.emit("messages:list", { roomId, messages });
+        } catch (error) {
+            console.error("Error in getMessages:", error.message);
+            socket.emit("message:error", { message: error.message || "Failed to fetch messages" });
         }
     });
 };
