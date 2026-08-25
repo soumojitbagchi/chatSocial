@@ -1,27 +1,28 @@
-import { Server } from "socket.io";
-import { createServer } from "http";
-import app from "../app.js";
+import messageHandlers from "./handlers/message.handlers.js";
+import roomHandler from "./handlers/room.handlers.js";
+import presentHandler from "./handlers/present.handler.js";
 
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-    cors: {
-        origin: process.env.CLIENT_URL,
-        credentials: true,
-    },
-});
-io.use((socket, next) => {
-    console.log("Socket upgraded");
-    next();
-}); // DUMMY   
+const registerSocketHandler = (io)=>{
+
+    io.use((socket,next)=>{
+        console.log("socket updated")
+        next()
+    })
+
+    io.on("connection", (socket) => {
+        console.log("User connected");
+        presentHandler(io,socket);
+        messageHandlers(io,socket);
+        roomHandler(io,socket);
+        socket.on("disconnect", () => {
+            console.log("User disconnected");
+            io.emit("userDisconnected", socket.id);
+        });
+    });    
+}
 
 
 
-io.on("connection", (socket) => {
-    console.log("User connected");
-});
 
-socket.on("disconnect", () => {
-    console.log("User disconnected");
-});
 
 export default io;
