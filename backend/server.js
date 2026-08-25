@@ -6,6 +6,8 @@ import express from "express";
 import { createServer } from "http";
 import app from "./src/app.js";
 import { Server } from "socket.io";
+import registerSocketHandler from "./src/sockets/index.js";
+
 const PORT = process.env.PORT || 8080;
 
 connectDB();
@@ -18,9 +20,6 @@ const io = new Server(httpServer, {
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("User connected"); // Log when a user connects
-});
 
 const count = io.engine.clientsCount; // gives no. of user connected
 console.log(`Number of connected clients: ${count}`);
