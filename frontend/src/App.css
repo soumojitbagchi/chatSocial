@@ -12,8 +12,8 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #232e34;
-  color: #e9edef;
+  background-color: var(--cs-bg-main, #ffffff);
+  color: var(--cs-text-main, #0f172a);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

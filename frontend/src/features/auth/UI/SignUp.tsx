@@ -1,8 +1,10 @@
 import * as React from "react";
 import { useState, useId } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useNavigate, Link } from "react-router";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { ChatSocialLogo } from "@/components/ui/logo";
 import { Loader } from "@/components/ui/loader";
+import { authService } from "../api/authService";
 import signUpImage from "@/assets/auth-signup.jpg";
 
 export interface SignUpProps {
@@ -12,7 +14,9 @@ export interface SignUpProps {
 }
 
 export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignUpProps) {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,24 +25,43 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   const emailId = useId();
   const passwordId = useId();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSuccessRedirect = () => {
+    if (onLoginSuccess) {
+      onLoginSuccess();
+    } else {
+      navigate("/chat");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Sign Up submitted for chatSocial:", { name, email });
+    setErrorMessage("");
     setIsLoading(true);
-    setTimeout(() => {
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-    }, 600);
+
+    try {
+      await authService.register({ name, email, password });
+      setTimeout(() => {
+        setIsLoading(false);
+        handleSuccessRedirect();
+      }, 500);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      const msg = err instanceof Error ? err.message : "Failed to create account. Please try again.";
+      setErrorMessage(msg);
+    }
   };
 
   const handleGoogleLogin = () => {
-    console.log("Google login clicked");
     setIsLoading(true);
     setTimeout(() => {
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
+      authService.register({
+        name: "Google User",
+        email: "google.user@chatsocial.com",
+        password: "google_oauth_pass"
+      }).then(() => {
+        setIsLoading(false);
+        handleSuccessRedirect();
+      });
     }, 600);
   };
 
@@ -65,8 +88,17 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
               >
                 &larr; Home
               </button>
-            ) : <span />}
-            <ChatSocialLogo size={26} />
+            ) : (
+              <Link
+                to="/"
+                className="text-xs font-mono text-muted-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+              >
+                &larr; Home
+              </Link>
+            )}
+            <Link to="/">
+              <ChatSocialLogo size={26} />
+            </Link>
             <span className="w-8" />
           </div>
 
@@ -79,6 +111,13 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                 Join thousands connecting seamlessly in real-time
               </p>
             </div>
+
+            {errorMessage && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             <div className="grid gap-3.5">
               <div className="grid gap-1.5 text-left">
@@ -94,7 +133,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="flex h-11 w-full rounded-lg border border-input dark:border-input/50 bg-background pl-5 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 shadow-sm shadow-black/5 transition-all focus-visible:bg-accent/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
@@ -111,7 +150,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                   placeholder="user@chatsocial.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex h-11 w-full rounded-lg border border-input dark:border-input/50 bg-background pl-5 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 shadow-sm shadow-black/5 transition-all focus-visible:bg-accent/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
@@ -129,7 +168,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="flex h-11 w-full rounded-lg border border-input dark:border-input/50 bg-background pl-5 pr-12 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 shadow-sm shadow-black/5 transition-all focus-visible:bg-accent/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-12 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <button
                     type="button"
@@ -154,13 +193,22 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
           {/* Toggle Switch */}
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Already have an account?</span>{" "}
-            <button
-              type="button"
-              className="font-semibold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
-              onClick={onSwitchToSignIn}
-            >
-              Sign in
-            </button>
+            {onSwitchToSignIn ? (
+              <button
+                type="button"
+                className="font-semibold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
+                onClick={onSwitchToSignIn}
+              >
+                Sign in
+              </button>
+            ) : (
+              <Link
+                to="/signin"
+                className="font-semibold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
 
           <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
