@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState, useId } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ChatSocialLogo } from "@/components/ui/logo";
+import { Loader } from "@/components/ui/loader";
 import signUpImage from "@/assets/auth-signup.jpg";
 
 export interface SignUpProps {
@@ -10,6 +11,7 @@ export interface SignUpProps {
 }
 
 export function SignUp({ onLoginSuccess, onSwitchToSignIn }: SignUpProps) {
+  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,13 +23,27 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn }: SignUpProps) {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log("Sign Up submitted for chatSocial:", { name, email });
-    if (onLoginSuccess) {
-      onLoginSuccess();
-    }
+    setIsLoading(true);
+    setTimeout(() => {
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+    }, 600);
+  };
+
+  const handleGoogleLogin = () => {
+    console.log("Google login clicked");
+    setIsLoading(true);
+    setTimeout(() => {
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+    }, 600);
   };
 
   return (
-    <div className="w-full min-h-screen md:grid md:grid-cols-2 bg-background text-foreground selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div className="w-full min-h-screen md:grid md:grid-cols-2 bg-background text-foreground selection:bg-emerald-500/30 selection:text-emerald-200 relative">
+      {isLoading && <Loader fullscreen text="Creating your chatSocial account..." />}
       <style>{`
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear {
@@ -144,10 +160,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn }: SignUpProps) {
 
           <button
             type="button"
-            onClick={() => {
-              console.log("Google login clicked");
-              if (onLoginSuccess) onLoginSuccess();
-            }}
+            onClick={handleGoogleLogin}
             className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-lg border border-border/80 bg-background hover:bg-accent/60 text-sm font-medium text-foreground transition-colors focus-visible:outline-none cursor-pointer"
           >
             <img
