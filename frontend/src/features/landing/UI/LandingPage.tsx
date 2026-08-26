@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { ArrowRight, Lock, ShieldCheck, Zap, Mic, Image as ImageIcon } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -7,13 +8,29 @@ import { GrassCanvas } from "./GrassCanvas";
 import { LandingNav } from "./LandingNav";
 
 export interface LandingPageProps {
-  onSignIn: () => void;
-  onSignUp: () => void;
-  onOpenApp: () => void;
+  onSignIn?: () => void;
+  onSignUp?: () => void;
+  onOpenApp?: () => void;
 }
 
 export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps) {
+  const navigate = useNavigate();
   const [utcTime, setUtcTime] = useState<string>("");
+
+  const handleSignIn = () => {
+    if (onSignIn) onSignIn();
+    else navigate("/signin");
+  };
+
+  const handleSignUp = () => {
+    if (onSignUp) onSignUp();
+    else navigate("/signup");
+  };
+
+  const handleOpenApp = () => {
+    if (onOpenApp) onOpenApp();
+    else navigate("/chat");
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -32,7 +49,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
       origin: { y: 0.6 },
       colors: ["#10b981", "#06b6d4", "#34d399", "#ffffff"],
     });
-    onOpenApp();
+    handleOpenApp();
   };
 
   const partnerLogos = [
@@ -82,7 +99,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
       {/* 3D Interactive WebGL Starry Night & Ultra-Subtle Swaying Grass Background */}
       <GrassCanvas windSpeed={0.8} bladeCount={19000} />
 
-      {/* Radiant Chromatic Glowing Aura (Matching the Reference Arc) */}
+      {/* Radiant Chromatic Glowing Aura */}
       <div 
         className="absolute -top-32 -right-32 w-[850px] h-[850px] pointer-events-none opacity-40 blur-[130px] rounded-full"
         style={{
@@ -92,7 +109,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/50 via-transparent to-black/90" />
 
       {/* Fixed Modern Navigation */}
-      <LandingNav onSignIn={onSignIn} onSignUp={onSignUp} onOpenApp={onOpenApp} />
+      <LandingNav onSignIn={handleSignIn} onSignUp={handleSignUp} onOpenApp={handleOpenApp} />
 
       {/* Structured Hero Section matching the Reference Template */}
       <main className="relative z-20 max-w-7xl mx-auto px-6 sm:px-12 w-full pt-32 sm:pt-36 pb-12 flex flex-col justify-center my-auto">
