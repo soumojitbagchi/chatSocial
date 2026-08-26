@@ -8,9 +8,10 @@ import signUpImage from "@/assets/auth-signup.jpg";
 export interface SignUpProps {
   onLoginSuccess?: () => void;
   onSwitchToSignIn?: () => void;
+  onBackToHome?: () => void;
 }
 
-export function SignUp({ onLoginSuccess, onSwitchToSignIn }: SignUpProps) {
+export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignUpProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
@@ -54,9 +55,19 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn }: SignUpProps) {
       {/* Left Form Canvas */}
       <div className="flex min-h-screen items-center justify-center p-6 md:p-12 relative z-10">
         <div className="mx-auto grid w-full max-w-[380px] gap-6">
-          {/* Logo Header */}
-          <div className="flex justify-center mb-1">
-            <ChatSocialLogo size={28} />
+          {/* Header with Back Link & Logo */}
+          <div className="flex items-center justify-between mb-1">
+            {onBackToHome ? (
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="text-xs font-mono text-muted-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+              >
+                &larr; Home
+              </button>
+            ) : <span />}
+            <ChatSocialLogo size={26} />
+            <span className="w-8" />
           </div>
 
           <form onSubmit={handleSubmit} autoComplete="on" className="flex flex-col gap-5">
