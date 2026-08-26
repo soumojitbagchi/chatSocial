@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Edit2, Shield, Bell, HelpCircle } from 'lucide-react';
+import { Camera, Edit2 } from 'lucide-react';
 import '../style/components.css';
 
 const UserProfile = ({ onClose }) => {
