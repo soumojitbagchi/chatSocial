@@ -131,21 +131,24 @@ export function useGroups(): UseGroupsReturn {
     const validId = generateValidObjectId();
     try {
       const created = await chatApi.createRoom({ roomname: newGroup.name, description: newGroup.description });
+      const roomId = created?._id || validId;
       const fullGroup: GroupItem = {
         ...newGroup,
-        id: created._id || validId,
-        chatId: created._id || validId
+        id: roomId,
+        chatId: roomId
       };
       setGroups((prev) => {
-        const updated = [fullGroup, ...prev];
+        const updated = [fullGroup, ...prev.filter((g) => g.id !== roomId)];
         chatStorage.saveGroups(updated);
         return updated;
       });
       setSelectedGroup(fullGroup);
-      socketService.createRoom(newGroup.name, newGroup.description);
+      socketService.joinRoom(roomId);
       await fetchBackendRooms();
       return fullGroup;
     } catch {
+      // Fallback: If REST fails, attempt via socket/local
+      socketService.createRoom(newGroup.name, newGroup.description || '');
       const fullGroup: GroupItem = {
         ...newGroup,
         id: validId,
@@ -157,7 +160,6 @@ export function useGroups(): UseGroupsReturn {
         return updated;
       });
       setSelectedGroup(fullGroup);
-      socketService.createRoom(newGroup.name, newGroup.description);
       return fullGroup;
     }
   }, [fetchBackendRooms]);

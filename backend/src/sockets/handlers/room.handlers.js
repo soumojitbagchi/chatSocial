@@ -49,13 +49,16 @@ const roomHandler = (io, socket) => {
 
       socket.join(roomId);
 
-      socket.emit("room:created", {
+      const roomCreatedPayload = {
         success: true,
         roomId,
         roomname: room.roomname,
         description: room.description,
         createdBy: room.createdBy,
-      });
+      };
+
+      socket.emit("room:created", roomCreatedPayload);
+      socket.broadcast.emit("room:created", roomCreatedPayload);
 
       const count = io.engine.clientsCount;
       console.log(`Number of connected clients: ${count}`);
