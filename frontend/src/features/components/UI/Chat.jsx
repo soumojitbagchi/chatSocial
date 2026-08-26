@@ -17,8 +17,7 @@ import {
   User, 
   BarChart2, 
   ArrowLeft,
-  PhoneCall,
-  Pin
+  PhoneCall
 } from 'lucide-react';
 import '../style/components.css';
 
