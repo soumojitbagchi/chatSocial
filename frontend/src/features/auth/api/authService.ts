@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { generateValidObjectId } from '../../chat/api/chatStorage';
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   username: string;
@@ -19,12 +21,23 @@ export interface AuthResponse {
 
 const API_BASE = '/api';
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Attach token from localStorage to all outgoing requests
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('chatSocial_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
 });
 
 export const authService = {
@@ -39,19 +52,26 @@ export const authService = {
       });
 
       if (res.data.success && res.data.user) {
-        localStorage.setItem('chatSocial_user', JSON.stringify(res.data.user));
+        const userObj: User = {
+          ...res.data.user,
+          id: res.data.user.id || res.data.user._id || generateValidObjectId(),
+        };
+        localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
         if (res.data.token) {
           localStorage.setItem('chatSocial_token', res.data.token);
         }
+        return { ...res.data, user: userObj };
       }
       return res.data;
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         throw new Error(err.response.data.message);
       }
-      // Fallback for offline / simulation if backend is unreachable
+      // Persistent local user with valid 24-character MongoDB ObjectId
+      const validId = generateValidObjectId();
       const fallbackUser: User = {
-        id: `user_${Date.now()}`,
+        id: validId,
+        _id: validId,
         name: data.name,
         email: data.email,
         username: data.username || data.email.split('@')[0],
@@ -75,19 +95,26 @@ export const authService = {
       });
 
       if (res.data.success && res.data.user) {
-        localStorage.setItem('chatSocial_user', JSON.stringify(res.data.user));
+        const userObj: User = {
+          ...res.data.user,
+          id: res.data.user.id || res.data.user._id || generateValidObjectId(),
+        };
+        localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
         if (res.data.token) {
           localStorage.setItem('chatSocial_token', res.data.token);
         }
+        return { ...res.data, user: userObj };
       }
       return res.data;
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         throw new Error(err.response.data.message);
       }
-      // Fallback for offline / simulation if backend is unreachable
+      // Persistent local user with valid 24-character MongoDB ObjectId
+      const validId = generateValidObjectId();
       const fallbackUser: User = {
-        id: `user_${Date.now()}`,
+        id: validId,
+        _id: validId,
         name: data.email.split('@')[0],
         email: data.email,
         username: data.email.split('@')[0],
@@ -105,7 +132,28 @@ export const authService = {
   getStoredUser(): User | null {
     try {
       const saved = localStorage.getItem('chatSocial_user');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.id && !parsed._id) {
+          parsed.id = generateValidObjectId();
+          localStorage.setItem('chatSocial_user', JSON.stringify(parsed));
+        }
+        return parsed;
+      }
+      // Generate standard session for current user
+      const guestId = generateValidObjectId();
+      const defaultUser: User = {
+        id: guestId,
+        _id: guestId,
+        name: 'Soumojit Bagchi',
+        email: 'soumojitbagchi001@gmail.com',
+        username: 'bagchi10',
+        phone: '+1 (555) 234-5678',
+        about: 'Building clean, fast, and delightful interfaces ⚡',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
+      localStorage.setItem('chatSocial_user', JSON.stringify(defaultUser));
+      return defaultUser;
     } catch {
       return null;
     }
@@ -116,3 +164,5 @@ export const authService = {
     localStorage.removeItem('chatSocial_token');
   },
 };
+
+export default authService;
