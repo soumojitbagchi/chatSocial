@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar, MessageSquare, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import '../style/components.css';
 
 const ConversationHistory = ({ chatName, messages = [] }) => {
