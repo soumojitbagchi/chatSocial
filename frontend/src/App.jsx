@@ -1,13 +1,15 @@
 import React from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router';
-import Home from './features/components/UI/Home';
+import { AuthProvider } from './features/auth/state/AuthContext';
+import { ChatProvider } from './features/chat/state/ChatContext';
+import Home from './features/chat/UI/Home';
 import LandingPage from './features/landing/UI/LandingPage';
 import SignIn from './features/auth/UI/SignIn';
 import SignUp from './features/auth/UI/SignUp';
 import './App.css';
-import './features/components/style/components.css';
+import './features/chat/style/components.css';
 
-const App = () => {
+const AppRoutes = () => {
   const navigate = useNavigate();
 
   return (
@@ -28,6 +30,16 @@ const App = () => {
       {/* Fallback Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+};
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <ChatProvider>
+        <AppRoutes />
+      </ChatProvider>
+    </AuthProvider>
   );
 };
 
