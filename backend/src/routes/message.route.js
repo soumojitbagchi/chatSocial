@@ -12,6 +12,7 @@ const router = express.Router();
 
 router.post("/", authMiddleware, createMessageController);
 router.get("/", getAllMessagesController);
+router.get("/room/:roomId", getAllMessagesController);
 router.get("/:messageId", getMessageByIdController);
 router.put("/:messageId", authMiddleware, updateMessageController);
 router.delete("/:messageId", authMiddleware, deleteMessageController);

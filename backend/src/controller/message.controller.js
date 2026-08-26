@@ -2,25 +2,43 @@ import * as messageService from "../service/message.service.js";
 
 export const createMessageController = async (req, res) => {
     try {
-        const message = await messageService.createMessage(req.body);
+        const userId = req.user?.id || req.user?._id || req.body?.userId;
+        const roomId = req.body?.roomId;
+        const text = req.body?.text ?? req.body?.message;
+
+        const message = await messageService.createMessage({
+            userId,
+            roomId,
+            text,
+        });
         res.status(201).json({ success: true, data: message });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        const statusCode = error.message === "Room not found" ? 404 : 400;
+        res.status(statusCode).json({ success: false, message: error.message });
     }
 };
 
 export const getAllMessagesController = async (req, res) => {
     try {
-        const messages = await messageService.getAllMessages(req.query);
+        const roomId = req.query?.roomId || req.params?.roomId || req.query?.room_id;
+        const { limit, page } = req.query;
+
+        if (!roomId) {
+            return res.status(400).json({ success: false, message: "Room ID is required" });
+        }
+
+        const messages = await messageService.getAllMessages({ roomId, limit, page });
         res.status(200).json({ success: true, data: messages });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        const statusCode = error.message.includes("Invalid") || error.message.includes("required") ? 400 : 500;
+        res.status(statusCode).json({ success: false, message: error.message });
     }
 };
 
 export const getMessageByIdController = async (req, res) => {
     try {
-        const message = await messageService.getMessageById(req.params.messageId);
+        const { messageId } = req.params;
+        const message = await messageService.getMessageById(messageId);
         res.status(200).json({ success: true, data: message });
     } catch (error) {
         const statusCode = error.message === "Message not found" ? 404 : 400;
@@ -30,20 +48,44 @@ export const getMessageByIdController = async (req, res) => {
 
 export const updateMessageController = async (req, res) => {
     try {
-        const message = await messageService.updateMessage(req.params.messageId, req.body);
+        const { messageId } = req.params;
+        const userId = req.user?.id || req.user?._id || req.body?.userId;
+        const text = req.body?.text ?? req.body?.newMessage;
+
+        const message = await messageService.updateMessage({
+            messageId,
+            userId,
+            text,
+        });
         res.status(200).json({ success: true, data: message });
     } catch (error) {
-        const statusCode = error.message === "Message not found" ? 404 : 400;
+        let statusCode = 400;
+        if (error.message === "Message not found") {
+            statusCode = 404;
+        } else if (error.message.includes("Unauthorized")) {
+            statusCode = 403;
+        }
         res.status(statusCode).json({ success: false, message: error.message });
     }
 };
 
 export const deleteMessageController = async (req, res) => {
     try {
-        const message = await messageService.deleteMessage(req.params.messageId);
+        const { messageId } = req.params;
+        const userId = req.user?.id || req.user?._id || req.body?.userId;
+
+        const message = await messageService.deleteMessage({
+            messageId,
+            userId,
+        });
         res.status(200).json({ success: true, data: message });
     } catch (error) {
-        const statusCode = error.message === "Message not found" ? 404 : 400;
+        let statusCode = 400;
+        if (error.message === "Message not found") {
+            statusCode = 404;
+        } else if (error.message.includes("Unauthorized")) {
+            statusCode = 403;
+        }
         res.status(statusCode).json({ success: false, message: error.message });
     }
 };

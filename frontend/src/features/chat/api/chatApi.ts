@@ -9,9 +9,16 @@ export interface ApiRoom {
   updatedAt: string;
 }
 
+export interface ApiMessageUser {
+  _id: string;
+  name: string;
+  username: string;
+  avatar?: string;
+}
+
 export interface ApiMessage {
   _id: string;
-  userId: string | { _id: string; name: string; username: string };
+  userId: string | ApiMessageUser;
   roomId: string;
   text: string;
   edited?: boolean;
@@ -79,19 +86,28 @@ export const chatApi = {
   },
 
   // Messages REST API
-  async getMessages(query?: { roomId?: string; limit?: number; page?: number }): Promise<ApiMessage[]> {
+  async getMessages(query?: string | { roomId?: string; limit?: number; page?: number }): Promise<ApiMessage[]> {
     try {
-      const res = await api.get<ApiResponse<ApiMessage[]>>('/messages', { params: query });
-      return res.data.data || [];
-    } catch {
+      const params = typeof query === 'string' ? { roomId: query } : query;
+      const res = await api.get<ApiResponse<ApiMessage[]>>('/messages', { params });
+      if (Array.isArray(res.data)) {
+        return res.data;
+      }
+      return res.data?.data || [];
+    } catch (err) {
+      console.warn('Failed to fetch messages:', err);
       return [];
     }
+  },
+
+  async getRoomMessages(roomId: string, limit: number = 50, page: number = 1): Promise<ApiMessage[]> {
+    return this.getMessages({ roomId, limit, page });
   },
 
   async getMessageById(messageId: string): Promise<ApiMessage | null> {
     try {
       const res = await api.get<ApiResponse<ApiMessage>>(`/messages/${messageId}`);
-      return res.data.data || null;
+      return res.data?.data || null;
     } catch {
       return null;
     }
@@ -102,8 +118,9 @@ export const chatApi = {
     return res.data.data;
   },
 
-  async updateMessage(messageId: string, data: { text: string }): Promise<ApiMessage> {
-    const res = await api.put<ApiResponse<ApiMessage>>(`/messages/${messageId}`, data);
+  async updateMessage(messageId: string, data: { text: string } | string): Promise<ApiMessage> {
+    const payload = typeof data === 'string' ? { text: data } : data;
+    const res = await api.put<ApiResponse<ApiMessage>>(`/messages/${messageId}`, payload);
     return res.data.data;
   },
 

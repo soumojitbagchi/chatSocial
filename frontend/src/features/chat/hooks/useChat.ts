@@ -474,13 +474,14 @@ export function useChat(): UseChatReturn {
     }
 
     // 4. Update chat list last message and persist
-    setChats((prevChats) => {
-      const updated = prevChats.map((c) => {
+    const computedMediaType: ChatItem['mediaType'] = type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
+    setChats((prevChats: ChatItem[]) => {
+      const updated: ChatItem[] = prevChats.map((c) => {
         if (c.id === activeChatId) {
           return {
             ...c,
             lastMessage: type === 'document' ? String(meta.fileName || 'Document') : text,
-            mediaType: type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined,
+            mediaType: computedMediaType,
             time: currentTime,
             unread: 0
           };

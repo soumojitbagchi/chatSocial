@@ -31,6 +31,7 @@ export interface ChatItem {
   unread?: number;
   online?: boolean;
   status?: string;
+  statusText?: string;
   isGroup?: boolean;
   groupMembers?: string;
 }
