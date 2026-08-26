@@ -1,20 +1,59 @@
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import messageHandlers from "./handlers/message.handlers.js";
 import roomHandler from "./handlers/room.handlers.js";
 import presentHandler from "./handlers/present.handler.js";
 
 const registerSocketHandler = (io) => {
     io.use((socket, next) => {
-        if (!socket.user) {
+        try {
+            const token =
+                socket.handshake.auth?.token ||
+                socket.handshake.headers?.authorization?.replace(/^Bearer\s+/, '') ||
+                null;
+
+            if (token && process.env.JWT_KEY) {
+                try {
+                    const decoded = jwt.verify(token, process.env.JWT_KEY);
+                    socket.user = {
+                        id: decoded.id || decoded._id,
+                        username: decoded.username || decoded.name || "User",
+                        email: decoded.email,
+                    };
+                    return next();
+                } catch {
+                    next(new Error("Unauthorized: Invalid token"));
+                }
+            }
+
+            const queryUserId = socket.handshake.query?.userId;
+            const queryUsername = socket.handshake.query?.username;
+            if (queryUserId && typeof queryUserId === "string" && mongoose.Types.ObjectId.isValid(queryUserId)) {
+                socket.user = {
+                    id: queryUserId,
+                    username: queryUsername || "User_" + queryUserId.slice(-4),
+                };
+                return next();
+            }
+
+            if (!socket.user) {
+                socket.user = {
+                    id: socket.id,
+                    username: "User_" + socket.id.slice(0, 5),
+                };
+            }
+            next();
+        } catch {
             socket.user = {
                 id: socket.id,
                 username: "User_" + socket.id.slice(0, 5),
             };
+            next();
         }
-        next();
     });
 
     io.on("connection", (socket) => {
-        console.log(`User connected: ${socket.id}`);
+        console.log(`User connected: ${socket.id} (user: ${socket.user?.username} / id: ${socket.user?.id})`);
         presentHandler(io, socket);
         messageHandlers(io, socket);
         roomHandler(io, socket);

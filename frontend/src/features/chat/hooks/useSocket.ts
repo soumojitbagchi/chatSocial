@@ -5,10 +5,14 @@ export interface UseSocketReturn {
   isConnected: boolean;
   onlineUsers: string[];
   sendMessage: (roomId: string, text: string) => void;
+  editMessage: (messageId: string, newMessage: string) => void;
+  deleteMessage: (messageId: string) => void;
+  getMessages: (roomId: string, limit?: number, page?: number) => void;
   joinRoom: (roomId: string) => void;
   leaveRoom: (roomId: string) => void;
   switchRoom: (oldRoomId: string, newRoomId: string) => void;
   createRoom: (roomname: string, description?: string) => void;
+  emit: (event: string, data: unknown) => void;
   on: (event: string, callback: SocketEventCallback) => () => void;
 }
 
@@ -65,6 +69,18 @@ export function useSocket(): UseSocketReturn {
     socketService.sendMessage(roomId, text);
   }, []);
 
+  const editMessage = useCallback((messageId: string, newMessage: string) => {
+    socketService.editMessage(messageId, newMessage);
+  }, []);
+
+  const deleteMessage = useCallback((messageId: string) => {
+    socketService.deleteMessage(messageId);
+  }, []);
+
+  const getMessages = useCallback((roomId: string, limit: number = 50, page: number = 1) => {
+    socketService.getMessages(roomId, limit, page);
+  }, []);
+
   const joinRoom = useCallback((roomId: string) => {
     socketService.joinRoom(roomId);
   }, []);
@@ -81,6 +97,10 @@ export function useSocket(): UseSocketReturn {
     socketService.createRoom(roomname, description || '');
   }, []);
 
+  const emit = useCallback((event: string, data: unknown) => {
+    socketService.emit(event, data);
+  }, []);
+
   const on = useCallback((event: string, callback: SocketEventCallback) => {
     return socketService.on(event, callback);
   }, []);
@@ -89,10 +109,14 @@ export function useSocket(): UseSocketReturn {
     isConnected,
     onlineUsers,
     sendMessage,
+    editMessage,
+    deleteMessage,
+    getMessages,
     joinRoom,
     leaveRoom,
     switchRoom,
     createRoom,
+    emit,
     on,
   };
 }
