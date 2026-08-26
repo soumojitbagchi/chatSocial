@@ -12,7 +12,8 @@ import {
   X,
   UserPlus,
   Users,
-  Archive
+  Archive,
+  MessageSquare
 } from 'lucide-react';
 import '../style/components.css';
 
@@ -273,98 +274,114 @@ export const ChatList: React.FC<ChatListProps> = ({
 
           {/* Chat List Rows */}
           <div className="cs-chat-rows">
-            {filteredChats.map((chat) => {
-              const isSelected = chat.id === activeChatId;
-
-              return (
-                <div
-                  key={chat.id}
-                  className={`cs-chat-card ${isSelected ? 'active' : ''}`}
-                  onClick={() => onSelectChat(chat.id)}
-                  role="button"
-                  tabIndex={0}
+            {filteredChats.length === 0 ? (
+              <div className="text-center py-10 px-4 space-y-2">
+                <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 mx-auto flex items-center justify-center">
+                  <MessageSquare size={18} />
+                </div>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No rooms or chats yet</p>
+                <p className="text-[11px] text-slate-400 max-w-xs mx-auto">Create a new room on the server to start chatting!</p>
+                <button
+                  onClick={onNewChat}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm cursor-pointer"
                 >
-                  {/* Left Avatar with Online Dot */}
-                  <div className="relative shrink-0">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm">
-                      {chat.avatar ? (
-                        <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div 
-                          className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
-                          style={{ backgroundColor: chat.avatarBg || '#ec4899' }}
-                        >
-                          {chat.initials || chat.name.slice(0, 2).toUpperCase()}
-                        </div>
+                  + Create Room
+                </button>
+              </div>
+            ) : (
+              filteredChats.map((chat) => {
+                const isSelected = chat.id === activeChatId;
+
+                return (
+                  <div
+                    key={chat.id}
+                    className={`cs-chat-card ${isSelected ? 'active' : ''}`}
+                    onClick={() => onSelectChat(chat.id)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    {/* Left Avatar with Online Dot */}
+                    <div className="relative shrink-0">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm">
+                        {chat.avatar ? (
+                          <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div 
+                            className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
+                            style={{ backgroundColor: chat.avatarBg || '#ec4899' }}
+                          >
+                            {chat.initials || chat.name.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      {chat.online && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                       )}
                     </div>
-                    {chat.online && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
-                    )}
-                  </div>
 
-                  {/* Middle Content */}
-                  <div className="flex-1 min-w-0 pr-1">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <h4 className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
-                        {chat.name}
-                      </h4>
-                      <span className="text-[11px] font-medium text-slate-400 shrink-0 ml-2">
-                        {chat.time}
-                      </span>
-                    </div>
+                    {/* Middle Content */}
+                    <div className="flex-1 min-w-0 pr-1">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <h4 className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
+                          {chat.name}
+                        </h4>
+                        <span className="text-[11px] font-medium text-slate-400 shrink-0 ml-2">
+                          {chat.time}
+                        </span>
+                      </div>
 
-                    <div className="flex items-center justify-between gap-1">
-                      {/* Subtitle / Last Message Preview */}
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
-                        {chat.isTyping ? (
-                          <span className="text-violet-600 dark:text-violet-400 font-medium italic flex items-center gap-1">
-                            <span>is typing</span>
-                            <span className="cs-typing-dots">
-                              <span />
-                              <span />
-                              <span />
+                      <div className="flex items-center justify-between gap-1">
+                        {/* Subtitle / Last Message Preview */}
+                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
+                          {chat.isTyping ? (
+                            <span className="text-violet-600 dark:text-violet-400 font-medium italic flex items-center gap-1">
+                              <span>is typing</span>
+                              <span className="cs-typing-dots">
+                                <span />
+                                <span />
+                                <span />
+                              </span>
                             </span>
-                          </span>
-                        ) : chat.mediaType === 'photo' ? (
-                          <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                            <ImageIcon size={13} className="text-slate-400" />
-                            <span>Photo</span>
-                          </span>
-                        ) : chat.mediaType === 'video-call' ? (
-                          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                            <Video size={13} />
-                            <span>Incoming Video Call</span>
-                          </span>
-                        ) : chat.mediaType === 'document' ? (
-                          <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                            <FileText size={13} className="text-slate-400" />
-                            <span>Document</span>
-                          </span>
-                        ) : (
-                          <span className="truncate">{chat.lastMessage}</span>
-                        )}
-                      </div>
+                          ) : chat.mediaType === 'photo' ? (
+                            <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                              <ImageIcon size={13} className="text-slate-400" />
+                              <span>Photo</span>
+                            </span>
+                          ) : chat.mediaType === 'video-call' ? (
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                              <Video size={13} />
+                              <span>Incoming Video Call</span>
+                            </span>
+                          ) : chat.mediaType === 'document' ? (
+                            <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                              <FileText size={13} className="text-slate-400" />
+                              <span>Document</span>
+                            </span>
+                          ) : (
+                            <span className="truncate">{chat.lastMessage}</span>
+                          )}
+                        </div>
 
-                      {/* Right Meta: Pin icon & Badge pill */}
-                      <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
-                        {chat.pinned && (
-                          <Pin size={12} className="text-slate-400 rotate-45" />
-                        )}
+                        {/* Right Meta: Pin icon & Badge pill */}
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
+                          {chat.pinned && (
+                            <Pin size={12} className="text-slate-400 rotate-45" />
+                          )}
 
-                        {(chat.unread || 0) > 0 ? (
-                          <span className="cs-unread-pill">
-                            {chat.unread}
-                          </span>
-                        ) : chat.status === 'read' ? (
-                          <CheckCheck size={14} className="text-emerald-500" />
-                        ) : null}
+                          {(chat.unread || 0) > 0 ? (
+                            <span className="cs-unread-pill">
+                              {chat.unread}
+                            </span>
+                          ) : chat.status === 'read' ? (
+                            <CheckCheck size={14} className="text-emerald-500" />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

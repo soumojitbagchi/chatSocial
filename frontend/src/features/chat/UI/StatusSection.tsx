@@ -31,9 +31,15 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
   onViewStory,
   onAddStory
 }) => {
-  const myStatus = statusUpdates.find((s) => s.isMe) || statusUpdates[0];
+  const myStatus = statusUpdates.find((s) => s.isMe) || {
+    id: 'my-status-init',
+    userName: 'My Status',
+    time: 'Tap to add status update',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    hasStory: false,
+    isMe: true,
+  };
   const recentUpdates = statusUpdates.filter((s) => !s.isMe);
-
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Left Status Feed */}
@@ -84,34 +90,39 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
               Recent Updates
             </h4>
+            {recentUpdates.length === 0 ? (
+              <p className="text-xs text-slate-400 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl">
+                No status updates from contacts yet.
+              </p>
+            ) : (
+              recentUpdates.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => onViewStory(item)}
+                  className="p-3 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Avatar with Vibrant Story Ring */}
+                    <div className="relative p-0.5 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-500 to-pink-500">
+                      <img
+                        src={item.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                        alt={item.userName}
+                        className="w-11 h-11 rounded-full object-cover border-2 border-white dark:border-slate-900"
+                      />
+                    </div>
 
-            {recentUpdates.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onViewStory(item)}
-                className="p-3 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Avatar with Vibrant Story Ring */}
-                  <div className="relative p-0.5 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-500 to-pink-500">
-                    <img
-                      src={item.avatar}
-                      alt={item.userName}
-                      className="w-11 h-11 rounded-full object-cover border-2 border-white dark:border-slate-900"
-                    />
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                        {item.userName}
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">{item.time}</p>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                      {item.userName}
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">{item.time}</p>
-                  </div>
+                  <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
                 </div>
-
-                <ChevronRight size={16} className="text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </section>

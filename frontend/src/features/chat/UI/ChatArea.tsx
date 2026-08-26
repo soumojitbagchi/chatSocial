@@ -18,7 +18,8 @@ import {
   Image as ImageIcon, 
   User, 
   ArrowLeft,
-  BarChart2
+  BarChart2,
+  MessageSquare
 } from 'lucide-react';
 import { ChatItem } from './ChatList';
 import '../style/components.css';
@@ -290,6 +291,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* Messages Scroll Feed */}
       <div className="cs-messages-container">
+        {messages.length === 0 && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto text-slate-400 select-none">
+            <div className="w-12 h-12 rounded-full bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-3 shadow-sm">
+              <MessageSquare size={22} />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white">No messages in this room yet</h4>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs">Type a message below and hit send to start the conversation on the server!</p>
+          </div>
+        )}
         {messages.map((msg) => {
           // Date Separator Pill matching screenshot
           if (msg.type === 'date') {

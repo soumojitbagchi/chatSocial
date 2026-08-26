@@ -101,51 +101,61 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
 
         {/* List of Calls */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {filteredCalls.map((call) => {
-            const isMissed = call.direction === 'missed';
-            return (
-              <div
-                key={call.id}
-                className="p-3 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={call.avatar}
-                    alt={call.name}
-                    className="w-11 h-11 rounded-full object-cover shadow-sm shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <h4 className={`text-sm font-semibold truncate ${isMissed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
-                      {call.name}
-                    </h4>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
-                      {call.direction === 'incoming' && <PhoneIncoming size={12} className="text-emerald-500" />}
-                      {call.direction === 'outgoing' && <PhoneOutgoing size={12} className="text-emerald-500" />}
-                      {call.direction === 'missed' && <PhoneMissed size={12} className="text-rose-500" />}
-                      <span>{call.time}</span>
-                      {call.duration !== '0s' && (
-                        <>
-                          <span>•</span>
-                          <span>{call.duration}</span>
-                        </>
-                      )}
+          {filteredCalls.length === 0 ? (
+            <div className="text-center py-10 px-4 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 mx-auto flex items-center justify-center">
+                <Phone size={18} />
+              </div>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No call history</p>
+              <p className="text-[11px] text-slate-400 max-w-xs mx-auto">Start an audio or video call with your contacts anytime.</p>
+            </div>
+          ) : (
+            filteredCalls.map((call) => {
+              const isMissed = call.direction === 'missed';
+              return (
+                <div
+                  key={call.id}
+                  className="p-3 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={call.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+                      alt={call.name}
+                      className="w-11 h-11 rounded-full object-cover shadow-sm shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <h4 className={`text-sm font-semibold truncate ${isMissed ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                        {call.name}
+                      </h4>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                        {call.direction === 'incoming' && <PhoneIncoming size={12} className="text-emerald-500" />}
+                        {call.direction === 'outgoing' && <PhoneOutgoing size={12} className="text-emerald-500" />}
+                        {call.direction === 'missed' && <PhoneMissed size={12} className="text-rose-500" />}
+                        <span>{call.time}</span>
+                        {call.duration !== '0s' && (
+                          <>
+                            <span>•</span>
+                            <span>{call.duration}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Call Back Button */}
-                <div className="flex items-center gap-1 shrink-0 ml-2">
-                  <button
-                    onClick={() => onStartCall(call.name, call.type, call.avatar)}
-                    className="w-8 h-8 rounded-full bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 dark:hover:bg-violet-900 text-violet-600 dark:text-violet-400 flex items-center justify-center transition-colors cursor-pointer"
-                    title={`Call ${call.name}`}
-                  >
-                    {call.type === 'video' ? <Video size={16} /> : <Phone size={15} />}
-                  </button>
+                  {/* Call Back Button */}
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      onClick={() => onStartCall(call.name, call.type, call.avatar)}
+                      className="w-8 h-8 rounded-full bg-violet-50 dark:bg-violet-950/60 hover:bg-violet-100 dark:hover:bg-violet-900 text-violet-600 dark:text-violet-400 flex items-center justify-center transition-colors cursor-pointer"
+                      title={`Call ${call.name}`}
+                    >
+                      {call.type === 'video' ? <Video size={16} /> : <Phone size={15} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </section>
 

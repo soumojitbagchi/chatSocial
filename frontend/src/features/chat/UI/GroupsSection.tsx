@@ -117,48 +117,64 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
 
         {/* Groups List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {filteredGroups.map((grp) => {
-            const isSelected = selectedGroup?.id === grp.id;
-            return (
-              <div
-                key={grp.id}
-                onClick={() => setSelectedGroup(grp)}
-                className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${
-                  isSelected 
-                    ? 'bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60' 
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent'
-                }`}
-              >
-                <div 
-                  className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm"
-                  style={{ backgroundColor: grp.avatarBg }}
-                >
-                  {grp.initials}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                      {grp.name}
-                    </h4>
-                    {grp.isAdmin && (
-                      <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-950 px-1.5 py-0.5 rounded">
-                        Admin
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                    {grp.description}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
-                    <span>{grp.membersCount} members</span>
-                    <span>•</span>
-                    <span>{grp.lastActive}</span>
-                  </div>
-                </div>
+          {filteredGroups.length === 0 ? (
+            <div className="text-center py-10 px-4 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 mx-auto flex items-center justify-center">
+                <Users size={18} />
               </div>
-            );
-          })}
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No rooms or groups yet</p>
+              <p className="text-[11px] text-slate-400 max-w-xs mx-auto">Create a new group on the server to collaborate with members!</p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm cursor-pointer"
+              >
+                + Create Group
+              </button>
+            </div>
+          ) : (
+            filteredGroups.map((grp) => {
+              const isSelected = selectedGroup?.id === grp.id;
+              return (
+                <div
+                  key={grp.id}
+                  onClick={() => setSelectedGroup(grp)}
+                  className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${
+                    isSelected 
+                      ? 'bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60' 
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent'
+                  }`}
+                >
+                  <div 
+                    className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm"
+                    style={{ backgroundColor: grp.avatarBg }}
+                  >
+                    {grp.initials}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                        {grp.name}
+                      </h4>
+                      {grp.isAdmin && (
+                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-950 px-1.5 py-0.5 rounded">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      {grp.description}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                      <span>{grp.membersCount} members</span>
+                      <span>•</span>
+                      <span>{grp.lastActive}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </section>
 
