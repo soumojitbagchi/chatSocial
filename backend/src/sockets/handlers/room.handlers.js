@@ -1,5 +1,18 @@
 import * as roomService from "../../service/room.service.js";
 
+// Helper to normalize inputs (objects, JSON strings, or plain string IDs)
+const normalizePayload = (data) => {
+  if (typeof data === "string") {
+    const trimmed = data.trim();
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return { roomId: trimmed, roomname: trimmed };
+    }
+  }
+  return data || {};
+};
+
 // Tracks roomId -> Map<userId, Set<socketId>>
 const roomMembers = new Map();
 
@@ -7,8 +20,12 @@ const roomHandler = (io, socket) => {
   const userId = socket.user?.id || socket.user?._id?.toString() || socket.id;
   const username = socket.user?.username || socket.user?.name || "Anonymous";
 
-  socket.on("create-room", async ({ roomname, description } = {}) => {
+  socket.on("create-room", async (data = {}) => {
     try {
+      const payload = normalizePayload(data);
+      const roomname = payload.roomname;
+      const description = payload.description || "";
+
       if (!roomname || !roomname.trim()) {
         return socket.emit("room:error", { message: "Room name is required" });
       }
@@ -39,13 +56,19 @@ const roomHandler = (io, socket) => {
         description: room.description,
         createdBy: room.createdBy,
       });
+
+      const count = io.engine.clientsCount;
+      console.log(`Number of connected clients: ${count}`);
     } catch (error) {
       socket.emit("room:error", { message: error.message || "Failed to create room" });
     }
   });
 
-  socket.on("join-room", async ({ roomId } = {}) => {
+  socket.on("join-room", async (data = {}) => {
     try {
+      const payload = normalizePayload(data);
+      const roomId = payload.roomId || (typeof data === "string" ? data.trim() : null);
+
       if (!roomId) {
         return socket.emit("room:error", { message: "Room ID is required" });
       }
@@ -85,8 +108,11 @@ const roomHandler = (io, socket) => {
     }
   });
 
-  socket.on("leave-room", ({ roomId } = {}) => {
+  socket.on("leave-room", (data = {}) => {
     try {
+      const payload = normalizePayload(data);
+      const roomId = payload.roomId || (typeof data === "string" ? data.trim() : null);
+
       if (!roomId) {
         return socket.emit("room:error", { message: "Room ID is required" });
       }
@@ -118,8 +144,11 @@ const roomHandler = (io, socket) => {
     }
   });
 
-  socket.on("switch-room", async ({ oldRoomId, newRoomId } = {}) => {
+  socket.on("switch-room", async (data = {}) => {
     try {
+      const payload = normalizePayload(data);
+      const { oldRoomId, newRoomId } = payload;
+
       if (!oldRoomId || !newRoomId) {
         return socket.emit("room:error", {
           message: "Both oldRoomId and newRoomId are required",
