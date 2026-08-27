@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import messageHandlers from "./handlers/message.handlers.js";
 import roomHandler from "./handlers/room.handlers.js";
 import presentHandler from "./handlers/present.handler.js";
-
+import callHandlers from "./handlers/call.handlers.js";
 const registerSocketHandler = (io) => {
     io.use((socket, next) => {
         try {
@@ -57,6 +57,7 @@ const registerSocketHandler = (io) => {
         presentHandler(io, socket);
         messageHandlers(io, socket);
         roomHandler(io, socket);
+        callHandlers(io, socket);
         socket.on("disconnect", () => {
             console.log(`User disconnected: ${socket.id}`);
             io.emit("userDisconnected", socket.id);
