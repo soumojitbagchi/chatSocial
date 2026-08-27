@@ -72,7 +72,15 @@ class SocketService {
       'user:joined',
       'user:left',
       'message:error',
-      'room:error'
+      'room:error',
+      'incoming-call',
+      'call-accepted',
+      'call-rejected',
+      'offer',
+      'answer',
+      'ice-candidate',
+      'call-ended',
+      'call-error'
     ];
 
     events.forEach((eventName) => {
@@ -133,6 +141,35 @@ class SocketService {
 
   public switchRoom(oldRoomId: string, newRoomId: string) {
     this.emit('switch-room', { oldRoomId, newRoomId });
+  }
+
+  // Real-time WebRTC Call Signaling emitters
+  public callUser(targetUserId: string, callType: 'audio' | 'video' = 'audio') {
+    this.emit('call-user', { targetUserId, callType });
+  }
+
+  public acceptCall(callerId: string) {
+    this.emit('accept-call', { callerId });
+  }
+
+  public rejectCall(callerId: string, reason?: string) {
+    this.emit('reject-call', { callerId, reason });
+  }
+
+  public sendOffer(targetUserId: string, offer: RTCSessionDescriptionInit, targetSocketId?: string) {
+    this.emit('offer', { targetUserId, offer, targetSocketId });
+  }
+
+  public sendAnswer(targetUserId: string, answer: RTCSessionDescriptionInit, targetSocketId?: string) {
+    this.emit('answer', { targetUserId, answer, targetSocketId });
+  }
+
+  public sendIceCandidate(targetUserId: string, candidate: RTCIceCandidateInit, targetSocketId?: string) {
+    this.emit('ice-candidate', { targetUserId, candidate, targetSocketId });
+  }
+
+  public endCall(targetUserId?: string, reason?: string) {
+    this.emit('end-call', { targetUserId, reason });
   }
 
   // Event Subscription
