@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router';
 import { AuthProvider } from './features/auth/state/AuthContext';
+import { useAuthContext } from './features/auth/hooks/useAuthContext';
 import { ChatProvider } from './features/chat/state/ChatContext';
 import Home from './features/chat/UI/Home';
 import LandingPage from './features/landing/UI/LandingPage';
@@ -9,25 +10,59 @@ import SignUp from './features/auth/UI/SignUp';
 import './App.css';
 import './features/chat/style/components.css';
 
+
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, user } = useAuthContext();
+  if (!isAuthenticated && !user) {
+    return <Navigate to="/signin" replace />;
+  }
+  return children;
+};
+
+const PublicOnlyRoute = ({ children }) => {
+  const { isAuthenticated, user } = useAuthContext();
+  if (isAuthenticated || user) {
+    return <Navigate to="/chat" replace />;
+  }
+  return children;
+};
+
 const AppRoutes = () => {
   const navigate = useNavigate();
 
   return (
     <Routes>
-      {/* Landing Page */}
       <Route path="/" element={<LandingPage />} />
 
-      {/* Auth Routes */}
-      <Route path="/signin" element={<SignIn />} />
+      <Route
+        path="/signin"
+        element={
+          <PublicOnlyRoute>
+            <SignIn />
+          </PublicOnlyRoute>
+        }
+      />
       <Route path="/login" element={<Navigate to="/signin" replace />} />
-      <Route path="/signup" element={<SignUp />} />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnlyRoute>
+            <SignUp />
+          </PublicOnlyRoute>
+        }
+      />
       <Route path="/register" element={<Navigate to="/signup" replace />} />
 
-      {/* Main Chat Application */}
-      <Route path="/chat" element={<Home onLogout={() => navigate('/')} />} />
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <Home onLogout={() => navigate('/signin', { replace: true })} />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/home" element={<Navigate to="/chat" replace />} />
 
-      {/* Fallback Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
