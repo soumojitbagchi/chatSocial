@@ -47,13 +47,17 @@ const callHandlers = (io, socket) => {
                 });
             }
 
-            // Validate target user exists in database if valid ObjectId
-            if (mongoose.Types.ObjectId.isValid(targetUserId)) {
-                const userExists = await User.findById(targetUserId).lean();
-                if (!userExists) {
-                    return socket.emit("call-error", {
-                        message: "Target user does not exist",
-                    });
+            // Validate target user exists in database if database connected
+            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(targetUserId)) {
+                try {
+                    const userExists = await User.findById(targetUserId).lean();
+                    if (!userExists) {
+                        return socket.emit("call-error", {
+                            message: "Target user does not exist",
+                        });
+                    }
+                } catch (dbErr) {
+                    console.warn("DB user check failed, proceeding with presence verification:", dbErr.message);
                 }
             }
 
