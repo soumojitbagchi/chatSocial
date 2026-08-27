@@ -81,7 +81,7 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
         if (Array.isArray(backendMsgs) && backendMsgs.length > 0) {
           const mapped = backendMsgs.map((m) => mapApiMessageToChatMessage(m, currentUserId));
           
-          setMessages((prev) => {
+        setMessages((_prev) => {
             const local = chatStorage.getRoomMessages(activeRoom);
             const combined = [...local, ...mapped];
             const unique = Array.from(new Map(combined.map((msg) => [msg.id, msg])).values());
@@ -113,16 +113,18 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
 
   // Auto fetch when roomId changes
   useEffect(() => {
-    if (!roomId) {
-      setMessages([]);
-      return;
-    }
-
-    setMessages(chatStorage.getRoomMessages(roomId));
-
+    if (!roomId) return;
+    let isCancelled = false;
     if (autoFetch) {
-      fetchMessages(roomId);
+      void (async () => {
+        if (!isCancelled) {
+          await fetchMessages(roomId);
+        }
+      })();
     }
+    return () => {
+      isCancelled = true;
+    };
   }, [roomId, autoFetch, fetchMessages]);
 
   // Send message
