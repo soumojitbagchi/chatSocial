@@ -4,7 +4,7 @@ import { useNavigate, Link } from "react-router";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { ChatSocialLogo } from "@/components/ui/logo";
 import { Loader } from "@/components/ui/loader";
-import { authService } from "../api/authService";
+import { useAuthContext } from "../hooks/useAuthContext";
 import signUpImage from "@/assets/auth-signup.jpg";
 
 export interface SignUpProps {
@@ -15,6 +15,7 @@ export interface SignUpProps {
 
 export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignUpProps) {
   const navigate = useNavigate();
+  const { register } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +30,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     if (onLoginSuccess) {
       onLoginSuccess();
     } else {
-      navigate("/chat");
+      navigate("/chat", { replace: true });
     }
   };
 
@@ -39,11 +40,9 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     setIsLoading(true);
 
     try {
-      await authService.register({ name, email, password });
-      setTimeout(() => {
-        setIsLoading(false);
-        handleSuccessRedirect();
-      }, 500);
+      await register({ name: name.trim(), email: email.trim(), password });
+      setIsLoading(false);
+      handleSuccessRedirect();
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Failed to create account. Please try again.";

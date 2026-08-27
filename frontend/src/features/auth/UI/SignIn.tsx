@@ -4,7 +4,7 @@ import { useNavigate, Link } from "react-router";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { ChatSocialLogo } from "@/components/ui/logo";
 import { Loader } from "@/components/ui/loader";
-import { authService } from "../api/authService";
+import { useAuthContext } from "../hooks/useAuthContext";
 import signInImage from "@/assets/auth-signin.jpg";
 
 export interface SignInProps {
@@ -15,6 +15,7 @@ export interface SignInProps {
 
 export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignInProps) {
   const navigate = useNavigate();
+  const { login } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +28,7 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
     if (onLoginSuccess) {
       onLoginSuccess();
     } else {
-      navigate("/chat");
+      navigate("/chat", { replace: true });
     }
   };
 
@@ -37,11 +38,9 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
     setIsLoading(true);
 
     try {
-      await authService.login({ email, password });
-      setTimeout(() => {
-        setIsLoading(false);
-        handleSuccessRedirect();
-      }, 500);
+      await login({ email: email.trim(), password });
+      setIsLoading(false);
+      handleSuccessRedirect();
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.";
