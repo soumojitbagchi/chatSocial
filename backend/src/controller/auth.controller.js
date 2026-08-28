@@ -2,13 +2,16 @@ import userData from "../model/user.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
+// Pre-computed dummy bcrypt hash (cost 10) to ensure constant-time comparison on unknown users
+const DUMMY_HASH = "$2b$10$wT8mQ0K6W9U0g6iFq7D0NuF7UaL/4xU0rR2jXj3jM9jI2FvC.XfK2";
+
 export const login = async (req, res) => {
     const { email, password, username, identifier } = req.body;
     try {
         const loginId = (email || username || identifier || "").toString().trim().toLowerCase();
-        if (!loginId) {
+        if (!loginId || !password) {
             return res.status(400).json({
-                message: "Email or username is required",
+                message: "Email or username and password are required",
                 success: false
             });
         }
@@ -21,17 +24,14 @@ export const login = async (req, res) => {
             ]
         }).select("+password");
 
-        if (!isUserExists) {
-            return res.status(404).json({
-                message: "No account found with this email or username. Please check your credentials.",
-                success: false
-            });
-        }
+        // Prevent timing attack: always run bcrypt.compare regardless of user existence
+        const passwordHash = isUserExists?.password || DUMMY_HASH;
+        const isPasswordValid = await bcrypt.compare(password, passwordHash);
 
-        const isPasswordValid = await bcrypt.compare(password, isUserExists.password);
-        if (!isPasswordValid) {
+        // Return uniform 401 with generic message for both non-existent users and incorrect passwords
+        if (!isUserExists || !isPasswordValid) {
             return res.status(401).json({
-                message: "Invalid password. Please check your password and try again.",
+                message: "Invalid credentials",
                 success: false
             });
         }
@@ -67,7 +67,7 @@ export const login = async (req, res) => {
     } catch (error) {
         console.error("Login error:", error);
         return res.status(500).json({
-            message: error.message || "Internal server error",
+            message: process.env.NODE_ENV === "production" ? "Internal server error" : (error.message || "Internal server error"),
             success: false
         });
     }
@@ -156,4 +156,42 @@ export const register = async (req, res) => {
     }
 };
 
-export default { login, register };
+export const getMe = async (req, res) => {
+    try {
+        const user = await userData.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        return res.status(200).json({
+            success: true,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                username: user.username,
+            }
+        });
+    } catch (error) {
+        console.error("getMe error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch user session" });
+    }
+};
+
+export const logout = async (req, res) => {
+    try {
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax"
+        });
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully"
+        });
+    } catch (error) {
+        console.error("Logout error:", error);
+        return res.status(500).json({ success: false, message: "Failed to logout" });
+    }
+};
+
+export default { login, register, getMe, logout };

@@ -16,10 +16,11 @@ const validator = (req, res, next) => {
 
 export const signInValidator = [
     oneOf([
-        body("email").isEmail().withMessage("Please provide a valid email address"),
-        body("username").isString().notEmpty().withMessage("Username is required")
-    ], { message: "Please provide either a valid email address or username" }),
-    body("password").notEmpty().withMessage("Password is required").isLength({ min: 6 }).withMessage("Password must be at least 6 characters long"),
+        body("identifier").isString().trim().notEmpty().withMessage("Please provide an email or username"),
+        body("email").isString().trim().notEmpty().withMessage("Please provide an email or username"),
+        body("username").isString().trim().notEmpty().withMessage("Please provide an email or username")
+    ], { message: "Please provide either an email or username" }),
+    body("password").notEmpty().withMessage("Password is required"),
     validator
 ];
 
