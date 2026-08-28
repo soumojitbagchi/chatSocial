@@ -21,9 +21,11 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const nameId = useId();
   const emailId = useId();
+  const usernameId = useId();
   const passwordId = useId();
 
   const handleSuccessRedirect = () => {
@@ -40,7 +42,12 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     setIsLoading(true);
 
     try {
-      await register({ name: name.trim(), email: email.trim(), password });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        username: username.trim() || undefined,
+        password,
+      });
       setIsLoading(false);
       handleSuccessRedirect();
     } catch (err: unknown) {
@@ -50,18 +57,23 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
+    setErrorMessage("");
     setIsLoading(true);
-    setTimeout(() => {
-      authService.register({
+    try {
+      await register({
         name: "Google User",
         email: "google.user@chatsocial.com",
-        password: "google_oauth_pass"
-      }).then(() => {
-        setIsLoading(false);
-        handleSuccessRedirect();
+        username: "google_user",
+        password: "google_oauth_pass",
       });
-    }, 600);
+      setIsLoading(false);
+      handleSuccessRedirect();
+    } catch (err: unknown) {
+      setIsLoading(false);
+      const msg = err instanceof Error ? err.message : "Failed to sign up with Google.";
+      setErrorMessage(msg);
+    }
   };
 
   return (
@@ -153,6 +165,21 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                 />
               </div>
 
+              <div className="grid gap-1.5 text-left">
+                <label htmlFor={usernameId} className="text-sm font-medium text-foreground/90">
+                  Username <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <input
+                  id={usernameId}
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="johndoe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
               <div className="grid gap-1.5 text-left">
                 <label htmlFor={passwordId} className="text-sm font-medium text-foreground/90">
                   Password

@@ -19,9 +19,9 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const emailId = useId();
+  const identifierId = useId();
   const passwordId = useId();
 
   const handleSuccessRedirect = () => {
@@ -38,24 +38,28 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
     setIsLoading(true);
 
     try {
-      await login({ email: email.trim(), password });
+      await login({ identifier: identifier.trim(), password });
       setIsLoading(false);
       handleSuccessRedirect();
     } catch (err: unknown) {
       setIsLoading(false);
-      const msg = err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.";
+      const msg = err instanceof Error ? err.message : "Invalid credentials";
       setErrorMessage(msg);
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
+    setErrorMessage("");
     setIsLoading(true);
-    setTimeout(() => {
-      authService.login({ email: "google.user@chatsocial.com", password: "google_oauth_pass" }).then(() => {
-        setIsLoading(false);
-        handleSuccessRedirect();
-      });
-    }, 600);
+    try {
+      await login({ email: "google.user@chatsocial.com", password: "google_oauth_pass" });
+      setIsLoading(false);
+      handleSuccessRedirect();
+    } catch (err: unknown) {
+      setIsLoading(false);
+      const msg = err instanceof Error ? err.message : "Failed to sign in with Google.";
+      setErrorMessage(msg);
+    }
   };
 
   return (
@@ -114,18 +118,18 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
 
             <div className="grid gap-3.5">
               <div className="grid gap-1.5 text-left">
-                <label htmlFor={emailId} className="text-sm font-medium text-foreground/90">
-                  Email
+                <label htmlFor={identifierId} className="text-sm font-medium text-foreground/90">
+                  Email or Username
                 </label>
                 <input
-                  id={emailId}
-                  name="email"
-                  type="email"
+                  id={identifierId}
+                  name="identifier"
+                  type="text"
                   required
-                  autoComplete="email"
-                  placeholder="user@chatsocial.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  placeholder="user@chatsocial.com or username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>

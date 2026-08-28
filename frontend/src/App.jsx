@@ -7,23 +7,43 @@ import Home from './features/chat/UI/Home';
 import LandingPage from './features/landing/UI/LandingPage';
 import SignIn from './features/auth/UI/SignIn';
 import SignUp from './features/auth/UI/SignUp';
+import { Loader } from './components/ui/loader';
 import './App.css';
 import './features/chat/style/components.css';
 
-
+/**
+ * ProtectedRoute: Requires valid authenticated session.
+ * Unauthenticated users are redirected to /signin with replace.
+ */
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, user } = useAuthContext();
-  if (!isAuthenticated && !user) {
+  const { isAuthenticated, isVerifying } = useAuthContext();
+
+  if (isVerifying) {
+    return <Loader fullscreen text="Verifying authentication..." />;
+  }
+
+  if (!isAuthenticated) {
     return <Navigate to="/signin" replace />;
   }
-  return children;
+
+  return <ChatProvider>{children}</ChatProvider>;
 };
 
+/**
+ * PublicOnlyRoute: For guest routes like /signin and /signup.
+ * If user is already authenticated, redirects to /chat with replace.
+ */
 const PublicOnlyRoute = ({ children }) => {
-  const { isAuthenticated, user } = useAuthContext();
-  if (isAuthenticated || user) {
+  const { isAuthenticated, isVerifying } = useAuthContext();
+
+  if (isVerifying) {
+    return <Loader fullscreen text="Loading..." />;
+  }
+
+  if (isAuthenticated) {
     return <Navigate to="/chat" replace />;
   }
+
   return children;
 };
 
@@ -32,8 +52,10 @@ const AppRoutes = () => {
 
   return (
     <Routes>
+      {/* Landing Page */}
       <Route path="/" element={<LandingPage />} />
 
+      {/* Guest Only Auth Routes */}
       <Route
         path="/signin"
         element={
@@ -53,6 +75,7 @@ const AppRoutes = () => {
       />
       <Route path="/register" element={<Navigate to="/signup" replace />} />
 
+      {/* Main Chat Application (Protected) */}
       <Route
         path="/chat"
         element={
@@ -63,6 +86,7 @@ const AppRoutes = () => {
       />
       <Route path="/home" element={<Navigate to="/chat" replace />} />
 
+      {/* Fallback Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -71,9 +95,7 @@ const AppRoutes = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <ChatProvider>
-        <AppRoutes />
-      </ChatProvider>
+      <AppRoutes />
     </AuthProvider>
   );
 };
