@@ -22,7 +22,6 @@ export function useAuth(): UseAuthReturn {
   const [isVerifying, setIsVerifying] = useState<boolean>(() => Boolean(authService.getToken()));
   const [error, setError] = useState<string | null>(null);
 
-  // Verify stored session with backend on mount
   useEffect(() => {
     let isCancelled = false;
     const storedToken = authService.getToken();

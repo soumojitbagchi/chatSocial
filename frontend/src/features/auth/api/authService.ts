@@ -28,7 +28,6 @@ export const api = axios.create({
   },
 });
 
-// Attach token from localStorage to all outgoing requests
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('chatSocial_token');
@@ -39,7 +38,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 Unauthorized globally: auto-clear invalid session and redirect to signin
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -211,7 +209,6 @@ export const authService = {
     try {
       await api.post('/auth/logout');
     } catch {
-      // ignore logout network errors
     } finally {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('chatSocial_user');
