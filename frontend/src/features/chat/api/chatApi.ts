@@ -65,24 +65,30 @@ api.interceptors.response.use(
   }
 );
 
+let inFlightRoomsPromise: Promise<ApiRoom[]> | null = null;
+const inFlightMessagesPromises = new Map<string, Promise<ApiMessage[]>>();
+
 export const chatApi = {
   // Rooms REST API
   async getRooms(): Promise<ApiRoom[]> {
-    try {
-      const res = await api.get<ApiResponse<ApiRoom[]>>('/rooms');
-      return res.data.data || [];
-    } catch {
-      return [];
+    if (inFlightRoomsPromise) {
+      return inFlightRoomsPromise;
     }
-  },
 
-  async getRoomById(roomId: string): Promise<ApiRoom | null> {
-    try {
-      const res = await api.get<ApiResponse<ApiRoom>>(`/rooms/${roomId}`);
-      return res.data.data || null;
-    } catch {
-      return null;
-    }
+    inFlightRoomsPromise = (async () => {
+      try {
+        const res = await api.get<ApiResponse<ApiRoom[]>>('/rooms');
+        return res.data.data || [];
+      } catch {
+        return [];
+      } finally {
+        setTimeout(() => {
+          inFlightRoomsPromise = null;
+        }, 1500);
+      }
+    })();
+
+    return inFlightRoomsPromise;
   },
 
   async createRoom(data: { roomname: string; description?: string }): Promise<ApiRoom> {
@@ -101,17 +107,32 @@ export const chatApi = {
 
   // Messages REST API
   async getMessages(query?: string | { roomId?: string; limit?: number; page?: number }): Promise<ApiMessage[]> {
-    try {
-      const params = typeof query === 'string' ? { roomId: query } : query;
-      const res = await api.get<ApiResponse<ApiMessage[]>>('/messages', { params });
-      if (Array.isArray(res.data)) {
-        return res.data;
-      }
-      return res.data?.data || [];
-    } catch (err) {
-      console.warn('Failed to fetch messages:', err);
-      return [];
+    const params = typeof query === 'string' ? { roomId: query } : query;
+    const key = params?.roomId ? `${params.roomId}_${params.limit || 50}_${params.page || 1}` : 'all';
+
+    if (inFlightMessagesPromises.has(key)) {
+      return inFlightMessagesPromises.get(key)!;
     }
+
+    const promise = (async () => {
+      try {
+        const res = await api.get<ApiResponse<ApiMessage[]>>('/messages', { params });
+        if (Array.isArray(res.data)) {
+          return res.data;
+        }
+        return res.data?.data || [];
+      } catch (err) {
+        console.warn('Failed to fetch messages:', err);
+        return [];
+      } finally {
+        setTimeout(() => {
+          inFlightMessagesPromises.delete(key);
+        }, 1000);
+      }
+    })();
+
+    inFlightMessagesPromises.set(key, promise);
+    return promise;
   },
 
   async getRoomMessages(roomId: string, limit: number = 50, page: number = 1): Promise<ApiMessage[]> {

@@ -201,7 +201,18 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           contactName={calls.activeCall.contactName}
           avatar={calls.activeCall.avatar}
           type={calls.activeCall.type}
+          status={calls.activeCall.status}
+          statusMessage={calls.activeCall.statusMessage}
+          direction={calls.activeCall.direction}
+          isMuted={calls.activeCall.isMuted}
+          isVideoOff={calls.activeCall.isVideoOff}
+          localStream={calls.localStream}
+          remoteStream={calls.remoteStream}
+          onAcceptCall={calls.acceptCall}
+          onRejectCall={calls.rejectCall}
           onEndCall={calls.endCall}
+          onToggleMute={calls.toggleMute}
+          onToggleVideo={calls.toggleVideo}
         />
       )}
 

@@ -13,12 +13,13 @@ export interface UseGroupsReturn {
 }
 
 export function useGroups(): UseGroupsReturn {
+  const { user } = useAuthContext();
+  const userId = user?.id || user?._id || '';
   const [groups, setGroups] = useState<GroupItem[]>(() => chatStorage.getGroups());
   const [selectedGroup, setSelectedGroup] = useState<GroupItem | null>(() => {
     const cached = chatStorage.getGroups();
     return cached.length > 0 ? cached[0] : null;
   });
-
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
@@ -52,34 +53,10 @@ export function useGroups(): UseGroupsReturn {
   }, []);
 
   useEffect(() => {
+    if (!userId) return;
     let isSubscribed = true;
 
-    chatApi.getRooms().then((backendRooms) => {
-      if (!isSubscribed || !backendRooms || backendRooms.length === 0) return;
-      const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
-        id: r._id,
-        name: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: '#6f7771',
-        membersCount: 1,
-        description: r.description || 'Public collaboration room',
-        lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        unread: 0,
-        chatId: r._id,
-        isAdmin: false,
-        members: [
-          {
-            name: 'Room Admin',
-            role: 'Admin',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
-          }
-        ]
-      }));
-      setGroups(mappedGroups);
-      chatStorage.saveGroups(mappedGroups);
-      setSelectedGroup((prev) => prev || mappedGroups[0] || null);
-    }).catch(() => {});
-
+    fetchBackendRooms();
     const unbindCreated = socketService.on('room:created', (data: unknown) => {
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
@@ -125,7 +102,7 @@ export function useGroups(): UseGroupsReturn {
       unbindCreated();
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchBackendRooms]);
+  }, [userId, fetchBackendRooms]);
 
   const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'>) => {
     const validId = generateValidObjectId();

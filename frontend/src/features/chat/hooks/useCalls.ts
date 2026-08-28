@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { CallLogItem } from '../UI/CallsSection';
 import { socketService } from '../api/socketService';
-import { webRTCService } from '../api/webRTCService';
+import { callService } from '../api/callService';
+import { mediaService } from '../api/mediaService';
 
 export interface ActiveCallState {
   callId?: string;
@@ -13,17 +14,20 @@ export interface ActiveCallState {
   status: 'idle' | 'calling' | 'ringing' | 'connected' | 'ended' | 'rejected' | 'busy' | 'error';
   statusMessage?: string;
   isMuted?: boolean;
-  peerSocketId?: string;
+  isVideoOff?: boolean;
 }
 
 export interface UseCallsReturn {
   calls: CallLogItem[];
   activeCall: ActiveCallState | null;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
   startCall: (contactId: string, contactName: string, type?: 'audio' | 'video', avatar?: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => void;
-  endCall: () => void;
+  endCall: (reason?: string) => void;
   toggleMute: () => void;
+  toggleVideo: () => void;
 }
 
 const CALL_LOGS_KEY = 'chatSocial_call_logs';
@@ -42,8 +46,10 @@ export function useCalls(): UseCallsReturn {
   });
 
   const [activeCall, setActiveCall] = useState<ActiveCallState | null>(null);
-  const activeCallRef = useRef<ActiveCallState | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
+  const activeCallRef = useRef<ActiveCallState | null>(null);
   useEffect(() => {
     activeCallRef.current = activeCall;
   }, [activeCall]);
@@ -73,100 +79,85 @@ export function useCalls(): UseCallsReturn {
   };
 
   /**
-   * 1. Start an outgoing 1-to-1 WebRTC voice call
+   * 1. Start an outgoing 1-to-1 WebRTC SFU Call
    */
-  const startCall = useCallback(async (
-    contactId: string,
-    contactName: string,
-    type: 'audio' | 'video' = 'audio',
-    avatar?: string
-  ) => {
-    if (!contactId) return;
+  const startCall = useCallback(
+    async (contactId: string, contactName: string, type: 'audio' | 'video' = 'audio', avatar?: string) => {
+      if (!contactId) return;
 
-    try {
-      // Initialize WebRTC peer connection
-      await webRTCService.initPeerConnection({
-        onIceCandidate: (candidate) => {
-          const current = activeCallRef.current;
-          const targetId = current?.contactId || contactId;
-          const targetSocket = current?.peerSocketId;
-          socketService.sendIceCandidate(targetId, candidate.toJSON(), targetSocket);
-        },
-        onRemoteStream: () => {
-          setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
-        },
-        onConnectionStateChange: (state) => {
-          if (state === 'connected') {
-            callStartTimeRef.current = Date.now();
-            setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
-          } else if (state === 'disconnected' || state === 'failed') {
-            setActiveCall((prev) => prev ? { ...prev, statusMessage: 'Reconnecting...' } : null);
-          }
-        },
-      });
+      try {
+        const newCall: ActiveCallState = {
+          contactId,
+          contactName,
+          avatar,
+          type,
+          direction: 'outgoing',
+          status: 'calling',
+          statusMessage: 'Calling...',
+          isMuted: false,
+          isVideoOff: false,
+        };
+        setActiveCall(newCall);
 
-      const newCall: ActiveCallState = {
-        contactId,
-        contactName,
-        avatar,
-        type,
-        direction: 'outgoing',
-        status: 'calling',
-        statusMessage: 'Calling...',
-        isMuted: false,
-      };
-
-      setActiveCall(newCall);
-      socketService.callUser(contactId, type);
-    } catch (error) {
-      console.error('Failed to initiate voice call:', error);
-      setActiveCall({
-        contactId,
-        contactName,
-        avatar,
-        type,
-        direction: 'outgoing',
-        status: 'error',
-        statusMessage: error instanceof Error ? error.message : 'Microphone unavailable',
-      });
-      webRTCService.cleanup();
-      setTimeout(() => setActiveCall(null), 2500);
-    }
-  }, []);
+        const res = await callService.startCall(contactId, type);
+        setActiveCall((prev) => (prev ? { ...prev, callId: res.callId, status: 'calling' } : null));
+      } catch (error) {
+        console.error('[useCalls] Failed to initiate call:', error);
+        const errMsg = error instanceof Error ? error.message : 'Call initiation failed';
+        setActiveCall({
+          contactId,
+          contactName,
+          avatar,
+          type,
+          direction: 'outgoing',
+          status: 'error',
+          statusMessage: errMsg,
+        });
+        mediaService.cleanup();
+        setTimeout(() => setActiveCall(null), 2500);
+      }
+    },
+    []
+  );
 
   /**
    * 2. Accept an incoming call
    */
   const acceptCall = useCallback(async () => {
     const current = activeCallRef.current;
-    if (!current) return;
+    if (!current || !current.callId) return;
 
     try {
-      setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connecting audio...' } : null);
+      setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connecting media...' } : null));
 
-      await webRTCService.initPeerConnection({
-        onIceCandidate: (candidate) => {
-          const targetId = current.contactId;
-          const targetSocket = current.peerSocketId;
-          socketService.sendIceCandidate(targetId, candidate.toJSON(), targetSocket);
-        },
-        onRemoteStream: () => {
+      await callService.acceptCall(current.callId);
+
+      await mediaService.initCallMedia({
+        callId: current.callId,
+        type: current.type,
+        onRemoteStream: (stream) => {
+          setRemoteStream(new MediaStream(stream.getTracks()));
           callStartTimeRef.current = Date.now();
-          setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
+          setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
         },
-        onConnectionStateChange: (state) => {
+        onLocalStream: (stream) => {
+          setLocalStream(stream);
+        },
+        onMediaStateChange: (state) => {
           if (state === 'connected') {
             callStartTimeRef.current = Date.now();
-            setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
+            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+          } else if (state === 'disconnected' || state === 'failed') {
+            setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
           }
         },
       });
-
-      socketService.acceptCall(current.contactId);
     } catch (error) {
-      console.error('Failed to accept call:', error);
-      setActiveCall((prev) => prev ? { ...prev, status: 'error', statusMessage: 'Audio device error' } : null);
-      webRTCService.cleanup();
+      console.error('[useCalls] Failed to accept call:', error);
+      setActiveCall((prev) => (prev ? { ...prev, status: 'error', statusMessage: 'Media device error' } : null));
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
       setTimeout(() => setActiveCall(null), 2000);
     }
   }, []);
@@ -174,172 +165,208 @@ export function useCalls(): UseCallsReturn {
   /**
    * 3. Reject an incoming call
    */
-  const rejectCall = useCallback((reason?: string) => {
-    const current = activeCallRef.current;
-    if (current) {
-      socketService.rejectCall(current.contactId, reason || 'Call declined');
+  const rejectCall = useCallback(
+    async (reason: string = 'Call declined') => {
+      const current = activeCallRef.current;
+      if (current && current.callId) {
+        try {
+          await callService.rejectCall(current.callId, reason);
+        } catch {
+          // Ignore
+        }
 
-      const now = new Date();
-      saveCallLog({
-        id: `call-${Date.now()}`,
-        name: current.contactName,
-        avatar: current.avatar || '',
-        type: current.type,
-        direction: 'missed',
-        status: 'missed',
-        duration: '0s',
-        time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      });
-    }
+        const now = new Date();
+        saveCallLog({
+          id: `call-${Date.now()}`,
+          name: current.contactName,
+          avatar: current.avatar || '',
+          type: current.type,
+          direction: 'missed',
+          status: 'missed',
+          duration: '0s',
+          time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        });
+      }
 
-    webRTCService.cleanup();
-    setActiveCall(null);
-  }, [saveCallLog]);
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
+      setActiveCall(null);
+    },
+    [saveCallLog]
+  );
 
   /**
    * 4. End an ongoing or ringing call
    */
-  const endCall = useCallback(() => {
-    const current = activeCallRef.current;
-    if (current) {
-      socketService.endCall(current.contactId, 'Call ended by user');
+  const endCall = useCallback(
+    async (reason: string = 'Call ended by user') => {
+      const current = activeCallRef.current;
+      if (current && current.callId) {
+        try {
+          await callService.endCall(current.callId, reason);
+        } catch {
+          // Ignore
+        }
 
-      const durationSec = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
-      const now = new Date();
+        const durationSec = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
+        const now = new Date();
 
-      saveCallLog({
-        id: `call-${Date.now()}`,
-        name: current.contactName,
-        avatar: current.avatar || '',
-        type: current.type,
-        direction: current.direction,
-        status: 'completed',
-        duration: formatCallDuration(durationSec),
-        time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      });
-    }
+        saveCallLog({
+          id: `call-${Date.now()}`,
+          name: current.contactName,
+          avatar: current.avatar || '',
+          type: current.type,
+          direction: current.direction,
+          status: 'completed',
+          duration: formatCallDuration(durationSec),
+          time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        });
+      }
 
-    callStartTimeRef.current = null;
-    webRTCService.cleanup();
-    setActiveCall(null);
-  }, [saveCallLog]);
+      callStartTimeRef.current = null;
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
+      setActiveCall(null);
+    },
+    [saveCallLog]
+  );
 
   /**
    * 5. Toggle microphone mute
    */
   const toggleMute = useCallback(() => {
-    const isMuted = webRTCService.toggleMute();
+    const isMuted = mediaService.toggleMute();
     setActiveCall((prev) => (prev ? { ...prev, isMuted } : null));
   }, []);
 
   /**
-   * Wire Socket.IO WebRTC Signaling Event Listeners
+   * 6. Toggle camera video on/off
+   */
+  const toggleVideo = useCallback(() => {
+    const isVideoOff = mediaService.toggleVideo();
+    setActiveCall((prev) => (prev ? { ...prev, isVideoOff } : null));
+  }, []);
+
+  /**
+   * Wire Socket.IO Application Call and Mediasoup Event Listeners
    */
   useEffect(() => {
-    // A. incoming-call
-    const unbindIncoming = socketService.on('incoming-call', (payload: unknown) => {
+    // A. call:incoming
+    const handleIncoming = (payload: unknown) => {
       if (payload && typeof payload === 'object') {
         const data = payload as {
-          callerId?: string;
-          callerSocketId?: string;
-          callerName?: string;
-          callType?: 'audio' | 'video';
           callId?: string;
+          callerId?: string;
+          callerName?: string;
+          type?: 'audio' | 'video';
+          callType?: 'audio' | 'video';
         };
 
         if (activeCallRef.current) {
-          // Already busy in a call
-          if (data.callerId) {
-            socketService.rejectCall(data.callerId, 'User is busy in another call');
+          // Already busy in a call -> reject automatically
+          if (data.callId) {
+            callService.rejectCall(data.callId, 'User is busy in another call');
           }
           return;
         }
 
-        if (data.callerId) {
+        if (data.callId && data.callerId) {
           setActiveCall({
             callId: data.callId,
             contactId: data.callerId,
             contactName: data.callerName || `User ${data.callerId.slice(-4)}`,
-            type: data.callType || 'audio',
+            type: data.type || data.callType || 'audio',
             direction: 'incoming',
             status: 'ringing',
             statusMessage: 'Incoming call...',
-            peerSocketId: data.callerSocketId,
             isMuted: false,
+            isVideoOff: false,
           });
         }
       }
-    });
+    };
 
-    // B. call-accepted (Caller receives this when receiver accepts)
-    const unbindAccepted = socketService.on('call-accepted', async (payload: unknown) => {
+    const unbindIncoming = socketService.on('call:incoming', handleIncoming);
+    const unbindIncomingLegacy = socketService.on('incoming-call', handleIncoming);
+
+    // B. call:accepted (Caller receives this when receiver accepts)
+    const handleAccepted = async (payload: unknown) => {
       const current = activeCallRef.current;
       if (!current || current.direction !== 'outgoing') return;
 
-      const data = payload as { acceptorId?: string; acceptorSocketId?: string; callId?: string };
-      const targetSocketId = data.acceptorSocketId;
-      const targetUserId = data.acceptorId || current.contactId;
+      const data = payload as { callId?: string; participantId?: string; type?: 'audio' | 'video' };
+      const callId = data.callId || current.callId;
+      if (!callId) return;
 
       try {
-        setActiveCall((prev) => prev ? {
-          ...prev,
-          peerSocketId: targetSocketId,
-          status: 'connected',
-          statusMessage: 'Connecting audio...'
-        } : null);
+        setActiveCall((prev) =>
+          prev
+            ? {
+                ...prev,
+                callId,
+                status: 'connected',
+                statusMessage: 'Connecting media...',
+              }
+            : null
+        );
 
-        const offer = await webRTCService.createOffer();
-        socketService.sendOffer(targetUserId, offer, targetSocketId);
+        await mediaService.initCallMedia({
+          callId,
+          type: current.type,
+          onRemoteStream: (stream) => {
+            setRemoteStream(new MediaStream(stream.getTracks()));
+            callStartTimeRef.current = Date.now();
+            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+          },
+          onLocalStream: (stream) => {
+            setLocalStream(stream);
+          },
+          onMediaStateChange: (state) => {
+            if (state === 'connected') {
+              callStartTimeRef.current = Date.now();
+              setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+            } else if (state === 'disconnected' || state === 'failed') {
+              setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
+            }
+          },
+        });
       } catch (err) {
-        console.error('Error creating WebRTC offer:', err);
+        console.error('[useCalls] Error initializing caller media on call:accepted:', err);
       }
-    });
+    };
 
-    // C. offer (Receiver receives SDP offer from caller)
-    const unbindOffer = socketService.on('offer', async (payload: unknown) => {
-      const data = payload as { offer?: RTCSessionDescriptionInit; fromUserId?: string; fromSocketId?: string };
-      if (!data.offer) return;
+    const unbindAccepted = socketService.on('call:accepted', handleAccepted);
+    const unbindAcceptedLegacy = socketService.on('call-accepted', handleAccepted);
 
-      try {
-        const answer = await webRTCService.handleOffer(data.offer);
-        const targetUserId = data.fromUserId || activeCallRef.current?.contactId;
-        if (targetUserId) {
-          socketService.sendAnswer(targetUserId, answer, data.fromSocketId);
+    // C. media:newProducer (Peer created a new audio or video producer)
+    const unbindNewProducer = socketService.on('media:newProducer', async (payload: unknown) => {
+      if (payload && typeof payload === 'object') {
+        const data = payload as { producerId?: string; kind?: 'audio' | 'video' };
+        if (data.producerId) {
+          await mediaService.consumeProducer(data.producerId);
         }
-        setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
-      } catch (err) {
-        console.error('Error handling WebRTC offer:', err);
       }
     });
 
-    // D. answer (Caller receives SDP answer from receiver)
-    const unbindAnswer = socketService.on('answer', async (payload: unknown) => {
-      const data = payload as { answer?: RTCSessionDescriptionInit };
-      if (!data.answer) return;
-
-      try {
-        await webRTCService.handleAnswer(data.answer);
-        setActiveCall((prev) => prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null);
-      } catch (err) {
-        console.error('Error handling WebRTC answer:', err);
+    // D. media:producerClosed
+    const unbindProducerClosed = socketService.on('media:producerClosed', (payload: unknown) => {
+      if (payload && typeof payload === 'object') {
+        const data = payload as { producerId?: string };
+        if (data.producerId) {
+          mediaService.removeConsumer(data.producerId);
+        }
       }
     });
 
-    // E. ice-candidate (Both peers receive ICE candidates)
-    const unbindIce = socketService.on('ice-candidate', async (payload: unknown) => {
-      const data = payload as { candidate?: RTCIceCandidateInit };
-      if (data.candidate) {
-        await webRTCService.handleCandidate(data.candidate);
-      }
-    });
-
-    // F. call-rejected (Caller receives rejection)
-    const unbindRejected = socketService.on('call-rejected', (payload: unknown) => {
+    // E. call:rejected (Caller receives rejection)
+    const handleRejected = (payload: unknown) => {
       const data = payload as { reason?: string; targetUserId?: string };
       const current = activeCallRef.current;
-      const reason = data.reason || 'Call rejected';
+      const reason = data?.reason || 'Call rejected';
 
-      setActiveCall((prev) => prev ? { ...prev, status: 'rejected', statusMessage: reason } : null);
+      setActiveCall((prev) => (prev ? { ...prev, status: 'rejected', statusMessage: reason } : null));
 
       if (current) {
         const now = new Date();
@@ -355,19 +382,24 @@ export function useCalls(): UseCallsReturn {
         });
       }
 
-      webRTCService.cleanup();
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'rejected' ? null : prev));
       }, 2000);
-    });
+    };
 
-    // G. call-ended (Call terminated by peer or server)
-    const unbindEnded = socketService.on('call-ended', (payload: unknown) => {
+    const unbindRejected = socketService.on('call:rejected', handleRejected);
+    const unbindRejectedLegacy = socketService.on('call-rejected', handleRejected);
+
+    // F. call:ended (Call terminated by peer or server)
+    const handleEnded = (payload: unknown) => {
       const data = payload as { reason?: string; fromUserId?: string };
       const current = activeCallRef.current;
       const reason = data?.reason || 'Call ended';
 
-      setActiveCall((prev) => prev ? { ...prev, status: 'ended', statusMessage: reason } : null);
+      setActiveCall((prev) => (prev ? { ...prev, status: 'ended', statusMessage: reason } : null));
 
       if (current) {
         const durationSec = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
@@ -386,44 +418,61 @@ export function useCalls(): UseCallsReturn {
       }
 
       callStartTimeRef.current = null;
-      webRTCService.cleanup();
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'ended' ? null : prev));
       }, 1500);
-    });
+    };
 
-    // H. call-error
-    const unbindError = socketService.on('call-error', (payload: unknown) => {
-      const data = payload as { message?: string };
-      const message = data.message || 'Call error';
+    const unbindEnded = socketService.on('call:ended', handleEnded);
+    const unbindEndedLegacy = socketService.on('call-ended', handleEnded);
 
-      setActiveCall((prev) => prev ? { ...prev, status: 'error', statusMessage: message } : null);
-      webRTCService.cleanup();
+    // G. call:error
+    const handleError = (payload: unknown) => {
+      const data = payload as { message?: string; code?: string };
+      const message = data?.message || 'Call error';
+
+      setActiveCall((prev) => (prev ? { ...prev, status: 'error', statusMessage: message } : null));
+      mediaService.cleanup();
+      setLocalStream(null);
+      setRemoteStream(null);
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'error' ? null : prev));
       }, 2500);
-    });
+    };
+
+    const unbindError = socketService.on('call:error', handleError);
+    const unbindErrorLegacy = socketService.on('call-error', handleError);
 
     return () => {
       unbindIncoming();
+      unbindIncomingLegacy();
       unbindAccepted();
-      unbindOffer();
-      unbindAnswer();
-      unbindIce();
+      unbindAcceptedLegacy();
+      unbindNewProducer();
+      unbindProducerClosed();
       unbindRejected();
+      unbindRejectedLegacy();
       unbindEnded();
+      unbindEndedLegacy();
       unbindError();
+      unbindErrorLegacy();
     };
   }, [saveCallLog]);
 
   return {
     calls,
     activeCall,
+    localStream,
+    remoteStream,
     startCall,
     acceptCall,
     rejectCall,
     endCall,
     toggleMute,
+    toggleVideo,
   };
 }
 
