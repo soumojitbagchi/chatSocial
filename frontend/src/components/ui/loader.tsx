@@ -23,7 +23,6 @@ export function Loader({
       }}
     >
       <div className="jetpack-loader-container relative w-[220px] h-[120px] overflow-hidden flex items-center justify-center">
-        {/* Animated Flying Speeder Character */}
         <div className="jetpack-loader">
           <span className="jetpack-helmet-wing">
             <span />
@@ -37,7 +36,6 @@ export function Loader({
           </div>
         </div>
 
-        {/* High-speed Long Fazer Trail Lines */}
         <div className="jetpack-longfazers">
           <span />
           <span />
