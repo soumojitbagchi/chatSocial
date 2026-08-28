@@ -92,12 +92,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const emojiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChat]);
 
-  // Close popovers on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (attachRef.current && !attachRef.current.contains(e.target as Node)) {
@@ -111,7 +109,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Voice recording timer simulation
   useEffect(() => {
     if (!isRecording) return;
     const timer = window.setInterval(() => {
@@ -200,7 +197,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   return (
     <main className="cs-conversation" aria-label={`Conversation with ${activeChat.name}`}>
-      {/* Top Chat Header matching screenshot */}
       <header className="cs-chat-header">
         <div className="flex items-center gap-3 min-w-0">
           {onBack && (
@@ -213,7 +209,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </button>
           )}
 
-          {/* Contact Avatar with Green Dot */}
           <div className="relative shrink-0">
             <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-sm">
               {activeChat.avatar ? (
@@ -236,7 +231,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             )}
           </div>
 
-          {/* Contact Name and Status */}
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
               <span>{activeChat.name}</span>
@@ -247,7 +241,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         </div>
 
-        {/* Header Actions matching screenshot */}
         <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
           <button 
             className="cs-header-btn" 
@@ -289,7 +282,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       </header>
 
-      {/* Messages Scroll Feed */}
       <div className="cs-messages-container">
         {messages.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto text-slate-400 select-none">
@@ -301,7 +293,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         )}
         {messages.map((msg) => {
-          // Date Separator Pill matching screenshot
           if (msg.type === 'date') {
             return (
               <div key={msg.id} className="cs-date-pill-wrap">
@@ -322,7 +313,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               key={msg.id} 
               className={`cs-msg-row ${isMe ? 'sent' : 'received'} group`}
             >
-              {/* Other User Avatar on Left for Received Messages */}
               {!isMe && (
                 <div className="cs-msg-avatar-wrap">
                   <img 
@@ -333,9 +323,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               )}
 
-              {/* Message Content Column */}
               <div className={`cs-msg-col ${isMe ? 'items-end' : 'items-start'}`}>
-                {/* Meta Header Line */}
                 <div className={`cs-msg-meta-header ${isMe ? 'justify-end' : 'justify-start'}`}>
                   {isMe ? (
                     <>
@@ -355,11 +343,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   )}
                 </div>
 
-                {/* Message Bubble + Action Button Container */}
                 <div className={`cs-msg-bubble-wrap ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {/* The Message Bubble */}
                   <div className={`cs-msg-bubble ${isMe ? 'bubble-sent' : 'bubble-received'}`}>
-                    {/* Audio Player Message Type */}
                     {msg.type === 'audio' ? (
                       <div className="cs-audio-card">
                         <button
@@ -389,7 +374,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         <Volume2 size={15} className="cs-audio-speaker-icon" />
                       </div>
                     ) : msg.type === 'document' ? (
-                      /* Document / Zip File Message Type */
                       <div className="cs-doc-card">
                         <div className="cs-doc-badge">
                           <FileText size={18} className="text-violet-600" />
@@ -410,7 +394,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         </button>
                       </div>
                     ) : msg.type === 'photo' ? (
-                      /* Photo Image Message Type */
                       <div className="cs-photo-card">
                         <img 
                           src={msg.imageUrl || msg.photoUrl} 
@@ -553,10 +536,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       )}
 
-      {/* Clean Interactive Message Input Bar (Message Composer) */}
       <footer className="cs-composer-container">
         <form onSubmit={handleSend} className="cs-composer-bar">
-          {/* Attachment Paperclip Button */}
           <button
             type="button"
             onClick={() => setShowAttachMenu((prev) => !prev)}
@@ -567,7 +548,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Paperclip size={19} />
           </button>
 
-          {/* Emoji Picker Button */}
           <button
             type="button"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
