@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ReactNode } from 'react';
-import { useAuth } from '../../auth/hooks/useAuth';
+import { useAuthContext } from '../../auth/hooks/useAuthContext';
 import { useSocket } from '../hooks/useSocket';
 import { useChat } from '../hooks/useChat';
 import { useGroups } from '../hooks/useGroups';
@@ -12,7 +12,7 @@ export interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const [activeTab, setActiveTab] = useState<string>('chats');
   const [showNewChatModal, setShowNewChatModal] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {

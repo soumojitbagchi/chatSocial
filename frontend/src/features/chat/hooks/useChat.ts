@@ -3,8 +3,8 @@ import { ChatItem, RecentChatUser } from '../UI/ChatList';
 import { ChatMessage } from '../UI/ChatArea';
 import { chatApi, ApiMessage, ApiRoom } from '../api/chatApi';
 import { socketService } from '../api/socketService';
-import { authService } from '../../auth/api/authService';
-import { chatStorage, generateValidObjectId } from '../api/chatStorage';
+import { useAuthContext } from '../../auth/hooks/useAuthContext';
+import { chatStorage } from '../api/chatStorage';
 
 export interface UseChatReturn {
   chats: ChatItem[];
@@ -41,9 +41,8 @@ export function useChat(): UseChatReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading] = useState(false);
 
-  const currentUser = useMemo(() => authService.getStoredUser(), []);
-  const currentUserId = currentUser?.id || currentUser?._id || '';
-
+  const { user: authUser } = useAuthContext();
+  const currentUserId = authUser?.id || authUser?._id || '';
   const activeChat = useMemo(() => {
     return chats.find((c) => c.id === activeChatId) || chats[0] || null;
   }, [chats, activeChatId]);
@@ -139,56 +138,16 @@ export function useChat(): UseChatReturn {
     }
   }, []);
 
-  // Initial fetch on mount & window focus
+  // Initial fetch on mount & whenever user is authenticated
   useEffect(() => {
+    if (!currentUserId) return;
     let isSubscribed = true;
 
-    chatApi.getRooms().then((backendRooms) => {
-      if (!isSubscribed || !backendRooms || !Array.isArray(backendRooms) || backendRooms.length === 0) return;
-      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
-        id: r._id,
-        name: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-        lastMessage: r.description || 'No messages yet',
-        time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        unread: 0,
-        online: true,
-        statusText: r.description || 'Public Room'
-      }));
-
-      setChats((prev) => {
-        const combined = [...mappedChats, ...prev];
-        const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-        chatStorage.saveChats(unique);
-        return unique;
-      });
-
-      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
-        id: `recent-${r._id}`,
-        name: r.roomname,
-        fullName: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-        online: true,
-        chatId: r._id
-      }));
-      setRecentChats(recents);
-      chatStorage.saveRecent(recents);
-
-      setActiveChatId((prev) => {
-        if (!prev) {
-          const firstId = backendRooms[0]._id;
-          chatStorage.saveActiveRoomId(firstId);
-          socketService.joinRoom(firstId);
-          return firstId;
-        }
-        return prev;
-      });
-    }).catch(() => {});
+    fetchBackendRooms();
 
     // Listen for room creation from any user over Socket.IO
     const unbindRoomCreated = socketService.on('room:created', (data: unknown) => {
+      if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
         const roomname = String(data.roomname);
@@ -215,17 +174,11 @@ export function useChat(): UseChatReturn {
       }
     });
 
-    const handleFocus = () => {
-      fetchBackendRooms();
-    };
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       isSubscribed = false;
       unbindRoomCreated();
-      window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchBackendRooms]);
+  }, [currentUserId, fetchBackendRooms]);
 
   // Load messages whenever activeChatId changes
   useEffect(() => {
@@ -468,11 +421,9 @@ export function useChat(): UseChatReturn {
     // 3. Call REST endpoint and re-fetch to ensure complete sync
     try {
       await chatApi.createMessage({ roomId: activeChatId, text, userId: currentUserId });
-      await loadBackendMessages(activeChatId);
     } catch {
       // Local persistent message remains active
     }
-
     // 4. Update chat list last message and persist
     const computedMediaType: ChatItem['mediaType'] = type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
     setChats((prevChats: ChatItem[]) => {
@@ -499,7 +450,7 @@ export function useChat(): UseChatReturn {
       chatStorage.saveChats(updated);
       return updated;
     });
-  }, [activeChatId, currentUserId, loadBackendMessages]);
+  }, [activeChatId, currentUserId]);
 
   // Edit message & re-fetch
   const editMessage = useCallback(async (messageId: string, text: string) => {
@@ -514,11 +465,10 @@ export function useChat(): UseChatReturn {
     socketService.editMessage(messageId, text);
     try {
       await chatApi.updateMessage(messageId, { text });
-      await loadBackendMessages(activeChatId);
     } catch {
       // Saved locally
     }
-  }, [activeChatId, loadBackendMessages]);
+  }, [activeChatId]);
 
   // Create new contact or room on real backend & re-fetch
   const createNewContact = useCallback(async (name: string) => {
