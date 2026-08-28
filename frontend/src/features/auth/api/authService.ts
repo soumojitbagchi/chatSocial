@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { generateValidObjectId } from '../../chat/api/chatStorage';
 
 export interface User {
   id: string;
@@ -40,21 +39,57 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 Unauthorized globally: auto-clear invalid session and redirect to signin
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      const isAuthEndpoint = error.config?.url?.includes('/auth/signin') || error.config?.url?.includes('/auth/signup');
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('chatSocial_token');
+        localStorage.removeItem('chatSocial_user');
+        if (!window.location.pathname.startsWith('/signin') && !window.location.pathname.startsWith('/signup') && window.location.pathname !== '/') {
+          window.location.href = '/signin';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export interface LoginCredentials {
+  email?: string;
+  username?: string;
+  identifier?: string;
+  password: string;
+}
+
+export interface RegisterCredentials {
+  name: string;
+  email: string;
+  password: string;
+  username?: string;
+}
+
 export const authService = {
-  async register(data: { name: string; email: string; password: string; username?: string }): Promise<AuthResponse> {
+  async register(data: RegisterCredentials): Promise<AuthResponse> {
     try {
-      const username = data.username || data.email.split('@')[0] || `user_${Date.now()}`;
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanName = data.name.trim();
+      const fallbackUsername = cleanEmail.split('@')[0] || `user_${Date.now()}`;
+      const cleanUsername = (data.username?.trim() || fallbackUsername).toLowerCase().replace(/[^a-z0-9_.]/g, '_');
+
       const res = await api.post<AuthResponse>('/auth/signup', {
-        name: data.name,
-        email: data.email,
+        name: cleanName,
+        email: cleanEmail,
         password: data.password,
-        username,
+        username: cleanUsername,
       });
 
       if (res.data.success && res.data.user) {
         const userObj: User = {
           ...res.data.user,
-          id: res.data.user.id || res.data.user._id || generateValidObjectId(),
+          id: String(res.data.user.id || res.data.user._id || ''),
         };
         localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
         if (res.data.token) {
@@ -62,42 +97,50 @@ export const authService = {
         }
         return { ...res.data, user: userObj };
       }
-      return res.data;
+      throw new Error(res.data.message || 'Registration failed');
     } catch (err: unknown) {
-      if (axios.isAxiosError(err) && err.response?.data?.message) {
-        throw new Error(err.response.data.message);
+      if (axios.isAxiosError(err)) {
+        const errorData = err.response?.data;
+        if (errorData?.message) {
+          throw new Error(errorData.message);
+        }
+        if (Array.isArray(errorData?.errors) && errorData.errors.length > 0) {
+          const firstErr = errorData.errors[0];
+          throw new Error(firstErr.msg || firstErr.message || 'Validation error');
+        }
+        if (err.message === 'Network Error' || !err.response) {
+          throw new Error('Unable to connect to server. Please check your internet connection.');
+        }
       }
-      // Persistent local user with valid 24-character MongoDB ObjectId
-      const validId = generateValidObjectId();
-      const fallbackUser: User = {
-        id: validId,
-        _id: validId,
-        name: data.name,
-        email: data.email,
-        username: data.username || data.email.split('@')[0],
-      };
-      localStorage.setItem('chatSocial_user', JSON.stringify(fallbackUser));
-      return {
-        message: 'Account registered successfully',
-        success: true,
-        user: fallbackUser,
-        token: 'local_token_' + Date.now(),
-      };
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('Failed to register account');
     }
   },
 
-  async login(data: { email: string; password: string }): Promise<AuthResponse> {
+  async login(data: LoginCredentials): Promise<AuthResponse> {
     try {
-      const res = await api.post<AuthResponse>('/auth/signin', {
-        email: data.email,
+      const loginId = (data.identifier || data.email || data.username || '').trim();
+      const isEmail = loginId.includes('@');
+
+      const payload: Record<string, string> = {
         password: data.password,
-        identifier: data.email,
-      });
+        identifier: loginId,
+      };
+
+      if (isEmail) {
+        payload.email = loginId;
+      } else {
+        payload.username = loginId;
+      }
+
+      const res = await api.post<AuthResponse>('/auth/signin', payload);
 
       if (res.data.success && res.data.user) {
         const userObj: User = {
           ...res.data.user,
-          id: res.data.user.id || res.data.user._id || generateValidObjectId(),
+          id: String(res.data.user.id || res.data.user._id || ''),
         };
         localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
         if (res.data.token) {
@@ -105,63 +148,76 @@ export const authService = {
         }
         return { ...res.data, user: userObj };
       }
-      return res.data;
+      throw new Error(res.data.message || 'Login failed');
     } catch (err: unknown) {
-      if (axios.isAxiosError(err) && err.response?.data?.message) {
-        throw new Error(err.response.data.message);
+      if (axios.isAxiosError(err)) {
+        const errorData = err.response?.data;
+        if (errorData?.message) {
+          throw new Error(errorData.message);
+        }
+        if (Array.isArray(errorData?.errors) && errorData.errors.length > 0) {
+          const firstErr = errorData.errors[0];
+          throw new Error(firstErr.msg || firstErr.message || 'Validation error');
+        }
+        if (err.message === 'Network Error' || !err.response) {
+          throw new Error('Unable to connect to server. Please check your internet connection.');
+        }
       }
-      // Persistent local user with valid 24-character MongoDB ObjectId
-      const validId = generateValidObjectId();
-      const fallbackUser: User = {
-        id: validId,
-        _id: validId,
-        name: data.email.split('@')[0],
-        email: data.email,
-        username: data.email.split('@')[0],
-      };
-      localStorage.setItem('chatSocial_user', JSON.stringify(fallbackUser));
-      return {
-        message: 'Signed in successfully',
-        success: true,
-        user: fallbackUser,
-        token: 'local_token_' + Date.now(),
-      };
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('Invalid credentials');
     }
   },
 
-  getStoredUser(): User | null {
+  async getMe(): Promise<User | null> {
     try {
-      const saved = localStorage.getItem('chatSocial_user');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.id && !parsed._id) {
-          parsed.id = generateValidObjectId();
-          localStorage.setItem('chatSocial_user', JSON.stringify(parsed));
-        }
-        return parsed;
+      const token = this.getToken();
+      if (!token) return null;
+      const res = await api.get<{ success: boolean; user: User }>('/auth/me');
+      if (res.data.success && res.data.user) {
+        const userObj: User = {
+          ...res.data.user,
+          id: String(res.data.user.id || res.data.user._id || ''),
+        };
+        localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
+        return userObj;
       }
-      // Generate standard session for current user
-      const guestId = generateValidObjectId();
-      const defaultUser: User = {
-        id: guestId,
-        _id: guestId,
-        name: 'Soumojit Bagchi',
-        email: 'soumojitbagchi001@gmail.com',
-        username: 'bagchi10',
-        phone: '+1 (555) 234-5678',
-        about: 'Building clean, fast, and delightful interfaces ⚡',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-      };
-      localStorage.setItem('chatSocial_user', JSON.stringify(defaultUser));
-      return defaultUser;
+      return null;
     } catch {
       return null;
     }
   },
 
-  logout() {
-    localStorage.removeItem('chatSocial_user');
-    localStorage.removeItem('chatSocial_token');
+  getStoredUser(): User | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem('chatSocial_user');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('chatSocial_token');
+  },
+
+  async logout() {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // ignore logout network errors
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('chatSocial_user');
+        localStorage.removeItem('chatSocial_token');
+      }
+    }
   },
 };
 
