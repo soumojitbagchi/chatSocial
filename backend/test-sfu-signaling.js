@@ -20,7 +20,7 @@ const io = new Server(httpServer, {
 });
 registerSocketHandler(io);
 
-const PORT = 8099;
+const PORT = 8095;
 
 const userA = { id: "507f1f77bcf86cd799439011", username: "Alice", email: "alice@test.com" };
 const userB = { id: "507f1f77bcf86cd799439022", username: "Bob", email: "bob@test.com" };
