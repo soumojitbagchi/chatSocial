@@ -39,84 +39,68 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl flex flex-col items-center justify-between p-8 min-h-[460px] text-white">
-        {/* Background Ambient Glow */}
-        <div className="absolute -top-24 -left-24 w-72 h-72 bg-violet-600/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Top Header info */}
-        <div className="relative z-10 text-center space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[11px] font-mono text-emerald-400">
+    <div className="cs-modal-backdrop" role="dialog" aria-modal="true" aria-label={`${type} call with ${contactName}`}>
+      <div className="cs-call-panel">
+        <div className="cs-call-header">
+          <div className="cs-call-state">
             <ShieldCheck size={13} />
-            <span>END-TO-END ENCRYPTED</span>
+            <span>Encrypted call</span>
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight mt-2">{contactName}</h2>
-          <p className="text-xs font-mono text-white/70">
-            {type === 'video' ? 'Video Call' : 'Opus HD Voice'} • {formatDuration(callDuration)}
+          <h2>{contactName}</h2>
+          <p className="tabular-nums">
+            {type === 'video' ? 'Video call' : 'Voice call'} · {formatDuration(callDuration)}
           </p>
         </div>
 
-        {/* Center Avatar or Video Stream */}
-        <div className="relative z-10 my-auto flex flex-col items-center">
+        <div className="cs-call-media">
           {type === 'video' && !isVideoOff ? (
-            <div className="relative w-64 h-48 rounded-2xl overflow-hidden bg-slate-800 ring-2 ring-violet-500/50 shadow-xl flex items-center justify-center">
+            <div className="cs-call-video">
               <img
                 src={avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&auto=format&fit=crop&q=80'}
                 alt={contactName}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-medium text-white">
-                Remote Video Stream (1080p)
-              </div>
             </div>
           ) : (
-            <div className="relative">
-              <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-violet-500/30 shadow-2xl">
+            <div className="cs-call-avatar">
+              <div>
                 {avatar ? (
                   <img src={avatar} alt={contactName} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-violet-700 flex items-center justify-center text-white font-bold text-3xl">
+                  <div className="cs-call-avatar-fallback">
                     {contactName.charAt(0)}
                   </div>
                 )}
               </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 ring-4 ring-slate-900 flex items-center justify-center text-[10px]">
-                ⚡
-              </span>
+              <span />
             </div>
           )}
         </div>
 
-        {/* Bottom Call Controls */}
-        <div className="relative z-10 flex items-center gap-4">
-          {/* Mute Toggle */}
+        <div className="cs-call-controls">
           <button
             onClick={() => setIsMuted((prev) => !prev)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              isMuted ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
-            }`}
+            className={`cs-call-control ${isMuted ? 'active' : ''}`}
             title={isMuted ? 'Unmute' : 'Mute'}
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
-          {/* Video Toggle */}
           <button
             onClick={() => setIsVideoOff((prev) => !prev)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              isVideoOff ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
-            }`}
+            className={`cs-call-control ${isVideoOff ? 'active' : ''}`}
             title={isVideoOff ? 'Turn on video' : 'Turn off video'}
+            aria-label={isVideoOff ? 'Turn on video' : 'Turn off video'}
           >
             {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
           </button>
 
-          {/* End Call Button */}
           <button
             onClick={onEndCall}
-            className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 transition-transform active:scale-95"
+            className="cs-call-control cs-call-end"
             title="End call"
+            aria-label="End call"
           >
             <PhoneOff size={24} />
           </button>
