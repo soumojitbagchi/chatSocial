@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { socketService, SocketEventCallback } from '../api/socketService';
+import { useAuthContext } from '../../auth/hooks/useAuthContext';
 
 export interface UseSocketReturn {
   isConnected: boolean;
@@ -17,11 +18,19 @@ export interface UseSocketReturn {
 }
 
 export function useSocket(): UseSocketReturn {
-  const [isConnected, setIsConnected] = useState<boolean>(socketService.isConnected());
+  const { user, token } = useAuthContext();
+  const [isConnected, setIsConnected] = useState<boolean>(() => socketService.isConnected());
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
   useEffect(() => {
+    if (!user || !token) {
+      socketService.disconnect();
+      setIsConnected(false);
+      return;
+    }
+
     socketService.connect();
+    setIsConnected(socketService.isConnected());
 
     const unbindConnect = socketService.on('connect', () => {
       setIsConnected(true);
@@ -63,7 +72,7 @@ export function useSocket(): UseSocketReturn {
       unbindUserOnline();
       unbindUserOffline();
     };
-  }, []);
+  }, [user, token]);
 
   const sendMessage = useCallback((roomId: string, text: string) => {
     socketService.sendMessage(roomId, text);

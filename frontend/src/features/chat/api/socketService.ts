@@ -6,12 +6,10 @@ class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<SocketEventCallback>> = new Map();
   private connected: boolean = false;
+  private currentToken: string | null = null;
+  private currentUserId: string | null = null;
 
   public connect(url?: string): Socket {
-    if (this.socket && this.socket.connected) {
-      return this.socket;
-    }
-
     const socketUrl = url || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
     let token = '';
@@ -31,6 +29,16 @@ class SocketService {
       }
     }
 
+    if (this.socket) {
+      if (this.socket.connected && this.currentToken === token && this.currentUserId === userId) {
+        return this.socket;
+      }
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    this.currentToken = token;
+    this.currentUserId = userId;
     this.socket = io(socketUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
@@ -97,6 +105,8 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
       this.connected = false;
+      this.currentToken = null;
+      this.currentUserId = null;
     }
   }
 
