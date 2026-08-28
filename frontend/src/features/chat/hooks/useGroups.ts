@@ -3,6 +3,7 @@ import { GroupItem } from '../UI/GroupsSection';
 import { chatApi, ApiRoom } from '../api/chatApi';
 import { socketService } from '../api/socketService';
 import { chatStorage, generateValidObjectId } from '../api/chatStorage';
+import { useAuthContext } from '../../auth/hooks/useAuthContext';
 
 export interface UseGroupsReturn {
   groups: GroupItem[];
@@ -11,7 +12,6 @@ export interface UseGroupsReturn {
   createGroup: (newGroup: Omit<GroupItem, 'id'>) => Promise<GroupItem>;
   fetchBackendRooms: () => Promise<void>;
 }
-
 export function useGroups(): UseGroupsReturn {
   const { user } = useAuthContext();
   const userId = user?.id || user?._id || '';
