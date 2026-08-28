@@ -17,14 +17,45 @@ export function generateValidObjectId(): string {
   return (timestamp + randomHex).slice(0, 24);
 }
 
+const DEFAULT_INITIAL_CHATS: ChatItem[] = [
+  {
+    id: '67b848e02d68e3a2b0000001',
+    name: 'General',
+    initials: 'GE',
+    avatarBg: '#6366f1',
+    lastMessage: 'Welcome to chatSocial! Send a message to get started.',
+    time: 'Just now',
+    unread: 0,
+    online: true,
+    statusText: 'Public Community Room'
+  },
+  {
+    id: '67b848e02d68e3a2b0000002',
+    name: 'Developers',
+    initials: 'DE',
+    avatarBg: '#ec4899',
+    lastMessage: 'Discuss WebRTC, Socket.IO & architecture',
+    time: 'Just now',
+    unread: 0,
+    online: true,
+    statusText: 'Tech & Architecture'
+  }
+];
+
 export const chatStorage = {
   // Chats
   getChats(): ChatItem[] {
     try {
       const saved = localStorage.getItem(CHATS_KEY);
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return DEFAULT_INITIAL_CHATS;
     } catch {
-      return [];
+      return DEFAULT_INITIAL_CHATS;
     }
   },
 
@@ -40,7 +71,32 @@ export const chatStorage = {
   getRecent(): RecentChatUser[] {
     try {
       const saved = localStorage.getItem(RECENT_KEY);
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+      return [
+        {
+          id: 'recent-general',
+          name: 'General',
+          fullName: 'General Room',
+          initials: 'GE',
+          avatarBg: '#6366f1',
+          online: true,
+          chatId: '67b848e02d68e3a2b0000001'
+        },
+        {
+          id: 'recent-developers',
+          name: 'Developers',
+          fullName: 'Developers Room',
+          initials: 'DE',
+          avatarBg: '#ec4899',
+          online: true,
+          chatId: '67b848e02d68e3a2b0000002'
+        }
+      ];
     } catch {
       return [];
     }
@@ -57,7 +113,10 @@ export const chatStorage = {
   // Active room ID
   getActiveRoomId(): string {
     try {
-      return localStorage.getItem(ACTIVE_ROOM_KEY) || '';
+      const saved = localStorage.getItem(ACTIVE_ROOM_KEY);
+      if (saved) return saved;
+      const chats = this.getChats();
+      return chats.length > 0 ? chats[0].id : '';
     } catch {
       return '';
     }
@@ -67,7 +126,7 @@ export const chatStorage = {
     try {
       localStorage.setItem(ACTIVE_ROOM_KEY, roomId);
     } catch (e) {
-      console.warn('Failed to save active room id', e);
+      console.warn('Failed to save active room ID', e);
     }
   },
 
