@@ -81,14 +81,23 @@ class SocketService {
       'user:left',
       'message:error',
       'room:error',
+      // Modern Call Events
+      'call:incoming',
+      'call:accepted',
+      'call:rejected',
+      'call:ended',
+      'call:error',
+      'call:initiated',
+      // Mediasoup Media Events
+      'media:newProducer',
+      'media:producerClosed',
+      'media:consumerClosed',
+      // Legacy Call Events (for compatibility)
       'incoming-call',
       'call-accepted',
       'call-rejected',
-      'offer',
-      'answer',
-      'ice-candidate',
       'call-ended',
-      'call-error'
+      'call-error',
     ];
 
     events.forEach((eventName) => {
@@ -114,10 +123,39 @@ class SocketService {
     return Boolean(this.socket?.connected);
   }
 
+  public getSocket(): Socket | null {
+    return this.socket;
+  }
+
   public emit(event: string, data: unknown) {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     }
+  }
+
+  /**
+   * Request-Response helper via Socket.IO acknowledgment callback
+   */
+  public request<T>(event: string, data: unknown = {}, timeoutMs: number = 8000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        return reject(new Error('Socket is not connected'));
+      }
+
+      const timer = setTimeout(() => {
+        reject(new Error(`Socket request timed out for event '${event}'`));
+      }, timeoutMs);
+
+      this.socket.emit(event, data, (response: any) => {
+        clearTimeout(timer);
+        if (response && response.error) {
+          const err = new Error(response.error.message || 'Request failed');
+          (err as any).code = response.error.code;
+          return reject(err);
+        }
+        resolve(response as T);
+      });
+    });
   }
 
   // Real-time Chat & Room emitters
@@ -151,35 +189,6 @@ class SocketService {
 
   public switchRoom(oldRoomId: string, newRoomId: string) {
     this.emit('switch-room', { oldRoomId, newRoomId });
-  }
-
-  // Real-time WebRTC Call Signaling emitters
-  public callUser(targetUserId: string, callType: 'audio' | 'video' = 'audio') {
-    this.emit('call-user', { targetUserId, callType });
-  }
-
-  public acceptCall(callerId: string) {
-    this.emit('accept-call', { callerId });
-  }
-
-  public rejectCall(callerId: string, reason?: string) {
-    this.emit('reject-call', { callerId, reason });
-  }
-
-  public sendOffer(targetUserId: string, offer: RTCSessionDescriptionInit, targetSocketId?: string) {
-    this.emit('offer', { targetUserId, offer, targetSocketId });
-  }
-
-  public sendAnswer(targetUserId: string, answer: RTCSessionDescriptionInit, targetSocketId?: string) {
-    this.emit('answer', { targetUserId, answer, targetSocketId });
-  }
-
-  public sendIceCandidate(targetUserId: string, candidate: RTCIceCandidateInit, targetSocketId?: string) {
-    this.emit('ice-candidate', { targetUserId, candidate, targetSocketId });
-  }
-
-  public endCall(targetUserId?: string, reason?: string) {
-    this.emit('end-call', { targetUserId, reason });
   }
 
   // Event Subscription
