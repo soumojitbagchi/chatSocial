@@ -19,6 +19,9 @@ export function GrassCanvas({
     const container = containerRef.current;
     if (!container) return;
 
+    const width = Math.max(container.clientWidth || window.innerWidth || 1, 1);
+    const height = Math.max(container.clientHeight || window.innerHeight || 1, 1);
+
     // --- Three.js Scene, Camera, Renderer Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#05080a");
@@ -26,24 +29,29 @@ export function GrassCanvas({
 
     const camera = new THREE.PerspectiveCamera(
       45,
-      container.clientWidth / container.clientHeight,
+      width / height,
       0.1,
       100
     );
     camera.position.set(0, 3.2, 14);
     camera.lookAt(0, 1.2, 0);
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: "high-performance",
-      alpha: false,
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.3;
-    container.appendChild(renderer.domElement);
-
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance",
+        alpha: false,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(width, height);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.3;
+      container.appendChild(renderer.domElement);
+    } catch (err) {
+      console.warn("WebGL initialization failed in GrassCanvas:", err);
+      return;
+    }
     // --- 1. Custom Instanced Grass Geometry & Shader ---
     const BLADE_WIDTH = 0.085;
     const BLADE_HEIGHT = 1.6;
@@ -394,13 +402,13 @@ export function GrassCanvas({
     window.addEventListener("touchmove", handleTouchMove, { passive: true });
 
     const handleResize = () => {
-      if (!container) return;
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      camera.aspect = width / height;
+      if (!container || !renderer) return;
+      const w = Math.max(container.clientWidth || window.innerWidth || 1, 1);
+      const h = Math.max(container.clientHeight || window.innerHeight || 1, 1);
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     };
     window.addEventListener("resize", handleResize);
 
