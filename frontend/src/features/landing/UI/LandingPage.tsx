@@ -48,7 +48,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             <header className="landing-chat-header">
               <div className="landing-avatar landing-avatar-photo">M</div>
               <div>
-                <strong>Maya</strong>
+                <strong>Ananya</strong>
                 <span>online now</span>
               </div>
               <button aria-label="More conversation options">•••</button>
