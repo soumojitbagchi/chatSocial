@@ -48,6 +48,7 @@ export interface RecentChatUser {
 }
 
 export interface ChatListProps {
+  title?: string;
   chats: ChatItem[];
   recentChats: RecentChatUser[];
   activeChatId: string;
@@ -59,6 +60,7 @@ export interface ChatListProps {
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
+  title = 'Chats',
   chats,
   recentChats,
   activeChatId,
@@ -71,6 +73,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'groups' | 'pinned'>('all');
   const [showMenu, setShowMenu] = useState(false);
 
+  // Filter chats by search query and selected filter
   const filteredChats = chats.filter((chat) => {
     const matchesSearch = 
       searchQuery.trim() === '' ||
@@ -88,26 +91,29 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   return (
     <section className="cs-chat-sidebar" aria-label="Chats and Contacts">
+      {/* Top Header */}
       <div className="cs-sidebar-header">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Chats
+            {title}
           </h2>
 
           <div className="flex items-center gap-2">
+            {/* New Chat Plus Button */}
             <button
               onClick={onNewChat}
-              className="w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center shadow-md shadow-violet-500/25 transition-transform active:scale-95 cursor-pointer"
+              className="cs-primary-icon"
               title="New Chat"
               aria-label="New Chat"
             >
               <Plus size={18} strokeWidth={2.5} />
             </button>
 
+            {/* 3-dots Menu */}
             <div className="relative">
               <button
                 onClick={() => setShowMenu((prev) => !prev)}
-                className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="cs-icon-button"
                 title="More Options"
                 aria-label="More Options"
               >
@@ -143,13 +149,14 @@ export const ChatList: React.FC<ChatListProps> = ({
           </div>
         </div>
 
+        {/* Search Bar matching screenshot */}
         <div className="relative mt-3.5">
           <input
             type="text"
-            placeholder="Search For Contacts or Messages"
+            placeholder="Search conversations"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-11 pl-4 pr-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 focus:border-violet-500 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all shadow-inner"
+            className="cs-search-input"
           />
           <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             {searchQuery ? (
@@ -157,6 +164,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="pointer-events-auto hover:text-slate-600 dark:hover:text-slate-200"
+                aria-label="Clear search"
               >
                 <X size={16} />
               </button>
@@ -167,20 +175,16 @@ export const ChatList: React.FC<ChatListProps> = ({
         </div>
       </div>
 
+      {/* Scrollable Container */}
       <div className="cs-sidebar-scroll">
-        <div className="cs-recent-section">
-          <div className="flex items-center justify-between px-4 mb-2.5">
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
-              Recent Chats
-            </span>
-            <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5">
-              <MoreVertical size={14} />
-            </button>
-          </div>
+        {recentChats.length > 0 && (
+          <div className="cs-recent-section">
+            <div className="cs-section-heading">
+              <span>Recent</span>
+            </div>
 
-          <div className="cs-recent-row">
-            {recentChats.map((user) => {
-              return (
+            <div className="cs-recent-row">
+              {recentChats.map((user) => (
                 <button
                   key={user.id}
                   onClick={() => {
@@ -191,13 +195,13 @@ export const ChatList: React.FC<ChatListProps> = ({
                   title={user.fullName}
                 >
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-violet-400 transition-all shadow-sm">
+                    <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-orange-400 transition-all shadow-sm">
                       {user.avatar ? (
                         <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                       ) : (
-                        <div 
+                        <div
                           className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
-                          style={{ backgroundColor: user.avatarBg || '#5b21b6' }}
+                          style={{ backgroundColor: user.avatarBg || '#6f7771' }}
                         >
                           {user.initials || user.name.slice(0, 2).toUpperCase()}
                         </div>
@@ -207,20 +211,17 @@ export const ChatList: React.FC<ChatListProps> = ({
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                     )}
                   </div>
-                  <span className="cs-recent-name">
-                    {user.name}
-                  </span>
+                  <span className="cs-recent-name">{user.name}</span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* All Chats Section */}
         <div className="cs-all-chats-section">
-          <div className="flex items-center justify-between px-4 py-2">
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
-              All Chats
-            </span>
+          <div className="cs-section-heading">
+            <span>Conversations</span>
             <button 
               onClick={() => {
                 setActiveFilter((prev) => {
@@ -232,11 +233,13 @@ export const ChatList: React.FC<ChatListProps> = ({
               }}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5"
               title={`Filter: ${activeFilter}`}
+              aria-label={`Change chat filter. Current filter: ${activeFilter}`}
             >
               <SlidersHorizontal size={14} />
             </button>
           </div>
 
+          {/* Filter Chips Bar */}
           <div className="flex items-center gap-1.5 px-4 mb-2 overflow-x-auto no-scrollbar">
             <button
               className={`cs-chip ${activeFilter === 'all' ? 'active' : ''}`}
@@ -264,19 +267,18 @@ export const ChatList: React.FC<ChatListProps> = ({
             </button>
           </div>
 
+          {/* Chat List Rows */}
           <div className="cs-chat-rows">
             {filteredChats.length === 0 ? (
-              <div className="text-center py-10 px-4 space-y-2">
-                <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 mx-auto flex items-center justify-center">
-                  <MessageSquare size={18} />
-                </div>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No rooms or chats yet</p>
-                <p className="text-[11px] text-slate-400 max-w-xs mx-auto">Create a new room on the server to start chatting!</p>
+              <div className="cs-sidebar-empty">
+                <MessageSquare size={20} />
+                <h3>No conversations yet</h3>
+                <p>Start a conversation and it will appear here.</p>
                 <button
                   onClick={onNewChat}
-                  className="mt-2 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-sm cursor-pointer"
+                  className="cs-primary-button"
                 >
-                  + Create Room
+                  Start a conversation
                 </button>
               </div>
             ) : (
@@ -284,13 +286,13 @@ export const ChatList: React.FC<ChatListProps> = ({
                 const isSelected = chat.id === activeChatId;
 
                 return (
-                  <div
+                  <button
                     key={chat.id}
                     className={`cs-chat-card ${isSelected ? 'active' : ''}`}
                     onClick={() => onSelectChat(chat.id)}
-                    role="button"
-                    tabIndex={0}
+                    type="button"
                   >
+                    {/* Left Avatar with Online Dot */}
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm">
                         {chat.avatar ? (
@@ -298,7 +300,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                         ) : (
                           <div 
                             className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
-                            style={{ backgroundColor: chat.avatarBg || '#ec4899' }}
+                            style={{ backgroundColor: chat.avatarBg || '#6f7771' }}
                           >
                             {chat.initials || chat.name.slice(0, 2).toUpperCase()}
                           </div>
@@ -309,6 +311,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                       )}
                     </div>
 
+                    {/* Middle Content */}
                     <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center justify-between mb-0.5">
                         <h4 className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
@@ -320,9 +323,10 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
 
                       <div className="flex items-center justify-between gap-1">
+                        {/* Subtitle / Last Message Preview */}
                         <div className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5">
                           {chat.isTyping ? (
-                            <span className="text-violet-600 dark:text-violet-400 font-medium italic flex items-center gap-1">
+                            <span className="text-orange-600 dark:text-orange-400 font-medium italic flex items-center gap-1">
                               <span>is typing</span>
                               <span className="cs-typing-dots">
                                 <span />
@@ -350,6 +354,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           )}
                         </div>
 
+                        {/* Right Meta: Pin icon & Badge pill */}
                         <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
                           {chat.pinned && (
                             <Pin size={12} className="text-slate-400 rotate-45" />
@@ -365,7 +370,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}

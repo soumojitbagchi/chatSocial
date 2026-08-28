@@ -3,7 +3,6 @@ import { GroupItem } from '../UI/GroupsSection';
 import { chatApi, ApiRoom } from '../api/chatApi';
 import { socketService } from '../api/socketService';
 import { chatStorage, generateValidObjectId } from '../api/chatStorage';
-import { useAuthContext } from '../../auth/hooks/useAuthContext';
 
 export interface UseGroupsReturn {
   groups: GroupItem[];
@@ -14,7 +13,6 @@ export interface UseGroupsReturn {
 }
 
 export function useGroups(): UseGroupsReturn {
-  const { user } = useAuthContext();
   const [groups, setGroups] = useState<GroupItem[]>(() => chatStorage.getGroups());
   const [selectedGroup, setSelectedGroup] = useState<GroupItem | null>(() => {
     const cached = chatStorage.getGroups();
@@ -25,11 +23,11 @@ export function useGroups(): UseGroupsReturn {
     try {
       const backendRooms = await chatApi.getRooms();
       if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+        const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
           id: r._id,
           name: r.roomname,
           initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+          avatarBg: '#6f7771',
           membersCount: 1,
           description: r.description || 'Public collaboration room',
           lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -54,13 +52,35 @@ export function useGroups(): UseGroupsReturn {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     let isSubscribed = true;
 
-    fetchBackendRooms();
+    chatApi.getRooms().then((backendRooms) => {
+      if (!isSubscribed || !backendRooms || backendRooms.length === 0) return;
+      const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
+        id: r._id,
+        name: r.roomname,
+        initials: r.roomname.slice(0, 2).toUpperCase(),
+        avatarBg: '#6f7771',
+        membersCount: 1,
+        description: r.description || 'Public collaboration room',
+        lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        unread: 0,
+        chatId: r._id,
+        isAdmin: false,
+        members: [
+          {
+            name: 'Room Admin',
+            role: 'Admin',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
+          }
+        ]
+      }));
+      setGroups(mappedGroups);
+      chatStorage.saveGroups(mappedGroups);
+      setSelectedGroup((prev) => prev || mappedGroups[0] || null);
+    }).catch(() => {});
 
     const unbindCreated = socketService.on('room:created', (data: unknown) => {
-      if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
         const roomname = String(data.roomname);
@@ -70,7 +90,7 @@ export function useGroups(): UseGroupsReturn {
           id: roomId,
           name: roomname,
           initials: roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#8b5cf6',
+          avatarBg: '#6f7771',
           membersCount: 1,
           description: description || 'New real-time room',
           lastActive: 'Just now',
@@ -95,11 +115,17 @@ export function useGroups(): UseGroupsReturn {
       }
     });
 
+    const handleFocus = () => {
+      fetchBackendRooms();
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       isSubscribed = false;
       unbindCreated();
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [user, fetchBackendRooms]);
+  }, [fetchBackendRooms]);
 
   const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'>) => {
     const validId = generateValidObjectId();

@@ -94,11 +94,11 @@ export function useChat(): UseChatReturn {
     try {
       const backendRooms = await chatApi.getRooms();
       if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
           id: r._id,
           name: r.roomname,
           initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+          avatarBg: '#6f7771',
           lastMessage: r.description || 'No messages yet',
           time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           unread: 0,
@@ -113,12 +113,12 @@ export function useChat(): UseChatReturn {
           return unique;
         });
 
-        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
+        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
           id: `recent-${r._id}`,
           name: r.roomname,
           fullName: r.roomname,
           initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+          avatarBg: '#6f7771',
           online: true,
           chatId: r._id
         }));
@@ -143,7 +143,49 @@ export function useChat(): UseChatReturn {
     if (!currentUserId) return;
     let isSubscribed = true;
 
-    fetchBackendRooms();
+    chatApi.getRooms().then((backendRooms) => {
+      if (!isSubscribed || !backendRooms || !Array.isArray(backendRooms) || backendRooms.length === 0) return;
+      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+        id: r._id,
+        name: r.roomname,
+        initials: r.roomname.slice(0, 2).toUpperCase(),
+        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+        lastMessage: r.description || 'No messages yet',
+        time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        unread: 0,
+        online: true,
+        statusText: r.description || 'Public Room'
+      }));
+
+      setChats((prev) => {
+        const combined = [...mappedChats, ...prev];
+        const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
+        chatStorage.saveChats(unique);
+        return unique;
+      });
+
+      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
+        id: `recent-${r._id}`,
+        name: r.roomname,
+        fullName: r.roomname,
+        initials: r.roomname.slice(0, 2).toUpperCase(),
+        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+        online: true,
+        chatId: r._id
+      }));
+      setRecentChats(recents);
+      chatStorage.saveRecent(recents);
+
+      setActiveChatId((prev) => {
+        if (!prev) {
+          const firstId = backendRooms[0]._id;
+          chatStorage.saveActiveRoomId(firstId);
+          socketService.joinRoom(firstId);
+          return firstId;
+        }
+        return prev;
+      });
+    }).catch(() => {});
 
     // Listen for room creation from any user over Socket.IO
     const unbindRoomCreated = socketService.on('room:created', (data: unknown) => {
@@ -157,7 +199,7 @@ export function useChat(): UseChatReturn {
           id: roomId,
           name: roomname,
           initials: roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#8b5cf6',
+          avatarBg: '#6f7771',
           lastMessage: description || 'New room created',
           time: 'Just now',
           unread: 0,
@@ -482,7 +524,7 @@ export function useChat(): UseChatReturn {
         id: newId,
         name: createdRoom.roomname || cleanRoomName,
         initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6366f1',
+        avatarBg: '#6f7771',
         lastMessage: 'Room created',
         time: 'Just now',
         unread: 0,
@@ -508,7 +550,7 @@ export function useChat(): UseChatReturn {
         id: validId,
         name: cleanRoomName,
         initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6366f1',
+        avatarBg: '#6f7771',
         lastMessage: 'Conversation started',
         time: 'Just now',
         unread: 0,

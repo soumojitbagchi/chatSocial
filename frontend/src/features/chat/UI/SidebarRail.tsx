@@ -8,8 +8,7 @@ import {
   Settings, 
   LogOut,
   Moon,
-  Sun,
-  Heart
+  Sun
 } from 'lucide-react';
 import { InfinityGradientLogo } from '@/components/ui/logo';
 import '../style/components.css';
@@ -37,40 +36,37 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
 }) => {
   return (
     <aside className="cs-rail" aria-label="Main Navigation Rail">
+      {/* Top Infinity Brand Logo */}
       <div className="cs-rail-logo-wrap" title="chatSocial">
         <InfinityGradientLogo size={28} />
       </div>
 
+      {/* Main Navigation Tab Icons */}
       <nav className="cs-rail-nav">
+        {/* Chats Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'chats' ? 'active' : ''}`}
           onClick={() => setActiveTab('chats')}
           title="Chats"
           aria-label="Chats"
         >
-          <div className="relative flex items-center justify-center">
-            <MessageSquare size={20} />
-            <span className="cs-heart-dot" title="Loved contacts">
-              <Heart size={8} fill="#ec4899" color="#ec4899" />
-            </span>
-          </div>
+          <MessageSquare size={20} />
           {totalUnread > 0 && activeTab !== 'chats' && (
             <span className="cs-badge-dot" />
           )}
         </button>
 
+        {/* Contacts */}
         <button
           className={`cs-rail-btn ${activeTab === 'contacts' ? 'active' : ''}`}
           onClick={() => setActiveTab('contacts')}
           title="Contacts"
           aria-label="Contacts"
         >
-          <div className="relative flex items-center justify-center">
-            <User size={20} />
-            <span className="cs-pink-dot" />
-          </div>
+          <User size={20} />
         </button>
 
+        {/* Groups Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveTab('groups')}
@@ -80,6 +76,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <Users size={20} />
         </button>
 
+        {/* Status / Stories Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'status' ? 'active' : ''}`}
           onClick={() => setActiveTab('status')}
@@ -89,6 +86,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <CircleDashed size={20} />
         </button>
 
+        {/* Calls Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'calls' ? 'active' : ''}`}
           onClick={() => setActiveTab('calls')}
@@ -98,6 +96,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <Phone size={20} />
         </button>
 
+        {/* User Account / Profile */}
         <button
           className={`cs-rail-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => {
@@ -116,6 +115,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           </div>
         </button>
 
+        {/* Settings Gear Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
@@ -126,12 +126,14 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
         </button>
       </nav>
 
+      {/* Bottom Controls: Theme Switcher & Logout */}
       <div className="cs-rail-bottom">
         {onToggleTheme && (
           <button
             className="cs-rail-btn cs-rail-sub-btn"
             onClick={onToggleTheme}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -142,6 +144,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
             className="cs-rail-btn cs-rail-sub-btn text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
             onClick={onLogout}
             title="Log out"
+            aria-label="Log out"
           >
             <LogOut size={18} />
           </button>
