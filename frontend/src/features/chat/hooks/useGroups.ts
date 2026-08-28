@@ -15,12 +15,12 @@ export interface UseGroupsReturn {
 
 export function useGroups(): UseGroupsReturn {
   const { user } = useAuthContext();
+  const userId = user?.id || user?._id || '';
   const [groups, setGroups] = useState<GroupItem[]>(() => chatStorage.getGroups());
   const [selectedGroup, setSelectedGroup] = useState<GroupItem | null>(() => {
     const cached = chatStorage.getGroups();
     return cached.length > 0 ? cached[0] : null;
   });
-
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
@@ -54,11 +54,10 @@ export function useGroups(): UseGroupsReturn {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let isSubscribed = true;
 
     fetchBackendRooms();
-
     const unbindCreated = socketService.on('room:created', (data: unknown) => {
       if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
@@ -99,7 +98,7 @@ export function useGroups(): UseGroupsReturn {
       isSubscribed = false;
       unbindCreated();
     };
-  }, [user, fetchBackendRooms]);
+  }, [userId, fetchBackendRooms]);
 
   const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'>) => {
     const validId = generateValidObjectId();

@@ -89,8 +89,6 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
             return unique;
           });
 
-          // Also request live list from socket
-          socketService.getMessages(activeRoom, fetchLimit, page);
           setIsLoading(false);
           return mapped;
         }
@@ -98,10 +96,8 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
         // If backend returned empty, fallback to local storage
         const local = chatStorage.getRoomMessages(activeRoom);
         setMessages(local);
-        socketService.getMessages(activeRoom, fetchLimit, page);
         setIsLoading(false);
         return local;
-      } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to fetch messages';
         setError(msg);
         setIsLoading(false);

@@ -19,11 +19,12 @@ export interface UseSocketReturn {
 
 export function useSocket(): UseSocketReturn {
   const { user, token } = useAuthContext();
+  const userId = user?.id || user?._id || '';
   const [isConnected, setIsConnected] = useState<boolean>(() => socketService.isConnected());
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!user || !token) {
+    if (!userId || !token) {
       socketService.disconnect();
       setIsConnected(false);
       return;
@@ -72,7 +73,7 @@ export function useSocket(): UseSocketReturn {
       unbindUserOnline();
       unbindUserOffline();
     };
-  }, [user, token]);
+  }, [userId, token]);
 
   const sendMessage = useCallback((roomId: string, text: string) => {
     socketService.sendMessage(roomId, text);

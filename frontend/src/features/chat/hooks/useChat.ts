@@ -31,18 +31,17 @@ export function useChat(): UseChatReturn {
   const [chats, setChats] = useState<ChatItem[]>(() => chatStorage.getChats());
   const [recentChats, setRecentChats] = useState<RecentChatUser[]>(() => chatStorage.getRecent());
   const [activeChatId, setActiveChatId] = useState<string>(() => chatStorage.getActiveRoomId());
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
-    const initialActiveId = chatStorage.getActiveRoomId();
-    if (initialActiveId) {
-      return { [initialActiveId]: chatStorage.getRoomMessages(initialActiveId) };
-    }
-    return {};
-  });
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading] = useState(false);
 
   const { user: authUser } = useAuthContext();
   const currentUserId = authUser?.id || authUser?._id || '';
+
+  const activeChatIdRef = useRef<string>(activeChatId);
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
   const activeChat = useMemo(() => {
     return chats.find((c) => c.id === activeChatId) || chats[0] || null;
   }, [chats, activeChatId]);
@@ -215,13 +214,10 @@ export function useChat(): UseChatReturn {
       });
     }).catch(() => {});
 
-    socketService.getMessages(activeChatId);
-
     return () => {
       isSubscribed = false;
     };
   }, [activeChatId, currentUserId]);
-
   // Listen for real-time socket messages
   useEffect(() => {
     const unbindReceive = socketService.on('receiveMessage', (data: unknown) => {
@@ -231,10 +227,9 @@ export function useChat(): UseChatReturn {
         const msgId = '_id' in data && typeof data._id === 'string' ? data._id : `msg-${Date.now()}`;
         const rawUser = 'userId' in data ? data.userId : null;
         const senderId = rawUser && typeof rawUser === 'object' && '_id' in rawUser ? String(rawUser._id) : String(rawUser || '');
-        const senderName = rawUser && typeof rawUser === 'object' && 'name' in rawUser ? String(rawUser.name) : (activeChat?.name || 'User');
+        const senderName = rawUser && typeof rawUser === 'object' && 'name' in rawUser ? String(rawUser.name) : 'User';
 
         const isMe = Boolean(currentUserId && senderId === currentUserId);
-
         if (roomId && text) {
           const now = new Date();
           const hours = String(now.getHours() % 12 || 12).padStart(2, '0');
@@ -272,7 +267,7 @@ export function useChat(): UseChatReturn {
                   ...c,
                   lastMessage: text,
                   time: currentTime,
-                  unread: c.id === activeChatId ? 0 : (c.unread || 0) + 1
+                  unread: c.id === activeChatIdRef.current ? 0 : (c.unread || 0) + 1
                 };
               }
               return c;
@@ -356,8 +351,7 @@ export function useChat(): UseChatReturn {
       unbindUpdated();
       unbindDeleted();
     };
-  }, [activeChatId, activeChat, currentUserId]);
-
+  }, [currentUserId]);
   // Select chat handler
   const selectChat = useCallback((id: string) => {
     setActiveChatId((prevOldId) => {
