@@ -60,7 +60,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Left Settings Menu */}
       <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
@@ -70,7 +69,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {/* User Mini Profile Header */}
           <div 
             onClick={() => setActiveSubTab('profile')}
             className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
@@ -94,7 +92,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
           </div>
 
-          {/* Navigation Links */}
           <button
             onClick={() => setActiveSubTab('privacy')}
             className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left ${
@@ -143,7 +140,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <span>Storage & Network</span>
           </button>
 
-          {/* Theme Switcher Row */}
           <div className="p-3 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
               {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
@@ -175,7 +171,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
       </section>
 
-      {/* Right Settings Details Content */}
       <section className="flex-1 overflow-y-auto p-6 md:p-10 bg-white dark:bg-slate-900/60">
         <div className="max-w-2xl mx-auto space-y-6">
           {activeSubTab === 'profile' && (
@@ -201,7 +196,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 </div>
               </div>
 
-              {/* Editable Fields */}
               <div className="space-y-4 p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">

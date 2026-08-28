@@ -35,7 +35,6 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        {/* Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare size={18} className="text-violet-600" />
@@ -49,7 +48,6 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
           </button>
         </div>
 
-        {/* Search Input */}
         <div className="p-3 border-b border-slate-100 dark:border-slate-800">
           <div className="relative">
             <input
@@ -63,7 +61,6 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
           </div>
         </div>
 
-        {/* Quick Action: Add custom contact */}
         {showAddCustom ? (
           <form onSubmit={handleCreateCustom} className="p-3 bg-violet-50 dark:bg-violet-950/30 border-b border-violet-100 dark:border-violet-900 flex items-center gap-2">
             <input
@@ -100,7 +97,6 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
           </button>
         )}
 
-        {/* Contacts List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             Contacts ({filtered.length})
