@@ -85,7 +85,6 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
 
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Left Groups List Sidebar */}
       <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between mb-3">
@@ -102,7 +101,6 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
             </button>
           </div>
 
-          {/* Search Box */}
           <div className="relative">
             <input
               type="text"
@@ -115,7 +113,6 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
           </div>
         </div>
 
-        {/* Groups List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredGroups.length === 0 ? (
             <div className="text-center py-10 px-4 space-y-2">
@@ -178,11 +175,9 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
         </div>
       </section>
 
-      {/* Right Group Details Area */}
       <section className="flex-1 hidden md:flex flex-col bg-white dark:bg-slate-900/60 overflow-y-auto">
         {selectedGroup ? (
           <div className="max-w-3xl w-full mx-auto p-6 md:p-8 space-y-6">
-            {/* Header Banner Card */}
             <div className="p-6 rounded-2xl bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 text-white shadow-lg flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div 
@@ -206,7 +201,6 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
               </button>
             </div>
 
-            {/* Group Members List */}
             <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center justify-between">
                 <span>Group Members ({selectedGroup.membersCount})</span>
@@ -247,7 +241,6 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
         )}
       </section>
 
-      {/* Create New Group Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">

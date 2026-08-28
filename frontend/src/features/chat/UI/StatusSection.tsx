@@ -42,7 +42,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
   const recentUpdates = statusUpdates.filter((s) => !s.isMe);
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Left Status Feed */}
       <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between mb-2">
@@ -64,7 +63,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* My Status Card */}
           <div 
             onClick={onAddStory}
             className="p-3 rounded-2xl bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 flex items-center gap-3 cursor-pointer hover:bg-violet-50 transition-colors"
@@ -85,7 +83,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             </div>
           </div>
 
-          {/* Recent Updates Header */}
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
               Recent Updates
@@ -102,7 +99,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                   className="p-3 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Avatar with Vibrant Story Ring */}
                     <div className="relative p-0.5 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-500 to-pink-500">
                       <img
                         src={item.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
@@ -127,7 +123,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         </div>
       </section>
 
-      {/* Right Splash / Preview */}
       <section className="flex-1 hidden md:flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-900/60 text-center">
         <div className="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4 shadow-sm">
           <Sparkles size={32} />

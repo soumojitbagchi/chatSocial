@@ -32,7 +32,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none">
       <div className="relative w-full max-w-sm h-[600px] rounded-3xl overflow-hidden bg-slate-900 border border-white/10 shadow-2xl flex flex-col justify-between p-4">
-        {/* Background Story Image */}
         <img
           src={story.storyImage || story.avatar}
           alt={story.userName}
@@ -40,9 +39,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
 
-        {/* Top Progress Bar & User Info */}
         <div className="relative z-10 space-y-3">
-          {/* Progress Indicator */}
           <div className="w-full h-1 rounded-full bg-white/30 overflow-hidden">
             <div 
               className="h-full bg-white rounded-full transition-all duration-100"
@@ -72,7 +69,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </div>
         </div>
 
-        {/* Bottom Caption & Quick Reply Input */}
         <div className="relative z-10 space-y-3">
           {story.caption && (
             <p className="text-sm font-medium text-white text-center bg-black/40 backdrop-blur-md p-2.5 rounded-xl">
