@@ -146,11 +146,13 @@ class SocketService {
         reject(new Error(`Socket request timed out for event '${event}'`));
       }, timeoutMs);
 
-      this.socket.emit(event, data, (response: any) => {
+      this.socket.emit(event, data, (response: unknown) => {
         clearTimeout(timer);
-        if (response && response.error) {
-          const err = new Error(response.error.message || 'Request failed');
-          (err as any).code = response.error.code;
+        if (response && typeof response === 'object' && 'error' in response && response.error && typeof response.error === 'object') {
+          const errCandidate = response.error;
+          const errMsg = 'message' in errCandidate && typeof errCandidate.message === 'string' ? errCandidate.message : 'Request failed';
+          const errCode = 'code' in errCandidate && typeof errCandidate.code === 'string' ? errCandidate.code : undefined;
+          const err = Object.assign(new Error(errMsg), { code: errCode });
           return reject(err);
         }
         resolve(response as T);
