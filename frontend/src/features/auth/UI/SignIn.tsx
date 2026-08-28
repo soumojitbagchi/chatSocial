@@ -71,11 +71,8 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
           display: none;
         }
       `}</style>
-
-      {/* Left Form Canvas */}
       <div className="flex min-h-screen items-center justify-center p-6 md:p-12 relative z-10">
         <div className="mx-auto grid w-full max-w-[380px] gap-6">
-          {/* Header with Back Link & Logo */}
           <div className="flex items-center justify-between mb-1">
             {onBackToHome ? (
               <button
@@ -169,8 +166,6 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
               </button>
             </div>
           </form>
-
-          {/* Toggle Switch */}
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Don't have an account?</span>{" "}
             {onSwitchToSignUp ? (
@@ -211,8 +206,6 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
           </button>
         </div>
       </div>
-
-      {/* Right Hero / Image Banner */}
       <div className="hidden md:block relative w-full h-full min-h-screen overflow-hidden bg-muted/20">
         <img
           src={signInImage}

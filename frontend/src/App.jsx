@@ -10,11 +10,6 @@ import SignUp from './features/auth/UI/SignUp';
 import { Loader } from './components/ui/loader';
 import './App.css';
 import './features/chat/style/components.css';
-
-/**
- * ProtectedRoute: Requires valid authenticated session.
- * Unauthenticated users are redirected to /signin with replace.
- */
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isVerifying } = useAuthContext();
 
@@ -28,11 +23,6 @@ const ProtectedRoute = ({ children }) => {
 
   return <ChatProvider>{children}</ChatProvider>;
 };
-
-/**
- * PublicOnlyRoute: For guest routes like /signin and /signup.
- * If user is already authenticated, redirects to /chat with replace.
- */
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, isVerifying } = useAuthContext();
 
@@ -52,10 +42,7 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Landing Page */}
       <Route path="/" element={<LandingPage />} />
-
-      {/* Guest Only Auth Routes */}
       <Route
         path="/signin"
         element={
@@ -74,8 +61,6 @@ const AppRoutes = () => {
         }
       />
       <Route path="/register" element={<Navigate to="/signup" replace />} />
-
-      {/* Main Chat Application (Protected) */}
       <Route
         path="/chat"
         element={
@@ -85,8 +70,6 @@ const AppRoutes = () => {
         }
       />
       <Route path="/home" element={<Navigate to="/chat" replace />} />
-
-      {/* Fallback Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
