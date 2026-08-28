@@ -95,11 +95,11 @@ export function useChat(): UseChatReturn {
     try {
       const backendRooms = await chatApi.getRooms();
       if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
           id: r._id,
           name: r.roomname,
           initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+          avatarBg: '#6f7771',
           lastMessage: r.description || 'No messages yet',
           time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           unread: 0,
@@ -114,12 +114,12 @@ export function useChat(): UseChatReturn {
           return unique;
         });
 
-        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
+        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
           id: `recent-${r._id}`,
           name: r.roomname,
           fullName: r.roomname,
           initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+          avatarBg: '#6f7771',
           online: true,
           chatId: r._id
         }));
@@ -145,11 +145,11 @@ export function useChat(): UseChatReturn {
 
     chatApi.getRooms().then((backendRooms) => {
       if (!isSubscribed || !backendRooms || !Array.isArray(backendRooms) || backendRooms.length === 0) return;
-      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
         id: r._id,
         name: r.roomname,
         initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+        avatarBg: '#6f7771',
         lastMessage: r.description || 'No messages yet',
         time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         unread: 0,
@@ -164,12 +164,12 @@ export function useChat(): UseChatReturn {
         return unique;
       });
 
-      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
+      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
         id: `recent-${r._id}`,
         name: r.roomname,
         fullName: r.roomname,
         initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+        avatarBg: '#6f7771',
         online: true,
         chatId: r._id
       }));
@@ -198,7 +198,7 @@ export function useChat(): UseChatReturn {
           id: roomId,
           name: roomname,
           initials: roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#8b5cf6',
+          avatarBg: '#6f7771',
           lastMessage: description || 'New room created',
           time: 'Just now',
           unread: 0,
@@ -532,7 +532,7 @@ export function useChat(): UseChatReturn {
         id: newId,
         name: createdRoom.roomname || cleanRoomName,
         initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6366f1',
+        avatarBg: '#6f7771',
         lastMessage: 'Room created',
         time: 'Just now',
         unread: 0,
@@ -558,7 +558,7 @@ export function useChat(): UseChatReturn {
         id: validId,
         name: cleanRoomName,
         initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6366f1',
+        avatarBg: '#6f7771',
         lastMessage: 'Conversation started',
         time: 'Just now',
         unread: 0,

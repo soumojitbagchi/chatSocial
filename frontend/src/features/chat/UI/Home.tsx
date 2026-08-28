@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { User } from 'lucide-react';
 import SidebarRail from './SidebarRail';
 import ChatList from './ChatList';
 import ChatArea from './ChatArea';
@@ -18,6 +19,7 @@ export interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ onLogout }) => {
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const { user, logout, updateProfile } = useAuthContext();
   const {
     activeTab,
@@ -55,11 +57,11 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     username: user?.username ? `@${user.username.replace('@', '')}` : '@bagchi10',
     avatar: user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     phone: user?.phone || '+1 (555) 234-5678',
-    about: user?.about || 'Building clean, fast, and delightful interfaces ⚡',
+    about: user?.about || 'Usually around. Say hello.',
   };
 
   return (
-    <div className={`cs-app ${theme}`}>
+    <div className={`cs-app ${theme} ${mobileChatOpen ? 'conversation-open' : ''}`}>
       {/* 1. Leftmost Vertical Navigation Rail */}
       <SidebarRail
         activeTab={activeTab}
@@ -80,12 +82,18 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             chats={chat.chats}
             recentChats={chat.recentChats}
             activeChatId={chat.activeChatId}
-            onSelectChat={chat.selectChat}
+            onSelectChat={(chatId) => {
+              chat.selectChat(chatId);
+              setMobileChatOpen(true);
+            }}
             searchQuery={chat.searchQuery}
             setSearchQuery={chat.setSearchQuery}
             onNewChat={() => setShowNewChatModal(true)}
             onSelectRecentUser={(recentUser) => {
-              if (recentUser.chatId) chat.selectChat(recentUser.chatId);
+              if (recentUser.chatId) {
+                chat.selectChat(recentUser.chatId);
+                setMobileChatOpen(true);
+              }
             }}
           />
 
@@ -105,6 +113,8 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
               }
             }}
             onOpenDetails={() => setActiveTab('settings')}
+            onBack={() => setMobileChatOpen(false)}
+            onNewChat={() => setShowNewChatModal(true)}
           />
         </>
       )}
@@ -151,15 +161,29 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
 
       {/* Contacts view alias */}
       {activeTab === 'contacts' && (
-        <ChatList
-          chats={chat.chats}
-          recentChats={chat.recentChats}
-          activeChatId={chat.activeChatId}
-          onSelectChat={chat.selectChat}
-          searchQuery={chat.searchQuery}
-          setSearchQuery={chat.setSearchQuery}
-          onNewChat={() => setShowNewChatModal(true)}
-        />
+        <>
+          <ChatList
+            title="Contacts"
+            chats={chat.chats}
+            recentChats={chat.recentChats}
+            activeChatId={chat.activeChatId}
+            onSelectChat={(chatId) => {
+              chat.selectChat(chatId);
+              setActiveTab('chats');
+              setMobileChatOpen(true);
+            }}
+            searchQuery={chat.searchQuery}
+            setSearchQuery={chat.setSearchQuery}
+            onNewChat={() => setShowNewChatModal(true)}
+          />
+          <main className="cs-conversation-empty">
+            <div className="cs-empty-state">
+              <User size={24} />
+              <h3>Choose a contact</h3>
+              <p>Select someone from the list to open a conversation.</p>
+            </div>
+          </main>
+        </>
       )}
 
       {/* 7. Interactive Modals */}
