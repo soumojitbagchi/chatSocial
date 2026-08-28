@@ -96,10 +96,8 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
 
   return (
     <div className="relative w-full min-h-screen overflow-x-hidden bg-[#060a0c] text-foreground select-none font-sans flex flex-col justify-between">
-      {/* 3D Interactive WebGL Starry Night & Ultra-Subtle Swaying Grass Background */}
       <GrassCanvas windSpeed={0.8} bladeCount={19000} />
 
-      {/* Radiant Chromatic Glowing Aura */}
       <div 
         className="absolute -top-32 -right-32 w-[850px] h-[850px] pointer-events-none opacity-40 blur-[130px] rounded-full"
         style={{
@@ -108,13 +106,10 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
       />
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/50 via-transparent to-black/90" />
 
-      {/* Fixed Modern Navigation */}
       <LandingNav onSignIn={handleSignIn} onSignUp={handleSignUp} onOpenApp={handleOpenApp} />
 
-      {/* Structured Hero Section matching the Reference Template */}
       <main className="relative z-20 max-w-7xl mx-auto px-6 sm:px-12 w-full pt-32 sm:pt-36 pb-12 flex flex-col justify-center my-auto">
         <div className="max-w-2xl space-y-6">
-          {/* Eyebrow Tag with Golden Sparkle Accent */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,7 +120,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             <span>REAL-TIME ENCRYPTED DATA PLATFORM</span>
           </motion.div>
 
-          {/* Monumental Structured Headline */}
           <motion.h1
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
@@ -137,7 +131,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             At scale.
           </motion.h1>
 
-          {/* Clean Descriptive Sub-headline */}
           <motion.p
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
@@ -147,14 +140,12 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             Turn messaging data, voice notes, and live consumer signals into seamless real-time conversations, using custom zero-knowledge encrypted workflows you build and own.
           </motion.p>
 
-          {/* Dual Action Buttons matching Reference */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex flex-wrap items-center gap-4 pt-2"
           >
-            {/* Primary Action Pill */}
             <button
               onClick={triggerLaunch}
               className="px-7 py-3.5 rounded-full text-sm font-semibold text-black bg-white hover:bg-white/90 shadow-xl shadow-white/10 transition-all flex items-center gap-2 cursor-pointer group"
@@ -163,7 +154,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
               <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
             </button>
 
-            {/* Product Hunt Style Badge */}
             <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-black/80 border border-white/20 backdrop-blur-md text-xs font-mono text-white/90 shadow-lg cursor-pointer hover:border-white/40 transition-colors">
               <div className="w-5 h-5 rounded-full bg-[#EA532B] text-white font-bold flex items-center justify-center text-[11px] leading-none">
                 P
@@ -177,7 +167,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
           </motion.div>
         </div>
 
-        {/* Social Proof / Partner Logos Strip matching Reference */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -197,7 +186,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
           </div>
         </motion.div>
 
-        {/* Bottom Interactive Feature Peek Cards */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -223,7 +211,6 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
         </motion.div>
       </main>
 
-      {/* Editorial Footer */}
       <footer className="relative z-20 py-4 px-6 sm:px-12 border-t border-white/[0.08] bg-black/50 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono text-muted-foreground">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-emerald-400">

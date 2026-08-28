@@ -19,14 +19,12 @@ export function LandingNav({ onSignIn, onSignUp, onOpenApp }: LandingNavProps) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 py-5 px-6 sm:px-12 flex items-center justify-between pointer-events-none select-none">
-      {/* Left: Brand Logo */}
       <div className="pointer-events-auto">
         <a href="#" className="flex items-center gap-2 cursor-pointer focus:outline-none group">
           <ChatSocialLogo size={28} />
         </a>
       </div>
 
-      {/* Center: Clean Editorial Menu Links */}
       <nav className="hidden lg:flex items-center gap-8 pointer-events-auto">
         {navItems.map((item) => (
           <a
@@ -39,7 +37,6 @@ export function LandingNav({ onSignIn, onSignUp, onOpenApp }: LandingNavProps) {
         ))}
       </nav>
 
-      {/* Right: Action Buttons matching the reference */}
       <div className="flex items-center gap-3 sm:gap-4 pointer-events-auto">
         <button
           onClick={onSignIn}
