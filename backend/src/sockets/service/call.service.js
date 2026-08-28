@@ -1,238 +1,189 @@
+import callSessionManager, {
+    CALL_STATUS,
+    isUserInCall,
+    getCallById,
+    getCallByUserId,
+    getCallBySocketId,
+    createCallSession,
+    setCallAccepted,
+    setCallRejected,
+    setCallEnded,
+    clearAllSessions,
+} from "./callSession.manager.js";
+import mediaService from "./media.service.js";
+
 /**
  * Call Service
- * Manages 1-to-1 WebRTC call sessions, state transitions, and participant mappings.
- * Call states: "ringing" -> "connected" -> "ended"
+ * Application-level call orchestration orchestrating CallSessionManager and MediaService.
  */
 
-// callId -> CallSession
-const activeCalls = new Map();
-// userId -> callId
-const userCallMap = new Map();
-// socketId -> callId
-const socketCallMap = new Map();
+export { isUserInCall, getCallById, getCallByUserId, getCallBySocketId };
 
-/**
- * Check if a user is currently in a call (ringing or connected)
- */
-export const isUserInCall = (userId) => {
-    if (!userId) return false;
-    const strUserId = String(userId);
-    return userCallMap.has(strUserId);
-};
-
-/**
- * Get call session by userId
- */
-export const getUserCall = (userId) => {
-    if (!userId) return null;
-    const callId = userCallMap.get(String(userId));
-    if (!callId) return null;
-    return activeCalls.get(callId) || null;
-};
-
-/**
- * Get call session by socketId
- */
-export const getSocketCall = (socketId) => {
-    if (!socketId) return null;
-    const callId = socketCallMap.get(String(socketId));
-    if (!callId) return null;
-    return activeCalls.get(callId) || null;
-};
-
-/**
- * Get call session by callId
- */
-export const getCallById = (callId) => {
-    if (!callId) return null;
-    return activeCalls.get(String(callId)) || null;
-};
+export const getUserCall = (userId) => getCallByUserId(userId);
+export const getSocketCall = (socketId) => getCallBySocketId(socketId);
 
 /**
  * Initiate a new 1-to-1 call
  */
 export const initiateCall = ({ callerId, callerSocketId, targetUserId, callType = "audio" }) => {
     if (!callerId || !targetUserId) {
-        throw new Error("Caller ID and Target User ID are required");
+        const err = new Error("Caller ID and Target User ID are required");
+        err.code = "INVALID_PARAMETERS";
+        throw err;
     }
 
-    const strCallerId = String(callerId);
-    const strTargetId = String(targetUserId);
+    const session = createCallSession({
+        callerId,
+        callerSocketId,
+        receiverId: targetUserId,
+        callType,
+    });
 
-    if (strCallerId === strTargetId) {
-        throw new Error("Cannot call yourself");
-    }
+    console.log(
+        `[callService] Initiated call [callId=${session.callId}] from ${callerId} to ${targetUserId} (${session.type})`
+    );
 
-    if (isUserInCall(strCallerId)) {
-        throw new Error("You are already in an active call");
-    }
-
-    if (isUserInCall(strTargetId)) {
-        throw new Error("Target user is busy in another call");
-    }
-
-    const callId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const callSession = {
-        callId,
-        callerId: strCallerId,
-        callerSocketId: callerSocketId ? String(callerSocketId) : null,
-        receiverId: strTargetId,
-        receiverSocketId: null,
-        callType: callType || "audio",
-        status: "ringing",
-        createdAt: Date.now(),
-        acceptedAt: null,
-        endedAt: null,
-    };
-
-    activeCalls.set(callId, callSession);
-    userCallMap.set(strCallerId, callId);
-    userCallMap.set(strTargetId, callId);
-    if (callerSocketId) {
-        socketCallMap.set(String(callerSocketId), callId);
-    }
-
-    return callSession;
+    return session;
 };
 
 /**
  * Accept an incoming call
  */
-export const acceptCall = ({ callerId, receiverId, receiverSocketId }) => {
-    const strReceiverId = String(receiverId);
-    const strCallerId = callerId ? String(callerId) : null;
-
-    let call = getUserCall(strReceiverId);
-
-    if (!call && strCallerId) {
-        call = getUserCall(strCallerId);
+export const acceptCall = async ({ receiverId, receiverSocketId, callId }) => {
+    if (!receiverId) {
+        const err = new Error("Receiver ID is required");
+        err.code = "INVALID_PARAMETERS";
+        throw err;
     }
 
-    if (!call) {
-        throw new Error("No active or ringing call found to accept");
+    let session = null;
+    if (callId) {
+        session = getCallById(callId);
+    }
+    if (!session) {
+        session = getCallByUserId(receiverId);
     }
 
-    if (call.status !== "ringing") {
-        throw new Error(`Cannot accept call with status '${call.status}'`);
+    if (!session) {
+        const err = new Error("No active or ringing call found to accept");
+        err.code = "CALL_NOT_FOUND";
+        throw err;
     }
 
-    if (call.receiverId !== strReceiverId && call.callerId !== strReceiverId) {
-        throw new Error("Unauthorized to accept this call");
-    }
+    session = setCallAccepted(session.callId, receiverId, receiverSocketId);
 
-    call.status = "connected";
-    call.receiverSocketId = receiverSocketId ? String(receiverSocketId) : call.receiverSocketId;
-    call.acceptedAt = Date.now();
+    // Initialize mediasoup router for the call session
+    await mediaService.initializeCallRouter(session.callId);
 
-    if (receiverSocketId) {
-        socketCallMap.set(String(receiverSocketId), call.callId);
-    }
-
-    return call;
+    console.log(`[callService] Accepted call [callId=${session.callId}] by user ${receiverId}`);
+    return session;
 };
 
 /**
  * Reject an incoming call
  */
-export const rejectCall = ({ callerId, receiverId }) => {
-    const strReceiverId = receiverId ? String(receiverId) : null;
-    const strCallerId = callerId ? String(callerId) : null;
-
-    let call = strReceiverId ? getUserCall(strReceiverId) : null;
-    if (!call && strCallerId) {
-        call = getUserCall(strCallerId);
+export const rejectCall = async ({ userId, callId, reason = "Call declined" }) => {
+    let session = null;
+    if (callId) {
+        session = getCallById(callId);
+    }
+    if (!session && userId) {
+        session = getCallByUserId(userId);
     }
 
-    if (!call) {
+    if (!session) {
         return null;
     }
 
-    // Clean up call session
-    cleanupCall(call.callId);
-    call.status = "ended";
-    call.endedAt = Date.now();
-    return call;
+    const rejectedSession = setCallRejected(session.callId, userId, reason);
+    if (!rejectedSession) {
+        return null;
+    }
+
+    console.log(`[callService] Rejected call [callId=${session.callId}] by user ${userId}: ${reason}`);
+
+    // Clean up mediasoup resources
+    await mediaService.cleanupCallMedia(session.callId);
+
+    return {
+        callId: session.callId,
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        reason,
+    };
 };
 
 /**
  * End an ongoing or ringing call
  */
-export const endCall = ({ userId, socketId, callId }) => {
-    let call = null;
+export const endCall = async ({ userId, socketId, callId, reason = "Call ended" }) => {
+    let session = null;
     if (callId) {
-        call = getCallById(callId);
+        session = getCallById(callId);
     }
-    if (!call && userId) {
-        call = getUserCall(userId);
+    if (!session && userId) {
+        session = getCallByUserId(userId);
     }
-    if (!call && socketId) {
-        call = getSocketCall(socketId);
+    if (!session && socketId) {
+        session = getCallBySocketId(socketId);
     }
 
-    if (!call) {
+    if (!session) {
         return null;
     }
 
-    cleanupCall(call.callId);
-    call.status = "ended";
-    call.endedAt = Date.now();
-    return call;
+    setCallEnded(session.callId, reason);
+    console.log(`[callService] Ended call [callId=${session.callId}] reason: ${reason}`);
+
+    const result = {
+        callId: session.callId,
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        reason,
+    };
+
+    // Clean up mediasoup resources and remove session
+    await mediaService.cleanupCallMedia(session.callId);
+
+    return result;
 };
 
 /**
  * Clean up call on socket disconnect
  */
-export const handleDisconnect = (socketId, userId) => {
-    let call = getSocketCall(socketId);
-    if (!call && userId) {
-        call = getUserCall(userId);
+export const handleDisconnect = async (socketId, userId) => {
+    let session = getCallBySocketId(socketId);
+    if (!session && userId) {
+        session = getCallByUserId(userId);
     }
 
-    if (!call) {
+    if (!session) {
         return null;
     }
 
     const strUserId = userId ? String(userId) : null;
-    const strSocketId = socketId ? String(socketId) : null;
+    const isCaller = strUserId ? session.callerId === strUserId : false;
+    const peerId = isCaller ? session.receiverId : session.callerId;
 
-    const isCaller = (strUserId && call.callerId === strUserId) || (strSocketId && call.callerSocketId === strSocketId);
-    const peerId = isCaller ? call.receiverId : call.callerId;
-    const peerSocketId = isCaller ? call.receiverSocketId : call.callerSocketId;
-
-    cleanupCall(call.callId);
-    call.status = "ended";
-    call.endedAt = Date.now();
-
-    return {
-        call,
-        isCaller,
+    const result = {
+        callId: session.callId,
         peerId,
-        peerSocketId,
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        reason: "Peer disconnected",
     };
+
+    setCallEnded(session.callId, "Peer disconnected");
+    await mediaService.cleanupCallMedia(session.callId);
+
+    return result;
 };
 
 /**
- * Internal cleanup helper to remove all references
+ * Clear all calls for testing
  */
-const cleanupCall = (callId) => {
-    if (!callId) return;
-    const call = activeCalls.get(callId);
-    if (call) {
-        userCallMap.delete(call.callerId);
-        userCallMap.delete(call.receiverId);
-        if (call.callerSocketId) socketCallMap.delete(call.callerSocketId);
-        if (call.receiverSocketId) socketCallMap.delete(call.receiverSocketId);
-        activeCalls.delete(callId);
-    }
-};
-
-/**
- * Reset all call state (testing/cleanup)
- */
-export const clearAllCalls = () => {
-    activeCalls.clear();
-    userCallMap.clear();
-    socketCallMap.clear();
+export const clearAllCalls = async () => {
+    clearAllSessions();
 };
 
 export default {
