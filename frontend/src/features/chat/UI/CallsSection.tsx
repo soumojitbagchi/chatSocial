@@ -56,7 +56,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
 
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Left Calls List */}
       <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between mb-3">
@@ -73,7 +72,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
             </button>
           </div>
 
-          {/* Search Box */}
           <div className="relative mb-3">
             <input
               type="text"
@@ -85,7 +83,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {/* Filter Pills */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setFilter('all')}
@@ -110,7 +107,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
           </div>
         </div>
 
-        {/* List of Calls */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredCalls.length === 0 ? (
             <div className="text-center py-10 px-4 space-y-2">
@@ -153,7 +149,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
                     </div>
                   </div>
 
-                  {/* Call Back Button */}
                   <div className="flex items-center gap-1 shrink-0 ml-2">
                     <button
                       onClick={() => onStartCall(call.name, call.type, call.avatar)}
@@ -170,7 +165,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
         </div>
       </section>
 
-      {/* Right Calls Splash / Helper info */}
       <section className="flex-1 hidden md:flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-900/60 text-center">
         <div className="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4 shadow-sm">
           <PhoneCall size={32} />
@@ -193,7 +187,6 @@ export const CallsSection: React.FC<CallsSectionProps> = ({
         </div>
       </section>
 
-      {/* New Call Interactive Modal */}
       {showNewCallModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 text-slate-900 dark:text-white">

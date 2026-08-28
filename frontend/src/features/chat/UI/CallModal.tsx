@@ -42,7 +42,6 @@ export const CallModal: React.FC<CallModalProps> = ({
   const isOutgoingCalling = direction === 'outgoing' && (status === 'calling' || status === 'ringing');
   const isEndedOrRejected = status === 'ended' || status === 'rejected' || status === 'error';
 
-  // Run duration timer only when connected
   useEffect(() => {
     if (!isConnected) return;
     const timer = window.setInterval(() => {
@@ -72,11 +71,9 @@ export const CallModal: React.FC<CallModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl flex flex-col items-center justify-between p-8 min-h-[460px] text-white">
-        {/* Ambient Glows */}
         <div className="absolute -top-24 -left-24 w-72 h-72 bg-violet-600/30 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header */}
         <div className="relative z-10 text-center space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[11px] font-mono text-emerald-400">
             <ShieldCheck size={13} />
@@ -88,10 +85,8 @@ export const CallModal: React.FC<CallModalProps> = ({
           </p>
         </div>
 
-        {/* Center Avatar & Pulsing Waveform Ring */}
         <div className="relative z-10 my-auto flex flex-col items-center">
           <div className="relative flex items-center justify-center">
-            {/* Animated Pulse Rings */}
             {(isOutgoingCalling || isIncomingRinging) && (
               <>
                 <div className="absolute w-36 h-36 rounded-full bg-violet-500/20 animate-ping" />
@@ -112,7 +107,6 @@ export const CallModal: React.FC<CallModalProps> = ({
               )}
             </div>
 
-            {/* Status indicator badge */}
             <span className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ring-4 ring-slate-900 flex items-center justify-center text-xs shadow-md ${
               isConnected ? 'bg-emerald-500 text-white' : isEndedOrRejected ? 'bg-rose-500 text-white' : 'bg-violet-600 text-white'
             }`}>
@@ -120,7 +114,6 @@ export const CallModal: React.FC<CallModalProps> = ({
             </span>
           </div>
 
-          {/* Connection status tag */}
           <div className="mt-4 px-3 py-1 rounded-full bg-slate-800/80 border border-white/5 text-[11px] font-medium text-slate-300">
             {status === 'connected' ? (
               <span className="flex items-center gap-1.5 text-emerald-400">
@@ -137,12 +130,9 @@ export const CallModal: React.FC<CallModalProps> = ({
           </div>
         </div>
 
-        {/* Bottom Call Controls */}
         <div className="relative z-10 flex items-center gap-6">
-          {/* Incoming Call Controls: Accept (Green) & Decline (Red) */}
           {isIncomingRinging ? (
             <>
-              {/* Decline Button */}
               <button
                 onClick={onRejectCall || onEndCall}
                 className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 transition-transform active:scale-95 cursor-pointer"
@@ -151,7 +141,6 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <PhoneOff size={24} />
               </button>
 
-              {/* Accept Button */}
               <button
                 onClick={onAcceptCall}
                 className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-lg shadow-emerald-600/40 transition-transform active:scale-95 animate-bounce cursor-pointer"
@@ -161,9 +150,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               </button>
             </>
           ) : (
-            /* Outgoing or Connected Call Controls: Mute & End */
             <>
-              {/* Mute Toggle */}
               <button
                 onClick={onToggleMute}
                 disabled={isEndedOrRejected}
@@ -175,7 +162,6 @@ export const CallModal: React.FC<CallModalProps> = ({
                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
               </button>
 
-              {/* End Call Button */}
               <button
                 onClick={onEndCall}
                 className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 transition-transform active:scale-95 cursor-pointer"
