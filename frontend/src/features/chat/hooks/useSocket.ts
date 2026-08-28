@@ -26,13 +26,10 @@ export function useSocket(): UseSocketReturn {
   useEffect(() => {
     if (!userId || !token) {
       socketService.disconnect();
-      setIsConnected(false);
       return;
     }
 
     socketService.connect();
-    setIsConnected(socketService.isConnected());
-
     const unbindConnect = socketService.on('connect', () => {
       setIsConnected(true);
     });

@@ -56,8 +56,40 @@ export function useGroups(): UseGroupsReturn {
     if (!userId) return;
     let isSubscribed = true;
 
-    fetchBackendRooms();
+    void (async () => {
+      try {
+        const backendRooms = await chatApi.getRooms();
+        if (isSubscribed && backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
+          const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
+            id: r._id,
+            name: r.roomname,
+            initials: r.roomname.slice(0, 2).toUpperCase(),
+            avatarBg: '#6f7771',
+            membersCount: 1,
+            description: r.description || 'Public collaboration room',
+            lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            chatId: r._id,
+            isAdmin: false,
+            members: [
+              {
+                name: 'Room Admin',
+                role: 'Admin',
+                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
+              }
+            ]
+          }));
+          setGroups(mappedGroups);
+          chatStorage.saveGroups(mappedGroups);
+          setSelectedGroup((prev) => prev || mappedGroups[0] || null);
+        }
+      } catch {
+        // Use local storage
+      }
+    })();
+
     const unbindCreated = socketService.on('room:created', (data: unknown) => {
+      if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
         const roomname = String(data.roomname);
@@ -67,7 +99,7 @@ export function useGroups(): UseGroupsReturn {
           id: roomId,
           name: roomname,
           initials: roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
+          avatarBg: '#8b5cf6',
           membersCount: 1,
           description: description || 'New real-time room',
           lastActive: 'Just now',
@@ -92,17 +124,11 @@ export function useGroups(): UseGroupsReturn {
       }
     });
 
-    const handleFocus = () => {
-      fetchBackendRooms();
-    };
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       isSubscribed = false;
       unbindCreated();
-      window.removeEventListener('focus', handleFocus);
     };
-  }, [userId, fetchBackendRooms]);
+  }, [userId]);
 
   const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'>) => {
     const validId = generateValidObjectId();

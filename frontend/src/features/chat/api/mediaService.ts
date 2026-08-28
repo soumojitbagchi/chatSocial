@@ -284,7 +284,7 @@ export class MediaService {
         }
       }
       consumer.close();
-    } catch (e) {
+    } catch {
       // Ignore
     }
 
@@ -393,7 +393,7 @@ export class MediaService {
     for (const [, consumer] of this.consumers) {
       try {
         consumer.close();
-      } catch (e) {
+      } catch {
         // Ignore
       }
     }
@@ -403,7 +403,7 @@ export class MediaService {
     if (this.audioProducer) {
       try {
         this.audioProducer.close();
-      } catch (e) {
+      } catch {
         // Ignore
       }
       this.audioProducer = null;
@@ -412,7 +412,7 @@ export class MediaService {
     if (this.videoProducer) {
       try {
         this.videoProducer.close();
-      } catch (e) {
+      } catch {
         // Ignore
       }
       this.videoProducer = null;
@@ -422,7 +422,7 @@ export class MediaService {
     if (this.sendTransport) {
       try {
         this.sendTransport.close();
-      } catch (e) {
+      } catch {
         // Ignore
       }
       this.sendTransport = null;
@@ -431,7 +431,7 @@ export class MediaService {
     if (this.recvTransport) {
       try {
         this.recvTransport.close();
-      } catch (e) {
+      } catch {
         // Ignore
       }
       this.recvTransport = null;

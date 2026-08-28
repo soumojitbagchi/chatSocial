@@ -98,6 +98,7 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
         setMessages(local);
         setIsLoading(false);
         return local;
+      } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to fetch messages';
         setError(msg);
         setIsLoading(false);
