@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ChatItem, RecentChatUser } from '../UI/ChatList';
 import { ChatMessage } from '../UI/ChatArea';
 import { chatApi, ApiMessage, ApiRoom } from '../api/chatApi';
 import { socketService } from '../api/socketService';
 import { useAuthContext } from '../../auth/hooks/useAuthContext';
-import { chatStorage } from '../api/chatStorage';
+import { chatStorage, generateValidObjectId } from '../api/chatStorage';
 
 export interface UseChatReturn {
   chats: ChatItem[];
@@ -27,10 +27,16 @@ export interface UseChatReturn {
 }
 
 export function useChat(): UseChatReturn {
-  // Initialize from persistent storage so refresh NEVER loses messages or rooms
   const [chats, setChats] = useState<ChatItem[]>(() => chatStorage.getChats());
   const [recentChats, setRecentChats] = useState<RecentChatUser[]>(() => chatStorage.getRecent());
   const [activeChatId, setActiveChatId] = useState<string>(() => chatStorage.getActiveRoomId());
+  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
+    const initialActiveId = chatStorage.getActiveRoomId();
+    if (initialActiveId) {
+      return { [initialActiveId]: chatStorage.getRoomMessages(initialActiveId) };
+    }
+    return {};
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading] = useState(false);
 
@@ -136,55 +142,58 @@ export function useChat(): UseChatReturn {
       console.warn('Could not fetch backend rooms, using local persistent storage.', err);
     }
   }, []);
-
   // Initial fetch on mount & whenever user is authenticated
   useEffect(() => {
     if (!currentUserId) return;
     let isSubscribed = true;
 
-    chatApi.getRooms().then((backendRooms) => {
-      if (!isSubscribed || !backendRooms || !Array.isArray(backendRooms) || backendRooms.length === 0) return;
-      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
-        id: r._id,
-        name: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-        lastMessage: r.description || 'No messages yet',
-        time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        unread: 0,
-        online: true,
-        statusText: r.description || 'Public Room'
-      }));
+    void (async () => {
+      try {
+        const backendRooms = await chatApi.getRooms();
+        if (isSubscribed && backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
+          const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
+            id: r._id,
+            name: r.roomname,
+            initials: r.roomname.slice(0, 2).toUpperCase(),
+            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+            lastMessage: r.description || 'No messages yet',
+            time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            online: true,
+            statusText: r.description || 'Public Room'
+          }));
 
-      setChats((prev) => {
-        const combined = [...mappedChats, ...prev];
-        const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-        chatStorage.saveChats(unique);
-        return unique;
-      });
+          setChats((prev) => {
+            const combined = [...mappedChats, ...prev];
+            const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
+            chatStorage.saveChats(unique);
+            return unique;
+          });
 
-      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
-        id: `recent-${r._id}`,
-        name: r.roomname,
-        fullName: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-        online: true,
-        chatId: r._id
-      }));
-      setRecentChats(recents);
-      chatStorage.saveRecent(recents);
+          const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
+            id: `recent-${r._id}`,
+            name: r.roomname,
+            fullName: r.roomname,
+            initials: r.roomname.slice(0, 2).toUpperCase(),
+            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
+            online: true,
+            chatId: r._id
+          }));
 
-      setActiveChatId((prev) => {
-        if (!prev) {
-          const firstId = backendRooms[0]._id;
-          chatStorage.saveActiveRoomId(firstId);
-          socketService.joinRoom(firstId);
-          return firstId;
+          setRecentChats(recents);
+          chatStorage.saveRecent(recents);
+
+          setActiveChatId((prev) => {
+            const targetId = prev || backendRooms[0]._id;
+            chatStorage.saveActiveRoomId(targetId);
+            socketService.joinRoom(targetId);
+            return targetId;
+          });
         }
-        return prev;
-      });
-    }).catch(() => {});
+      } catch (err) {
+        console.warn('Could not fetch backend rooms, using local persistent storage.', err);
+      }
+    })();
 
     // Listen for room creation from any user over Socket.IO
     const unbindRoomCreated = socketService.on('room:created', (data: unknown) => {
@@ -219,7 +228,7 @@ export function useChat(): UseChatReturn {
       isSubscribed = false;
       unbindRoomCreated();
     };
-  }, [currentUserId, fetchBackendRooms]);
+  }, [currentUserId]);
 
   // Load messages whenever activeChatId changes
   useEffect(() => {

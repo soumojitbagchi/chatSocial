@@ -51,7 +51,6 @@ export function useGroups(): UseGroupsReturn {
       // Use local storage
     }
   }, []);
-
   useEffect(() => {
     if (!userId) return;
     let isSubscribed = true;
@@ -60,11 +59,11 @@ export function useGroups(): UseGroupsReturn {
       try {
         const backendRooms = await chatApi.getRooms();
         if (isSubscribed && backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-          const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
+          const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
             id: r._id,
             name: r.roomname,
             initials: r.roomname.slice(0, 2).toUpperCase(),
-            avatarBg: '#6f7771',
+            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
             membersCount: 1,
             description: r.description || 'Public collaboration room',
             lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
