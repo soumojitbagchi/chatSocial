@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import SidebarRail from './SidebarRail';
 import ChatList from './ChatList';
 import ChatArea from './ChatArea';
@@ -33,18 +33,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     status,
   } = useChatContext();
 
-  // Automatically fetch fresh backend data whenever user enters the chat screen or switches tabs
-  useEffect(() => {
-    if (activeTab === 'chats' || activeTab === 'contacts') {
-      chat.fetchBackendRooms();
-      if (chat.activeChatId) {
-        chat.loadBackendMessages(chat.activeChatId);
-      }
-    } else if (activeTab === 'groups') {
-      groups.fetchBackendRooms();
-    }
-  }, [activeTab, chat, groups]);
-
   const handleLogout = () => {
     logout();
     if (onLogout) onLogout();
@@ -60,7 +48,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
 
   return (
     <div className={`cs-app ${theme}`}>
-      {/* 1. Leftmost Vertical Navigation Rail */}
       <SidebarRail
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -72,10 +59,8 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         onToggleTheme={toggleTheme}
       />
 
-      {/* 2. Middle & Right Main Canvas by Active Tab */}
       {activeTab === 'chats' && (
         <>
-          {/* Middle Conversation Sidebar */}
           <ChatList
             chats={chat.chats}
             recentChats={chat.recentChats}
@@ -89,7 +74,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
           />
 
-          {/* Right Active Chat Area */}
           <ChatArea
             activeChat={chat.activeChat}
             messages={chat.activeMessages}
@@ -101,7 +85,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             onStartCall={(callType) => {
               if (chat.activeChat) {
-                calls.startCall(chat.activeChat.name, callType, chat.activeChat.avatar);
+                calls.startCall(chat.activeChat.id, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
             onOpenDetails={() => setActiveTab('settings')}
@@ -109,7 +93,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         </>
       )}
 
-      {/* 3. Groups Section View */}
       {activeTab === 'groups' && (
         <GroupsSection
           groups={groups.groups}
@@ -121,15 +104,16 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* 4. Calls Section View */}
       {activeTab === 'calls' && (
         <CallsSection
           calls={calls.calls}
-          onStartCall={(name, callType, avatar) => calls.startCall(name, callType, avatar)}
+          onStartCall={(name, callType, avatar) => {
+            const foundChat = chat.chats.find((c) => c.name.toLowerCase() === name.toLowerCase() || c.id === name);
+            const contactId = foundChat?.id || name;
+            calls.startCall(contactId, name, callType, avatar);
+          }}
         />
       )}
-
-      {/* 5. Status & Stories Section View */}
       {activeTab === 'status' && (
         <StatusSection
           statusUpdates={status.statusUpdates}
@@ -138,7 +122,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* 6. Settings & Profile Section View */}
       {(activeTab === 'settings' || activeTab === 'profile') && (
         <SettingsSection
           user={userProfile}
@@ -149,7 +132,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* Contacts view alias */}
       {activeTab === 'contacts' && (
         <ChatList
           chats={chat.chats}
@@ -162,7 +144,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* 7. Interactive Modals */}
       {showNewChatModal && (
         <NewChatModal
           contacts={chat.chats}
@@ -177,7 +158,14 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           contactName={calls.activeCall.contactName}
           avatar={calls.activeCall.avatar}
           type={calls.activeCall.type}
+          status={calls.activeCall.status}
+          statusMessage={calls.activeCall.statusMessage}
+          direction={calls.activeCall.direction}
+          isMuted={calls.activeCall.isMuted}
+          onAcceptCall={calls.acceptCall}
+          onRejectCall={calls.rejectCall}
           onEndCall={calls.endCall}
+          onToggleMute={calls.toggleMute}
         />
       )}
 
