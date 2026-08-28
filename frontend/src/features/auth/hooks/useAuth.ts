@@ -1,14 +1,15 @@
-import { useState, useCallback } from 'react';
-import { authService, User } from '../api/authService';
+import { useState, useCallback, useEffect } from 'react';
+import { authService, User, LoginCredentials, RegisterCredentials } from '../api/authService';
 
 export interface UseAuthReturn {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isVerifying: boolean;
   error: string | null;
-  login: (credentials: { email: string; password: string }) => Promise<User>;
-  register: (credentials: { name: string; email: string; password: string; username?: string }) => Promise<User>;
+  login: (credentials: LoginCredentials) => Promise<User>;
+  register: (credentials: RegisterCredentials) => Promise<User>;
   logout: () => void;
   updateProfile: (updated: Partial<User>) => void;
   clearError: () => void;
@@ -16,13 +17,41 @@ export interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(() => authService.getStoredUser());
-  const [token, setToken] = useState<string | null>(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('chatSocial_token') : null;
-  });
+  const [token, setToken] = useState<string | null>(() => authService.getToken());
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState<boolean>(() => Boolean(authService.getToken()));
   const [error, setError] = useState<string | null>(null);
 
-  const login = useCallback(async (credentials: { email: string; password: string }) => {
+  // Verify stored session with backend on mount
+  useEffect(() => {
+    let isCancelled = false;
+    const storedToken = authService.getToken();
+    if (!storedToken) return;
+
+    authService.getMe().then((remoteUser) => {
+      if (!isCancelled) {
+        if (remoteUser) {
+          setUser(remoteUser);
+          setToken(storedToken);
+        } else {
+          setUser(null);
+          setToken(null);
+          authService.logout();
+        }
+        setIsVerifying(false);
+      }
+    }).catch(() => {
+      if (!isCancelled) {
+        setIsVerifying(false);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const login = useCallback(async (credentials: LoginCredentials) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -35,11 +64,11 @@ export function useAuth(): UseAuthReturn {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : 'Login failed';
       setError(msg);
-      throw new Error(msg);
+      throw err;
     }
   }, []);
 
-  const register = useCallback(async (credentials: { name: string; email: string; password: string; username?: string }) => {
+  const register = useCallback(async (credentials: RegisterCredentials) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -52,7 +81,7 @@ export function useAuth(): UseAuthReturn {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : 'Registration failed';
       setError(msg);
-      throw new Error(msg);
+      throw err;
     }
   }, []);
 
@@ -60,7 +89,9 @@ export function useAuth(): UseAuthReturn {
     authService.logout();
     setUser(null);
     setToken(null);
+    setError(null);
   }, []);
+
 
   const updateProfile = useCallback((updated: Partial<User>) => {
     setUser((prev) => {
@@ -78,8 +109,9 @@ export function useAuth(): UseAuthReturn {
   return {
     user,
     token,
-    isAuthenticated: Boolean(user),
+    isAuthenticated: Boolean(user && token),
     isLoading,
+    isVerifying,
     error,
     login,
     register,
