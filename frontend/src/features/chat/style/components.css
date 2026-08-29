@@ -3,34 +3,34 @@
    ========================================================================== */
 
 :root {
-  --cs-primary: #6366f1;
-  --cs-primary-hover: #4f46e5;
-  --cs-primary-gradient: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
-  --cs-bubble-sent: #5832e6;
-  --cs-bubble-received: #f3f4f6;
-  --cs-bg-main: #ffffff;
+  --cs-primary: #0f172a;
+  --cs-primary-hover: #1e293b;
+  --cs-primary-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  --cs-bubble-sent: #0f172a;
+  --cs-bubble-received: #f1f5f9;
+  --cs-bg-main: #f8fafc;
   --cs-bg-sidebar: #ffffff;
-  --cs-bg-chat: #fcfdfe;
+  --cs-bg-chat: #ffffff;
   --cs-text-main: #0f172a;
   --cs-text-muted: #64748b;
-  --cs-border: #f1f5f9;
-  --cs-badge-unread: #f43f5e;
+  --cs-border: #e2e8f0;
+  --cs-badge-unread: #ef4444;
   --cs-online: #10b981;
 }
 
 .dark {
-  --cs-primary: #818cf8;
-  --cs-primary-hover: #6366f1;
-  --cs-primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --cs-bubble-sent: #6366f1;
-  --cs-bubble-received: #1e293b;
-  --cs-bg-main: #090d16;
-  --cs-bg-sidebar: #0f172a;
-  --cs-bg-chat: #090d16;
+  --cs-primary: #f8fafc;
+  --cs-primary-hover: #e2e8f0;
+  --cs-primary-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  --cs-bubble-sent: #1e2229;
+  --cs-bubble-received: #14171c;
+  --cs-bg-main: #090a0c;
+  --cs-bg-sidebar: #111215;
+  --cs-bg-chat: #090a0c;
   --cs-text-main: #f8fafc;
-  --cs-text-muted: #94a3b8;
-  --cs-border: #1e293b;
-  --cs-badge-unread: #f43f5e;
+  --cs-text-muted: #8e95a5;
+  --cs-border: #22242a;
+  --cs-badge-unread: #ef4444;
   --cs-online: #10b981;
 }
 
@@ -126,13 +126,13 @@
 }
 
 .cs-rail-btn.active {
-  background-color: #f5f3ff;
-  color: #7c3aed;
+  background-color: #0f172a;
+  color: #ffffff;
 }
 
 .dark .cs-rail-btn.active {
-  background-color: rgba(124, 58, 237, 0.2);
-  color: #a78bfa;
+  background-color: #f8fafc;
+  color: #090a0c;
 }
 
 .cs-heart-dot {
@@ -178,7 +178,7 @@
 
 .cs-rail-btn.active .cs-rail-avatar-ring,
 .cs-rail-btn:hover .cs-rail-avatar-ring {
-  border-color: #7c3aed;
+  border-color: currentColor;
 }
 
 /* ==========================================================================
@@ -302,8 +302,13 @@
 }
 
 .cs-chip.active {
-  background-color: #7c3aed;
+  background-color: #0f172a;
   color: #ffffff;
+}
+
+.dark .cs-chip.active {
+  background-color: #f8fafc;
+  color: #090a0c;
 }
 
 .cs-chat-rows {
@@ -333,13 +338,13 @@
 }
 
 .cs-chat-card.active {
-  background-color: #f5f3ff;
-  border-color: #ede9fe;
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 .dark .cs-chat-card.active {
-  background-color: rgba(124, 58, 237, 0.15);
-  border-color: rgba(124, 58, 237, 0.3);
+  background-color: #1e293b;
+  border-color: #334155;
 }
 
 .cs-unread-pill {
@@ -558,12 +563,17 @@
 }
 
 .bubble-sent {
-  background-color: #5832e6;
+  background-color: #0f172a;
   color: #ffffff;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 12px rgba(88, 50, 230, 0.25);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
+.dark .bubble-sent {
+  background-color: #1e2229;
+  border: 1px solid #2d333f;
+  color: #f8fafc;
+}
 /* Audio Player inside Message */
 .cs-audio-card {
   display: flex;
@@ -746,13 +756,13 @@
 }
 
 .cs-composer-bar:focus-within {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+  border-color: #0f172a;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
 }
 
 .dark .cs-composer-bar:focus-within {
-  border-color: #a78bfa;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  border-color: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.12);
 }
 
 .cs-composer-icon-btn {
@@ -775,18 +785,23 @@
 }
 
 .cs-composer-icon-btn:hover {
-  background-color: #ede9fe;
-  color: #7c3aed;
+  background-color: #f1f5f9;
+  color: #0f172a;
 }
 
 .dark .cs-composer-icon-btn:hover {
   background-color: #334155;
-  color: #a78bfa;
+  color: #f8fafc;
 }
 
 .cs-composer-icon-btn.active {
-  background-color: #7c3aed;
+  background-color: #0f172a;
   color: #ffffff;
+}
+
+.dark .cs-composer-icon-btn.active {
+  background-color: #f8fafc;
+  color: #090a0c;
 }
 
 .cs-composer-input-wrap {
@@ -823,21 +838,31 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #5832e6;
+  background-color: #0f172a;
   color: #ffffff;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(88, 50, 230, 0.35);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
   transition: transform 0.15s ease, background-color 0.15s ease;
   flex-shrink: 0;
 }
 
+.dark .cs-send-btn {
+  background-color: #f8fafc;
+  color: #090a0c;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 .cs-send-btn:hover {
-  background-color: #4c28cc;
+  background-color: #1e293b;
   transform: scale(1.05);
+}
+
+.dark .cs-send-btn:hover {
+  background-color: #e2e8f0;
 }
 
 .cs-send-btn:active {

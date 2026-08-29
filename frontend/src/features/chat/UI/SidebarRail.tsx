@@ -8,8 +8,7 @@ import {
   Settings, 
   LogOut,
   Moon,
-  Sun,
-  Heart
+  Sun
 } from 'lucide-react';
 import { InfinityGradientLogo } from '@/components/ui/logo';
 import '../style/components.css';
@@ -48,12 +47,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           title="Chats"
           aria-label="Chats"
         >
-          <div className="relative flex items-center justify-center">
-            <MessageSquare size={20} />
-            <span className="cs-heart-dot" title="Loved contacts">
-              <Heart size={8} fill="#ec4899" color="#ec4899" />
-            </span>
-          </div>
+          <MessageSquare size={20} />
           {totalUnread > 0 && activeTab !== 'chats' && (
             <span className="cs-badge-dot" />
           )}
@@ -65,12 +59,8 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           title="Contacts"
           aria-label="Contacts"
         >
-          <div className="relative flex items-center justify-center">
-            <User size={20} />
-            <span className="cs-pink-dot" />
-          </div>
+          <User size={20} />
         </button>
-
         <button
           className={`cs-rail-btn ${activeTab === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveTab('groups')}
