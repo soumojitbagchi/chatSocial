@@ -150,10 +150,21 @@ export function useChat(): UseChatReturn {
     try {
       const backendRooms = await chatApi.getRooms();
       const mappedChats: ChatItem[] = Array.isArray(backendRooms)
-        ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { name: string; avatar?: string } }) => {
+        ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
             const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+            const targetUserId = r.contactUser?.id || (
+              r.isDirect && Array.isArray(r.members)
+                ? (r.members.find((m) => {
+                    const mId = typeof m === 'object' && m !== null ? m._id : m;
+                    return mId && mId.toString() !== currentUserId;
+                  }) as { _id?: string } | string | undefined)
+                : undefined
+            );
+            const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
+
             return {
               id: r._id,
+              targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
               name: roomTitle,
               initials: roomTitle.slice(0, 2).toUpperCase(),
               avatar: r.avatar || r.contactUser?.avatar || '',
@@ -199,7 +210,7 @@ export function useChat(): UseChatReturn {
     } catch (err) {
       console.warn('Could not fetch backend rooms:', err);
     }
-  }, []);
+  }, [currentUserId]);
 
   // Initial fetch on mount & whenever user is authenticated
   useEffect(() => {
@@ -211,10 +222,21 @@ export function useChat(): UseChatReturn {
         const backendRooms = await chatApi.getRooms();
         if (isSubscribed) {
           const mappedChats: ChatItem[] = Array.isArray(backendRooms)
-            ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { name: string; avatar?: string } }) => {
+            ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
                 const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+                const targetUserId = r.contactUser?.id || (
+                  r.isDirect && Array.isArray(r.members)
+                    ? (r.members.find((m) => {
+                        const mId = typeof m === 'object' && m !== null ? m._id : m;
+                        return mId && mId.toString() !== currentUserId;
+                      }) as { _id?: string } | string | undefined)
+                    : undefined
+                );
+                const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
+
                 return {
                   id: r._id,
+                  targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
                   name: roomTitle,
                   initials: roomTitle.slice(0, 2).toUpperCase(),
                   avatar: r.avatar || r.contactUser?.avatar || '',
@@ -367,7 +389,6 @@ export function useChat(): UseChatReturn {
 
           setMessages((prev) => {
             const existing = prev[roomId] || [];
-            // If already present with same _id, ignore duplicate
             if (existing.some((m) => m.id === msgId)) {
               return prev;
             }
@@ -489,7 +510,6 @@ export function useChat(): UseChatReturn {
     };
   }, [currentUserId]);
 
-  // Select chat handler
   const selectChat = useCallback(
     (id: string) => {
       setActiveChatId((prevOldId) => {
@@ -582,7 +602,6 @@ export function useChat(): UseChatReturn {
     [activeChatId]
   );
 
-  // Edit message
   const editMessage = useCallback(
     async (messageId: string, text: string) => {
       setMessages((prev) => {
@@ -595,14 +614,11 @@ export function useChat(): UseChatReturn {
       socketService.editMessage(messageId, text);
       try {
         await chatApi.updateMessage(messageId, { text });
-      } catch {
-        // Ignored
-      }
+      } catch { /* no-op */ }
     },
     [activeChatId]
   );
 
-  // Create new contact or room
   const createNewContact = useCallback(
     async (name: string) => {
       const validId = generateValidObjectId();
@@ -764,7 +780,6 @@ export function useChat(): UseChatReturn {
     [fetchBackendRooms, loadBackendMessages]
   );
 
-  // Add reaction
   const addReaction = useCallback(
     (messageId: string, emoji: string) => {
       setMessages((prev) => {
