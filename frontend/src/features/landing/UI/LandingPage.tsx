@@ -46,7 +46,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
           <div className="landing-card-shadow" />
           <div className="landing-chat-card">
             <header className="landing-chat-header">
-              <div className="landing-avatar landing-avatar-photo">M</div>
+              <div className="landing-avatar landing-avatar-photo">A</div>
               <div>
                 <strong>Ananya</strong>
                 <span>online now</span>
@@ -73,7 +73,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
           </div>
           <div className="landing-presence-note">
             <div className="landing-avatar landing-avatar-small">J</div>
-            <span><strong>Jon joined</strong> the conversation</span>
+            <span><strong>Bagchi joined</strong> the conversation</span>
           </div>
         </section>
       </main>
