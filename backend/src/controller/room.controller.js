@@ -31,7 +31,8 @@ export const getRoomController = async (req, res) => {
 
 export const getAllRoomsController = async (req, res) => {
     try {
-        const rooms = await getAllRooms();
+        const currentUserId = req.user?.id || req.user?._id || null;
+        const rooms = await getAllRooms(currentUserId);
         res.status(200).json({ success: true, data: rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
