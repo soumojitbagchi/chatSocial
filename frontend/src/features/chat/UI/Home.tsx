@@ -133,15 +133,53 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
       )}
 
       {activeTab === 'contacts' && (
-        <ChatList
-          chats={chat.chats}
-          recentChats={chat.recentChats}
-          activeChatId={chat.activeChatId}
-          onSelectChat={chat.selectChat}
-          searchQuery={chat.searchQuery}
-          setSearchQuery={chat.setSearchQuery}
-          onNewChat={() => setShowNewChatModal(true)}
-        />
+        <>
+          <ChatList
+            title="Contacts"
+            chats={chat.chats}
+            recentChats={chat.recentChats}
+            activeChatId={chat.activeChatId}
+            onSelectChat={(chatId) => {
+              chat.selectChat(chatId);
+              setActiveTab('chats');
+            }}
+            searchQuery={chat.searchQuery}
+            setSearchQuery={chat.setSearchQuery}
+            onNewChat={() => setShowNewChatModal(true)}
+            onSelectRecentUser={(recentUser) => {
+              if (recentUser.chatId) {
+                chat.selectChat(recentUser.chatId);
+                setActiveTab('chats');
+              }
+            }}
+            isUserOnline={isUserOnline}
+            onDeleteChat={chat.deleteChat}
+          />
+
+          <ChatArea
+            activeChat={chat.activeChat}
+            messages={chat.activeMessages}
+            onSendMessage={chat.sendMessage}
+            currentUser={{
+              id: user?.id || user?._id || 'user-me',
+              name: userProfile.name,
+              avatar: userProfile.avatar,
+            }}
+            onStartCall={(callType) => {
+              if (chat.activeChat) {
+                calls.startCall(chat.activeChat.id, chat.activeChat.name, callType, chat.activeChat.avatar);
+              }
+            }}
+            onOpenDetails={() => setActiveTab('settings')}
+            onNewChat={() => setShowNewChatModal(true)}
+            isOnline={isUserOnline ? isUserOnline(chat.activeChat?.id) : false}
+            onDeleteMessage={chat.deleteMessage}
+            onDeleteChat={chat.deleteChat}
+            onLoadMoreMessages={chat.loadMoreMessages}
+            hasMoreMessages={chat.hasMoreMessages}
+            isLoadingMore={chat.isLoadingMore}
+          />
+        </>
       )}
 
       {showNewChatModal && (
@@ -150,6 +188,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           onSelectContact={chat.selectChat}
           onClose={() => setShowNewChatModal(false)}
           onCreateNewContact={chat.createNewContact}
+          onRefreshChats={chat.fetchBackendRooms}
         />
       )}
 
