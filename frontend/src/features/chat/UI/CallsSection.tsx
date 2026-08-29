@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Phone,
   Video,
@@ -33,10 +33,13 @@ export const CallsSection: React.FC<CallsSectionProps> = ({ calls, onStartCall }
   const [filter, setFilter] = useState<'all' | 'missed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCalls = calls.filter((call) => {
-    const matchesSearch = !searchQuery.trim() || call.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch && (filter === 'all' || call.direction === 'missed');
-  });
+  const filteredCalls = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return calls.filter((call) => {
+      const matchesSearch = !q || call.name.toLowerCase().includes(q);
+      return matchesSearch && (filter === 'all' || call.direction === 'missed');
+    });
+  }, [calls, searchQuery, filter]);
 
   return (
     <div className="cs-workspace cs-product-page">

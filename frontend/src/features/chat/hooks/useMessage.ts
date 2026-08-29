@@ -54,15 +54,9 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
   const currentUser = useMemo(() => authService.getStoredUser(), []);
   const currentUserId = currentUser?.id || currentUser?._id || '';
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    if (roomId) {
-      return chatStorage.getRoomMessages(roomId);
-    }
-    return [];
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
   const clearError = useCallback(() => setError(null), []);
 
   // Fetch messages from REST API and sync via Socket.IO
@@ -78,31 +72,18 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
         const fetchLimit = customLimit || limit;
         const backendMsgs = await chatApi.getMessages({ roomId: activeRoom, limit: fetchLimit, page });
         
-        if (Array.isArray(backendMsgs) && backendMsgs.length > 0) {
-          const mapped = backendMsgs.map((m) => mapApiMessageToChatMessage(m, currentUserId));
-          
-          setMessages((_prev) => {
-            const local = chatStorage.getRoomMessages(activeRoom);
-            const combined = [...local, ...mapped];
-            const unique = Array.from(new Map(combined.map((msg) => [msg.id, msg])).values());
-            chatStorage.saveRoomMessages(activeRoom, unique);
-            return unique;
-          });
+        const mapped = Array.isArray(backendMsgs)
+          ? backendMsgs.slice(-50).map((m) => mapApiMessageToChatMessage(m, currentUserId))
+          : [];
 
-          setIsLoading(false);
-          return mapped;
-        }
-
-        // If backend returned empty, fallback to local storage
-        const local = chatStorage.getRoomMessages(activeRoom);
-        setMessages(local);
+        setMessages(mapped);
         setIsLoading(false);
-        return local;
+        return mapped;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to fetch messages';
         setError(msg);
         setIsLoading(false);
-        return chatStorage.getRoomMessages(activeRoom);
+        return [];
       }
     },
     [roomId, limit, currentUserId]

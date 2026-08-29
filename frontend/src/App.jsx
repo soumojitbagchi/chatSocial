@@ -13,7 +13,7 @@ import './features/chat/style/components.css';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isVerifying } = useAuthContext();
 
-  if (isVerifying) {
+  if (isVerifying && !isAuthenticated) {
     return <Loader fullscreen text="Verifying authentication..." />;
   }
 
@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children }) => {
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, isVerifying } = useAuthContext();
 
-  if (isVerifying) {
+  if (isVerifying && !isAuthenticated) {
     return <Loader fullscreen text="Loading..." />;
   }
 

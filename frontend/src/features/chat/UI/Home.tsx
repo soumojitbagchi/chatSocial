@@ -29,23 +29,26 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     showNewChatModal,
     setShowNewChatModal,
     totalUnread,
+    isUserOnline,
     chat,
     groups,
     calls,
     status,
   } = useChatContext();
+  // Fetch fresh backend data only when switching to specific tabs
+  const { fetchBackendRooms: fetchRooms, loadBackendMessages: loadMsgs, activeChatId } = chat;
+  const { fetchBackendRooms: fetchGroupRooms } = groups;
 
-  // Automatically fetch fresh backend data whenever user enters the chat screen or switches tabs
   useEffect(() => {
     if (activeTab === 'chats' || activeTab === 'contacts') {
-      chat.fetchBackendRooms();
-      if (chat.activeChatId) {
-        chat.loadBackendMessages(chat.activeChatId);
+      fetchRooms();
+      if (activeChatId) {
+        loadMsgs(activeChatId);
       }
     } else if (activeTab === 'groups') {
-      groups.fetchBackendRooms();
+      fetchGroupRooms();
     }
-  }, [activeTab, chat, groups]);
+  }, [activeTab, fetchRooms, loadMsgs, activeChatId, fetchGroupRooms]);
 
   const handleLogout = () => {
     logout();
@@ -95,9 +98,9 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
                 setMobileChatOpen(true);
               }
             }}
+            isUserOnline={isUserOnline}
+            onDeleteChat={chat.deleteChat}
           />
-
-          {/* Right Active Chat Area */}
           <ChatArea
             activeChat={chat.activeChat}
             messages={chat.activeMessages}
@@ -109,12 +112,18 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             onStartCall={(callType) => {
               if (chat.activeChat) {
-                calls.startCall(chat.activeChat.name, callType, chat.activeChat.avatar);
+                calls.startCall(chat.activeChat.id, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
             onOpenDetails={() => setActiveTab('settings')}
             onBack={() => setMobileChatOpen(false)}
             onNewChat={() => setShowNewChatModal(true)}
+            isOnline={isUserOnline ? isUserOnline(chat.activeChat?.id) : false}
+            onDeleteMessage={chat.deleteMessage}
+            onDeleteChat={chat.deleteChat}
+            onLoadMoreMessages={chat.loadMoreMessages}
+            hasMoreMessages={chat.hasMoreMessages}
+            isLoadingMore={chat.isLoadingMore}
           />
         </>
       )}

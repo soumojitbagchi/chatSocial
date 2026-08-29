@@ -20,11 +20,13 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
-      },
-      '/socket.io': {
-        target: 'http://localhost:8080',
-        ws: true,
-        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code !== 'ECONNRESET' && err.code !== 'ECONNREFUSED') {
+              console.warn('[vite-proxy] /api error:', err.message);
+            }
+          });
+        },
       },
     },
   },

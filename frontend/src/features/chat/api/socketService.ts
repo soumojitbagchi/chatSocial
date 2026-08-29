@@ -10,8 +10,13 @@ class SocketService {
   private currentUserId: string | null = null;
 
   public connect(url?: string): Socket {
-    const socketUrl = url || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
-
+    const socketUrl =
+      url ||
+      (typeof window !== 'undefined' && (window.location.port === '5173' || window.location.port === '5174')
+        ? 'http://localhost:8080'
+        : typeof window !== 'undefined'
+        ? window.location.origin
+        : 'http://localhost:8080');
     let token = '';
     let userId = '';
     let username = '';

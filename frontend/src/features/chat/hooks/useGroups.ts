@@ -58,32 +58,34 @@ export function useGroups(): UseGroupsReturn {
     void (async () => {
       try {
         const backendRooms = await chatApi.getRooms();
-        if (isSubscribed && backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-          const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
-            id: r._id,
-            name: r.roomname,
-            initials: r.roomname.slice(0, 2).toUpperCase(),
-            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-            membersCount: 1,
-            description: r.description || 'Public collaboration room',
-            lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            unread: 0,
-            chatId: r._id,
-            isAdmin: false,
-            members: [
-              {
-                name: 'Room Admin',
-                role: 'Admin',
-                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
-              }
-            ]
-          }));
+        if (isSubscribed) {
+          const mappedGroups: GroupItem[] = Array.isArray(backendRooms)
+            ? backendRooms.map((r: ApiRoom) => ({
+                id: r._id,
+                name: r.roomname,
+                initials: r.roomname.slice(0, 2).toUpperCase(),
+                avatarBg: '#6366f1',
+                membersCount: 1,
+                description: r.description || 'Public collaboration room',
+                lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                unread: 0,
+                chatId: r._id,
+                isAdmin: false,
+                members: [
+                  {
+                    name: 'Room Admin',
+                    role: 'Admin',
+                    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
+                  }
+                ]
+              }))
+            : [];
           setGroups(mappedGroups);
           chatStorage.saveGroups(mappedGroups);
-          setSelectedGroup((prev) => prev || mappedGroups[0] || null);
+          setSelectedGroup((prev) => (mappedGroups.some((g) => g.id === prev?.id) ? prev : mappedGroups[0] || null));
         }
       } catch {
-        // Use local storage
+        // Empty fallback
       }
     })();
 

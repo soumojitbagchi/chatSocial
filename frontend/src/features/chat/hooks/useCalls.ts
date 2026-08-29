@@ -22,7 +22,12 @@ export interface UseCallsReturn {
   activeCall: ActiveCallState | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
-  startCall: (contactId: string, contactName: string, type?: 'audio' | 'video', avatar?: string) => Promise<void>;
+  startCall: (
+    contactIdOrName: string,
+    contactNameOrType?: string | 'audio' | 'video',
+    typeOrAvatar?: 'audio' | 'video' | string,
+    avatar?: string
+  ) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => void;
   endCall: (reason?: string) => void;
@@ -82,8 +87,32 @@ export function useCalls(): UseCallsReturn {
    * 1. Start an outgoing 1-to-1 WebRTC SFU Call
    */
   const startCall = useCallback(
-    async (contactId: string, contactName: string, type: 'audio' | 'video' = 'audio', avatar?: string) => {
-      if (!contactId) return;
+    async (
+      arg1: string,
+      arg2?: string | 'audio' | 'video',
+      arg3?: 'audio' | 'video' | string,
+      arg4?: string
+    ) => {
+      if (!arg1) return;
+
+      let contactId = arg1;
+      let contactName = arg1;
+      let type: 'audio' | 'video' = 'audio';
+      let avatar: string | undefined = undefined;
+
+      if (arg2 === 'audio' || arg2 === 'video') {
+        // 3-arg signature: startCall(name, 'audio' | 'video', avatar?)
+        contactId = arg1;
+        contactName = arg1;
+        type = arg2;
+        avatar = typeof arg3 === 'string' ? arg3 : undefined;
+      } else {
+        // 4-arg signature: startCall(contactId, contactName, 'audio' | 'video', avatar?)
+        contactId = arg1;
+        contactName = typeof arg2 === 'string' ? arg2 : arg1;
+        type = arg3 === 'video' ? 'video' : 'audio';
+        avatar = arg4;
+      }
 
       try {
         const newCall: ActiveCallState = {

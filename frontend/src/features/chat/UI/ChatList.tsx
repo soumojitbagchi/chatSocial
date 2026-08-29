@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Search, 
   Plus, 
@@ -13,9 +13,9 @@ import {
   UserPlus,
   Users,
   Archive,
-  MessageSquare
+  MessageSquare,
+  Trash2
 } from 'lucide-react';
-import '../style/components.css';
 
 export interface ChatItem {
   id: string;
@@ -57,8 +57,9 @@ export interface ChatListProps {
   setSearchQuery: (query: string) => void;
   onNewChat: () => void;
   onSelectRecentUser?: (user: RecentChatUser) => void;
+  isUserOnline?: (id?: string) => boolean;
+  onDeleteChat?: (chatId: string) => void;
 }
-
 export const ChatList: React.FC<ChatListProps> = ({
   title = 'Chats',
   chats,
@@ -68,27 +69,30 @@ export const ChatList: React.FC<ChatListProps> = ({
   searchQuery,
   setSearchQuery,
   onNewChat,
-  onSelectRecentUser
+  onSelectRecentUser,
+  isUserOnline,
+  onDeleteChat,
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'groups' | 'pinned'>('all');
   const [showMenu, setShowMenu] = useState(false);
-
+  const [activeMenuChatId, setActiveMenuChatId] = useState<string | null>(null);
   // Filter chats by search query and selected filter
-  const filteredChats = chats.filter((chat) => {
-    const matchesSearch = 
-      searchQuery.trim() === '' ||
-      chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredChats = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return chats.filter((chat) => {
+      const matchesSearch =
+        q === '' ||
+        chat.name.toLowerCase().includes(q) ||
+        chat.lastMessage.toLowerCase().includes(q);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (activeFilter === 'unread') return (chat.unread || 0) > 0;
-    if (activeFilter === 'groups') return Boolean(chat.isGroup);
-    if (activeFilter === 'pinned') return Boolean(chat.pinned);
-
-    return true;
-  });
-
+      if (activeFilter === 'unread') return (chat.unread || 0) > 0;
+      if (activeFilter === 'groups') return Boolean(chat.isGroup);
+      if (activeFilter === 'pinned') return Boolean(chat.pinned);
+      return true;
+    });
+  }, [chats, searchQuery, activeFilter]);
   return (
     <section className="cs-chat-sidebar" aria-label="Chats and Contacts">
       {/* Top Header */}
@@ -184,36 +188,39 @@ export const ChatList: React.FC<ChatListProps> = ({
             </div>
 
             <div className="cs-recent-row">
-              {recentChats.map((user) => (
-                <button
-                  key={user.id}
-                  onClick={() => {
-                    if (user.chatId) onSelectChat(user.chatId);
-                    else if (onSelectRecentUser) onSelectRecentUser(user);
-                  }}
-                  className="cs-recent-item group"
-                  title={user.fullName}
-                >
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-orange-400 transition-all shadow-sm">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div
-                          className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
-                          style={{ backgroundColor: user.avatarBg || '#6f7771' }}
-                        >
-                          {user.initials || user.name.slice(0, 2).toUpperCase()}
-                        </div>
+              {recentChats.map((user) => {
+                const isOnline = isUserOnline ? isUserOnline(user.chatId || user.id) : Boolean(user.online);
+                return (
+                  <button
+                    key={user.id}
+                    onClick={() => {
+                      if (user.chatId) onSelectChat(user.chatId);
+                      else if (onSelectRecentUser) onSelectRecentUser(user);
+                    }}
+                    className="cs-recent-item group"
+                    title={user.fullName}
+                  >
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-orange-400 transition-all shadow-sm">
+                        {user.avatar ? (
+                          <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
+                            style={{ backgroundColor: user.avatarBg || '#6f7771' }}
+                          >
+                            {user.initials || user.name.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      {isOnline && (
+                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                       )}
                     </div>
-                    {user.online && (
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
-                    )}
-                  </div>
-                  <span className="cs-recent-name">{user.name}</span>
-                </button>
-              ))}
+                    <span className="cs-recent-name">{user.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -284,13 +291,21 @@ export const ChatList: React.FC<ChatListProps> = ({
             ) : (
               filteredChats.map((chat) => {
                 const isSelected = chat.id === activeChatId;
+                const isOnline = chat.isGroup ? false : isUserOnline ? isUserOnline(chat.id) : Boolean(chat.online);
 
                 return (
-                  <button
+                  <div
                     key={chat.id}
+                    role="button"
+                    tabIndex={0}
                     className={`cs-chat-card ${isSelected ? 'active' : ''}`}
                     onClick={() => onSelectChat(chat.id)}
-                    type="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectChat(chat.id);
+                      }
+                    }}
                   >
                     {/* Left Avatar with Online Dot */}
                     <div className="relative shrink-0">
@@ -306,7 +321,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           </div>
                         )}
                       </div>
-                      {chat.online && (
+                      {isOnline && (
                         <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
                       )}
                     </div>
@@ -354,7 +369,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           )}
                         </div>
 
-                        {/* Right Meta: Pin icon & Badge pill */}
+                        {/* Right Meta: Pin icon & Badge pill & 3-dots menu */}
                         <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
                           {chat.pinned && (
                             <Pin size={12} className="text-slate-400 rotate-45" />
@@ -367,10 +382,46 @@ export const ChatList: React.FC<ChatListProps> = ({
                           ) : chat.status === 'read' ? (
                             <CheckCheck size={14} className="text-emerald-500" />
                           ) : null}
+
+                          {onDeleteChat && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-md hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
+                                title="Chat options"
+                                aria-label="Chat options"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuChatId((prev) => (prev === chat.id ? null : chat.id));
+                                }}
+                              >
+                                <MoreVertical size={13} />
+                              </button>
+
+                              {activeMenuChatId === chat.id && (
+                                <div
+                                  className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer"
+                                    onClick={() => {
+                                      onDeleteChat(chat.id);
+                                      setActiveMenuChatId(null);
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                    <span>Delete Chat</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}

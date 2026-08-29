@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { useAuthContext } from '../../auth/hooks/useAuthContext';
 import { useSocket } from '../hooks/useSocket';
 import { useChat } from '../hooks/useChat';
@@ -6,7 +6,6 @@ import { useGroups } from '../hooks/useGroups';
 import { useCalls } from '../hooks/useCalls';
 import { useStatus } from '../hooks/useStatus';
 import { ChatContext, ChatContextType } from './chatContextObject';
-
 export interface ChatProviderProps {
   children: ReactNode;
 }
@@ -41,6 +40,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const totalUnread = chat.chats.reduce((acc, c) => acc + (c.unread || 0), 0);
 
+  const onlineUserSet = useMemo(() => new Set(socket.onlineUsers), [socket.onlineUsers]);
+  const isUserOnline = useCallback(
+    (id?: string) => {
+      if (!id) return false;
+      return onlineUserSet.has(String(id));
+    },
+    [onlineUserSet]
+  );
+
   const value: ChatContextType = {
     activeTab,
     setActiveTab,
@@ -49,13 +57,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     showNewChatModal,
     setShowNewChatModal,
     totalUnread,
+    isUserOnline,
     socket,
     chat,
     groups,
     calls,
     status,
   };
-
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 };
 

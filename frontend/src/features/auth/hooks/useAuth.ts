@@ -19,7 +19,11 @@ export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(() => authService.getStoredUser());
   const [token, setToken] = useState<string | null>(() => authService.getToken());
   const [isLoading, setIsLoading] = useState(false);
-  const [isVerifying, setIsVerifying] = useState<boolean>(() => Boolean(authService.getToken()));
+  const [isVerifying, setIsVerifying] = useState<boolean>(() => {
+    const t = authService.getToken();
+    const u = authService.getStoredUser();
+    return Boolean(t && !u);
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,9 +62,11 @@ export function useAuth(): UseAuthReturn {
       setUser(res.user);
       setToken(res.token);
       setIsLoading(false);
+      setIsVerifying(false);
       return res.user;
     } catch (err: unknown) {
       setIsLoading(false);
+      setIsVerifying(false);
       const msg = err instanceof Error ? err.message : 'Login failed';
       setError(msg);
       throw err;
@@ -75,9 +81,11 @@ export function useAuth(): UseAuthReturn {
       setUser(res.user);
       setToken(res.token);
       setIsLoading(false);
+      setIsVerifying(false);
       return res.user;
     } catch (err: unknown) {
       setIsLoading(false);
+      setIsVerifying(false);
       const msg = err instanceof Error ? err.message : 'Registration failed';
       setError(msg);
       throw err;
@@ -89,6 +97,7 @@ export function useAuth(): UseAuthReturn {
     setUser(null);
     setToken(null);
     setError(null);
+    setIsVerifying(false);
   }, []);
 
 

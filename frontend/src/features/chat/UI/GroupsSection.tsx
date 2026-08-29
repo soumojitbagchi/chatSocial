@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   Plus, 
@@ -47,11 +47,14 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
 
-  const filteredGroups = groups.filter((g) =>
-    searchQuery.trim() === '' ||
-    g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    g.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return groups.filter((g) =>
+      q === '' ||
+      g.name.toLowerCase().includes(q) ||
+      g.description.toLowerCase().includes(q)
+    );
+  }, [groups, searchQuery]);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();

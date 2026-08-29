@@ -19,9 +19,14 @@ import {
   User, 
   ArrowLeft,
   BarChart2,
-  MessageSquare
+  MessageSquare,
+  Trash2,
+  Pin,
+  Star,
+  Copy,
+  Check,
+  History
 } from 'lucide-react';
-import { ChatItem } from './ChatList';
 import '../style/components.css';
 
 export interface Reaction {
@@ -65,8 +70,13 @@ export interface ChatAreaProps {
   onStartCall?: (type: 'audio' | 'video') => void;
   onOpenDetails?: () => void;
   onNewChat?: () => void;
+  isOnline?: boolean;
+  onDeleteMessage?: (messageId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+  onLoadMoreMessages?: () => Promise<void>;
+  hasMoreMessages?: boolean;
+  isLoadingMore?: boolean;
 }
-
 export const ChatArea: React.FC<ChatAreaProps> = ({
   activeChat,
   messages = [],
@@ -79,25 +89,32 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   },
   onStartCall,
   onOpenDetails,
-  onNewChat
+  onNewChat,
+  isOnline = false,
+  onDeleteMessage,
+  onDeleteChat,
+  onLoadMoreMessages,
+  hasMoreMessages = false,
+  isLoadingMore = false,
 }) => {
-  const [inputText, setInputText] = useState('');
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [pinnedMsgIds, setPinnedMsgIds] = useState<Set<string>>(new Set());
+  const [starredMsgIds, setStarredMsgIds] = useState<Set<string>>(new Set());
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChat]);
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (attachRef.current && !attachRef.current.contains(e.target as Node)) {
@@ -106,11 +123,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
         setShowEmojiPicker(false);
       }
+      setActiveMenuMsgId(null);
+      setShowHeaderMenu(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
   useEffect(() => {
     if (!isRecording) return;
     const timer = window.setInterval(() => {
@@ -226,7 +244,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               )}
             </div>
-            {activeChat.online && (
+            {isOnline && (
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
             )}
           </div>
@@ -235,8 +253,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
               <span>{activeChat.name}</span>
             </h3>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-              <span>Online</span>
+            <p className={`text-xs font-medium flex items-center gap-1.5 ${isOnline ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+              <span>{activeChat.isGroup ? (activeChat.groupMembers || 'Group conversation') : isOnline ? 'Online' : 'Offline'}</span>
             </p>
           </div>
         </div>
@@ -277,17 +296,72 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Info size={18} />
           </button>
 
-          <button 
-            className="cs-header-btn" 
-            title="More options"
-            aria-label="Conversation options"
-          >
-            <MoreVertical size={18} />
-          </button>
+          <div className="relative">
+            <button 
+              className={`cs-header-btn ${showHeaderMenu ? 'active' : ''}`}
+              title="More options"
+              aria-label="Conversation options"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowHeaderMenu((prev) => !prev);
+              }}
+            >
+              <MoreVertical size={18} />
+            </button>
+
+            {showHeaderMenu && (
+              <div
+                className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onOpenDetails && (
+                  <button
+                    type="button"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
+                    onClick={() => {
+                      setShowHeaderMenu(false);
+                      onOpenDetails();
+                    }}
+                  >
+                    <Info size={14} className="text-slate-400" />
+                    <span>Conversation Info</span>
+                  </button>
+                )}
+                {onDeleteChat && activeChat && (
+                  <button
+                    type="button"
+                    className="w-full px-3.5 py-2 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
+                    onClick={() => {
+                      setShowHeaderMenu(false);
+                      onDeleteChat(activeChat.id);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete Conversation</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <div className="cs-messages-container">
+        {hasMoreMessages && (
+          <div className="flex justify-center my-2 sticky top-1 z-20">
+            <button
+              type="button"
+              onClick={onLoadMoreMessages}
+              disabled={isLoadingMore}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-md border border-slate-200 dark:border-slate-700 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Load older messages"
+            >
+              <History size={13} className={isLoadingMore ? 'animate-spin' : 'text-slate-400'} />
+              <span>{isLoadingMore ? 'Loading older messages...' : 'Load older messages'}</span>
+            </button>
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="cs-empty-state my-auto self-center">
             <MessageSquare size={24} />
@@ -410,24 +484,101 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         )}
                       </div>
                     ) : (
-                      /* Standard Text Message */
                       <p className="text-[13.5px] leading-relaxed select-text">
                         {msg.text}
                       </p>
                     )}
                   </div>
 
-                  {/* 3-dots Hover Actions Menu for Bubble */}
-                  <button 
-                    className="cs-msg-hover-action"
-                    title="Message options"
-                    aria-label="Message options"
-                  >
-                    <MoreVertical size={13} />
-                  </button>
+                  <div className="relative">
+                    <button 
+                      className="cs-msg-hover-action"
+                      title="Message options"
+                      aria-label="Message options"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuMsgId((prev) => (prev === msg.id ? null : msg.id));
+                      }}
+                    >
+                      <MoreVertical size={13} />
+                    </button>
+
+                    {activeMenuMsgId === msg.id && (
+                      <div
+                        className={`absolute ${isMe ? 'right-0 top-full' : 'left-0 top-full'} mt-1 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 dark:text-slate-200 text-xs font-medium`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {msg.text && (
+                          <button
+                            type="button"
+                            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                            onClick={() => {
+                              if (msg.text) {
+                                navigator.clipboard.writeText(msg.text);
+                                setCopiedMsgId(msg.id);
+                                setTimeout(() => setCopiedMsgId(null), 1500);
+                              }
+                              setActiveMenuMsgId(null);
+                            }}
+                          >
+                            {copiedMsgId === msg.id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} className="text-slate-400" />}
+                            <span>{copiedMsgId === msg.id ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                          onClick={() => {
+                            setPinnedMsgIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(msg.id)) next.delete(msg.id);
+                              else next.add(msg.id);
+                              return next;
+                            });
+                            setActiveMenuMsgId(null);
+                          }}
+                        >
+                          <Pin size={13} className={pinnedMsgIds.has(msg.id) ? 'text-amber-500 fill-amber-500' : 'text-slate-400'} />
+                          <span>{pinnedMsgIds.has(msg.id) ? 'Unpin' : 'Pin'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                          onClick={() => {
+                            setStarredMsgIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(msg.id)) next.delete(msg.id);
+                              else next.add(msg.id);
+                              return next;
+                            });
+                            setActiveMenuMsgId(null);
+                          }}
+                        >
+                          <Star size={13} className={starredMsgIds.has(msg.id) ? 'text-amber-500 fill-amber-500' : 'text-slate-400'} />
+                          <span>{starredMsgIds.has(msg.id) ? 'Unstar' : 'Star'}</span>
+                        </button>
+
+                        {onDeleteMessage && (
+                          <button
+                            type="button"
+                            className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
+                            onClick={() => {
+                              onDeleteMessage(msg.id);
+                              setActiveMenuMsgId(null);
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Emoji Reactions Bar underneath bubble if present */}
                 {msg.reactions && msg.reactions.length > 0 && (
                   <div className={`cs-reactions-row ${isMe ? 'justify-end' : 'justify-start'}`}>
                     {msg.reactions.map((react, idx) => (
@@ -447,7 +598,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 )}
               </div>
 
-              {/* Me Avatar on Right for Sent Messages */}
               {isMe && (
                 <div className="cs-msg-avatar-wrap">
                   <img 

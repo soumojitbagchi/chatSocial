@@ -11,8 +11,8 @@ export interface ChatContextType {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   showNewChatModal: boolean;
-  setShowNewChatModal: (show: boolean) => void;
   totalUnread: number;
+  isUserOnline: (id?: string) => boolean;
   socket: UseSocketReturn;
   chat: UseChatReturn;
   groups: UseGroupsReturn;

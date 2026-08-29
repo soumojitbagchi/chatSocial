@@ -369,9 +369,10 @@ export function GrassCanvas({
     const currentMouseWorldPos = new THREE.Vector3(0, -100, 0);
 
     const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const x = (e.clientX / w) * 2 - 1;
+      const y = -((e.clientY / h) * 2 - 1);
       mouse.set(x, y);
 
       // Ultra-gentle subtle camera parallax
@@ -387,9 +388,10 @@ export function GrassCanvas({
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length > 0) {
         const touch = e.touches[0];
-        const rect = container.getBoundingClientRect();
-        const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -(((touch.clientY - rect.top) / rect.height) * 2 - 1);
+        const w = window.innerWidth || 1;
+        const h = window.innerHeight || 1;
+        const x = (touch.clientX / w) * 2 - 1;
+        const y = -((touch.clientY / h) * 2 - 1);
         mouse.set(x, y);
         raycaster.setFromCamera(mouse, camera);
         if (raycaster.ray.intersectPlane(groundPlane, mouseWorldPos)) {

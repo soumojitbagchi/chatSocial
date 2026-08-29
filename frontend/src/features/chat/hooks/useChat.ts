@@ -15,14 +15,18 @@ export interface UseChatReturn {
   activeMessages: ChatMessage[];
   searchQuery: string;
   isLoading: boolean;
+  isLoadingMore: boolean;
+  hasMoreMessages: boolean;
   setSearchQuery: (q: string) => void;
   selectChat: (id: string) => void;
   sendMessage: (text: string, type?: string, meta?: Record<string, unknown>) => Promise<void>;
   editMessage: (messageId: string, text: string) => Promise<void>;
   createNewContact: (name: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  deleteChat: (chatId: string) => Promise<void>;
   addReaction: (messageId: string, emoji: string) => void;
   loadBackendMessages: (roomId: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
   fetchBackendRooms: () => Promise<void>;
 }
 
@@ -30,13 +34,10 @@ export function useChat(): UseChatReturn {
   const [chats, setChats] = useState<ChatItem[]>(() => chatStorage.getChats());
   const [recentChats, setRecentChats] = useState<RecentChatUser[]>(() => chatStorage.getRecent());
   const [activeChatId, setActiveChatId] = useState<string>(() => chatStorage.getActiveRoomId());
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>(() => {
-    const initialActiveId = chatStorage.getActiveRoomId();
-    if (initialActiveId) {
-      return { [initialActiveId]: chatStorage.getRoomMessages(initialActiveId) };
-    }
-    return {};
-  });
+  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [roomPageMap, setRoomPageMap] = useState<Record<string, number>>({});
+  const [hasMoreMap, setHasMoreMap] = useState<Record<string, boolean>>({});
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading] = useState(false);
 
@@ -47,22 +48,61 @@ export function useChat(): UseChatReturn {
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
   }, [activeChatId]);
-
   const activeChat = useMemo(() => {
     return chats.find((c) => c.id === activeChatId) || chats[0] || null;
   }, [chats, activeChatId]);
 
   const activeMessages = useMemo(() => {
-    return messages[activeChatId] || chatStorage.getRoomMessages(activeChatId) || [];
+    return messages[activeChatId] || [];
   }, [messages, activeChatId]);
 
-  // Load messages from backend API & merge with local storage
+  // Load messages directly from backend API (page 1, up to 50 latest messages per room)
   const loadBackendMessages = useCallback(async (roomId: string) => {
     if (!roomId) return;
     try {
-      const backendMsgs = await chatApi.getMessages({ roomId });
-      if (backendMsgs && Array.isArray(backendMsgs) && backendMsgs.length > 0) {
-        const mappedMsgs: ChatMessage[] = backendMsgs.map((m: ApiMessage) => {
+      const backendMsgs = await chatApi.getMessages({ roomId, limit: 50, page: 1 });
+      const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
+        ? backendMsgs.slice(-50).map((m: ApiMessage) => {
+            const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
+            const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
+            const isMe = Boolean(currentUserId && senderId === currentUserId);
+
+            return {
+              id: m._id,
+              sender: isMe ? 'me' : 'other',
+              senderName: isMe ? 'You' : senderName,
+              type: 'text',
+              text: m.text,
+              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'read'
+            };
+          })
+        : [];
+
+      setMessages((prev) => ({
+        ...prev,
+        [roomId]: mappedMsgs
+      }));
+      setRoomPageMap((prev) => ({ ...prev, [roomId]: 1 }));
+      setHasMoreMap((prev) => ({ ...prev, [roomId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
+    } catch (err) {
+      console.warn(`Could not fetch remote messages for room ${roomId}:`, err);
+    }
+  }, [currentUserId]);
+
+  // Load older 50 messages when scrolling up / requesting history
+  const loadMoreMessages = useCallback(async () => {
+    const targetRoom = activeChatId;
+    if (!targetRoom || isLoadingMore || hasMoreMap[targetRoom] === false) return;
+
+    const currentPage = roomPageMap[targetRoom] || 1;
+    const nextPage = currentPage + 1;
+    setIsLoadingMore(true);
+
+    try {
+      const olderMsgs = await chatApi.getMessages({ roomId: targetRoom, limit: 50, page: nextPage });
+      if (Array.isArray(olderMsgs) && olderMsgs.length > 0) {
+        const mappedOlder: ChatMessage[] = olderMsgs.map((m: ApiMessage) => {
           const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
           const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
           const isMe = Boolean(currentUserId && senderId === currentUserId);
@@ -79,67 +119,76 @@ export function useChat(): UseChatReturn {
         });
 
         setMessages((prev) => {
-          const localSaved = chatStorage.getRoomMessages(roomId);
-          const combined = [...localSaved, ...mappedMsgs];
-          const unique = Array.from(new Map(combined.map((msg) => [msg.id, msg])).values());
-          chatStorage.saveRoomMessages(roomId, unique);
+          const currentList = prev[targetRoom] || [];
+          const existingIds = new Set(currentList.map((m) => m.id));
+          const filteredNewOlder = mappedOlder.filter((m) => !existingIds.has(m.id));
           return {
             ...prev,
-            [roomId]: unique
+            [targetRoom]: [...filteredNewOlder, ...currentList]
           };
         });
+
+        setRoomPageMap((prev) => ({ ...prev, [targetRoom]: nextPage }));
+        setHasMoreMap((prev) => ({ ...prev, [targetRoom]: olderMsgs.length >= 50 }));
+      } else {
+        setHasMoreMap((prev) => ({ ...prev, [targetRoom]: false }));
       }
     } catch (err) {
-      console.warn(`Could not fetch remote messages for room ${roomId}, using persistent storage.`, err);
+      console.warn('Failed to load older messages:', err);
+      setHasMoreMap((prev) => ({ ...prev, [targetRoom]: false }));
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [currentUserId]);
+  }, [activeChatId, currentUserId, hasMoreMap, isLoadingMore, roomPageMap]);
 
   // Fetch real rooms from backend API
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
-      if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
-          id: r._id,
-          name: r.roomname,
-          initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
-          lastMessage: r.description || 'No messages yet',
-          time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unread: 0,
-          online: true,
-          statusText: r.description || 'Public Room'
-        }));
+      const mappedChats: ChatItem[] = Array.isArray(backendRooms)
+        ? backendRooms.map((r: ApiRoom) => ({
+            id: r._id,
+            name: r.roomname,
+            initials: r.roomname.slice(0, 2).toUpperCase(),
+            avatarBg: '#6f7771',
+            lastMessage: r.description || 'No messages yet',
+            time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            online: false,
+            statusText: r.description || 'Public Room'
+          }))
+        : [];
 
-        setChats((prev) => {
-          const combined = [...mappedChats, ...prev];
-          const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-          chatStorage.saveChats(unique);
-          return unique;
-        });
+      setChats(mappedChats);
+      chatStorage.saveChats(mappedChats);
 
-        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
-          id: `recent-${r._id}`,
-          name: r.roomname,
-          fullName: r.roomname,
-          initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
-          online: true,
-          chatId: r._id
-        }));
+      const recents: RecentChatUser[] = mappedChats.slice(0, 6).map((c) => ({
+        id: `recent-${c.id}`,
+        name: c.name,
+        fullName: c.name,
+        initials: c.initials,
+        avatarBg: c.avatarBg,
+        online: false,
+        chatId: c.id
+      }));
 
-        setRecentChats(recents);
-        chatStorage.saveRecent(recents);
+      setRecentChats(recents);
+      chatStorage.saveRecent(recents);
 
-        setActiveChatId((prev) => {
-          const targetId = prev || backendRooms[0]._id;
-          chatStorage.saveActiveRoomId(targetId);
+      setActiveChatId((prev) => {
+        const targetId = mappedChats.some((c) => c.id === prev)
+          ? prev
+          : mappedChats.length > 0
+          ? mappedChats[0].id
+          : '';
+        chatStorage.saveActiveRoomId(targetId);
+        if (targetId) {
           socketService.joinRoom(targetId);
-          return targetId;
-        });
-      }
+        }
+        return targetId;
+      });
     } catch (err) {
-      console.warn('Could not fetch backend rooms, using local persistent storage.', err);
+      console.warn('Could not fetch backend rooms:', err);
     }
   }, []);
   // Initial fetch on mount & whenever user is authenticated
@@ -150,48 +199,52 @@ export function useChat(): UseChatReturn {
     void (async () => {
       try {
         const backendRooms = await chatApi.getRooms();
-        if (isSubscribed && backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-          const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom, index: number) => ({
-            id: r._id,
-            name: r.roomname,
-            initials: r.roomname.slice(0, 2).toUpperCase(),
-            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-            lastMessage: r.description || 'No messages yet',
-            time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            unread: 0,
-            online: true,
-            statusText: r.description || 'Public Room'
-          }));
+        if (isSubscribed) {
+          const mappedChats: ChatItem[] = Array.isArray(backendRooms)
+            ? backendRooms.map((r: ApiRoom) => ({
+                id: r._id,
+                name: r.roomname,
+                initials: r.roomname.slice(0, 2).toUpperCase(),
+                avatarBg: '#6366f1',
+                lastMessage: r.description || 'No messages yet',
+                time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                unread: 0,
+                online: false,
+                statusText: r.description || 'Public Room'
+              }))
+            : [];
 
-          setChats((prev) => {
-            const combined = [...mappedChats, ...prev];
-            const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-            chatStorage.saveChats(unique);
-            return unique;
-          });
+          setChats(mappedChats);
+          chatStorage.saveChats(mappedChats);
 
-          const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom, index: number) => ({
-            id: `recent-${r._id}`,
-            name: r.roomname,
-            fullName: r.roomname,
-            initials: r.roomname.slice(0, 2).toUpperCase(),
-            avatarBg: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][index % 5],
-            online: true,
-            chatId: r._id
+          const recents: RecentChatUser[] = mappedChats.slice(0, 6).map((c) => ({
+            id: `recent-${c.id}`,
+            name: c.name,
+            fullName: c.name,
+            initials: c.initials,
+            avatarBg: c.avatarBg,
+            online: false,
+            chatId: c.id
           }));
 
           setRecentChats(recents);
           chatStorage.saveRecent(recents);
 
           setActiveChatId((prev) => {
-            const targetId = prev || backendRooms[0]._id;
+            const targetId = mappedChats.some((c) => c.id === prev)
+              ? prev
+              : mappedChats.length > 0
+              ? mappedChats[0].id
+              : '';
             chatStorage.saveActiveRoomId(targetId);
-            socketService.joinRoom(targetId);
+            if (targetId) {
+              socketService.joinRoom(targetId);
+            }
             return targetId;
           });
         }
       } catch (err) {
-        console.warn('Could not fetch backend rooms, using local persistent storage.', err);
+        console.warn('Could not fetch backend rooms:', err);
       }
     })();
 
@@ -230,39 +283,35 @@ export function useChat(): UseChatReturn {
     };
   }, [currentUserId]);
 
-  // Load messages whenever activeChatId changes
+  // Load messages directly from backend API when activeChatId changes (capped to 50)
   useEffect(() => {
     if (!activeChatId) return;
     let isSubscribed = true;
 
-    chatApi.getMessages({ roomId: activeChatId }).then((backendMsgs) => {
-      if (!isSubscribed || !backendMsgs || !Array.isArray(backendMsgs) || backendMsgs.length === 0) return;
-      const mappedMsgs: ChatMessage[] = backendMsgs.map((m: ApiMessage) => {
-        const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
-        const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
-        const isMe = Boolean(currentUserId && senderId === currentUserId);
+    chatApi.getMessages({ roomId: activeChatId, limit: 50 }).then((backendMsgs) => {
+      if (!isSubscribed) return;
+      const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
+        ? backendMsgs.slice(-50).map((m: ApiMessage) => {
+            const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
+            const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
+            const isMe = Boolean(currentUserId && senderId === currentUserId);
 
-        return {
-          id: m._id,
-          sender: isMe ? 'me' : 'other',
-          senderName: isMe ? 'You' : senderName,
-          type: 'text',
-          text: m.text,
-          time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'read'
-        };
-      });
+            return {
+              id: m._id,
+              sender: isMe ? 'me' : 'other',
+              senderName: isMe ? 'You' : senderName,
+              type: 'text',
+              text: m.text,
+              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'read'
+            };
+          })
+        : [];
 
-      setMessages((prev) => {
-        const localSaved = chatStorage.getRoomMessages(activeChatId);
-        const combined = [...localSaved, ...mappedMsgs];
-        const unique = Array.from(new Map(combined.map((msg) => [msg.id, msg])).values());
-        chatStorage.saveRoomMessages(activeChatId, unique);
-        return {
-          ...prev,
-          [activeChatId]: unique
-        };
-      });
+      setMessages((prev) => ({
+        ...prev,
+        [activeChatId]: mappedMsgs
+      }));
     }).catch(() => {});
 
     return () => {
@@ -299,18 +348,16 @@ export function useChat(): UseChatReturn {
           };
 
           setMessages((prev) => {
-            const existing = prev[roomId] || chatStorage.getRoomMessages(roomId) || [];
+            const existing = prev[roomId] || [];
             if (existing.some((m) => m.id === msgId)) {
               return prev;
             }
-            const updated = [...existing, incomingMsg];
-            chatStorage.saveRoomMessages(roomId, updated);
+            const updated = [...existing, incomingMsg].slice(-50);
             return {
               ...prev,
               [roomId]: updated
             };
           });
-
           setChats((prevChats) => {
             const updated = prevChats.map((c) => {
               if (c.id === roomId) {
@@ -386,11 +433,28 @@ export function useChat(): UseChatReturn {
         const messageId = String(data.messageId);
         const roomId = String(data.roomId);
         setMessages((prev) => {
-          const updated = (prev[roomId] || []).filter((m) => m.id !== messageId);
-          chatStorage.saveRoomMessages(roomId, updated);
+          const remaining = (prev[roomId] || []).filter((m) => m.id !== messageId);
+          chatStorage.saveRoomMessages(roomId, remaining);
+
+          setChats((prevChats) => {
+            const lastRemaining = remaining[remaining.length - 1];
+            const updatedChats = prevChats.map((c) => {
+              if (c.id === roomId) {
+                return {
+                  ...c,
+                  lastMessage: lastRemaining ? (lastRemaining.text || 'Shared attachment') : (c.statusText || 'No messages yet'),
+                  time: lastRemaining ? lastRemaining.time : c.time,
+                };
+              }
+              return c;
+            });
+            chatStorage.saveChats(updatedChats);
+            return updatedChats;
+          });
+
           return {
             ...prev,
-            [roomId]: updated
+            [roomId]: remaining
           };
         });
       }
@@ -417,8 +481,6 @@ export function useChat(): UseChatReturn {
 
     // Request fresh messages from backend immediately
     loadBackendMessages(id);
-    socketService.getMessages(id);
-
     // Clear unread on select
     setChats((prev) => {
       const updated = prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c));
@@ -449,11 +511,10 @@ export function useChat(): UseChatReturn {
       ...meta
     };
 
-    // 1. Immediately persist message locally
+    // 1. Append message locally (capped to 50)
     setMessages((prev) => {
-      const existing = prev[activeChatId] || chatStorage.getRoomMessages(activeChatId) || [];
-      const updated = [...existing, newMsg];
-      chatStorage.saveRoomMessages(activeChatId, updated);
+      const existing = prev[activeChatId] || [];
+      const updated = [...existing, newMsg].slice(-50);
       return {
         ...prev,
         [activeChatId]: updated
@@ -572,24 +633,103 @@ export function useChat(): UseChatReturn {
     }
   }, [fetchBackendRooms]);
 
-  // Delete message & re-fetch
+  // Delete message, sync with backend, and re-render conversation state
   const deleteMessage = useCallback(async (messageId: string) => {
+    if (!messageId || !activeChatId) return;
+
+    // 1. Optimistic removal & re-render active messages and sidebar preview
     setMessages((prev) => {
-      const updated = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
-      chatStorage.saveRoomMessages(activeChatId, updated);
+      const remaining = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
+      chatStorage.saveRoomMessages(activeChatId, remaining);
+
+      setChats((prevChats) => {
+        const lastRemaining = remaining[remaining.length - 1];
+        const updatedChats = prevChats.map((c) => {
+          if (c.id === activeChatId) {
+            return {
+              ...c,
+              lastMessage: lastRemaining ? (lastRemaining.text || 'Shared attachment') : (c.statusText || 'No messages yet'),
+              time: lastRemaining ? lastRemaining.time : c.time,
+            };
+          }
+          return c;
+        });
+        chatStorage.saveChats(updatedChats);
+        return updatedChats;
+      });
+
       return {
         ...prev,
-        [activeChatId]: updated
+        [activeChatId]: remaining
       };
     });
+
+    // 2. Broadcast real-time deletion over Socket.IO
     socketService.deleteMessage(messageId);
+
+    // 3. Persist deletion in backend database via REST API
     try {
       await chatApi.deleteMessage(messageId);
+      // 4. Re-fetch and re-render fresh state from server
       await loadBackendMessages(activeChatId);
-    } catch {
-      // Saved locally
+    } catch (err) {
+      console.warn('Backend message delete sync notice:', err);
     }
   }, [activeChatId, loadBackendMessages]);
+
+  // Delete conversation/chat, purge storage, leave socket room, sync backend & re-render
+  const deleteChat = useCallback(async (chatId: string) => {
+    if (!chatId) return;
+
+    // 1. Remove chat from chats list and persist
+    setChats((prevChats) => {
+      const remainingChats = prevChats.filter((c) => c.id !== chatId);
+      chatStorage.saveChats(remainingChats);
+
+      // 2. If active chat was deleted, switch to the first remaining conversation
+      setActiveChatId((currentActiveId) => {
+        if (currentActiveId === chatId) {
+          const nextChat = remainingChats.length > 0 ? remainingChats[0] : null;
+          const nextId = nextChat ? nextChat.id : '';
+          chatStorage.saveActiveRoomId(nextId);
+          if (nextId) {
+            socketService.joinRoom(nextId);
+            loadBackendMessages(nextId);
+          }
+          return nextId;
+        }
+        return currentActiveId;
+      });
+
+      return remainingChats;
+    });
+
+    // 3. Remove from recent chats list
+    setRecentChats((prevRecent) => {
+      const updatedRecent = prevRecent.filter((r) => r.chatId !== chatId && r.id !== chatId && r.id !== `recent-${chatId}`);
+      chatStorage.saveRecent(updatedRecent);
+      return updatedRecent;
+    });
+
+    // 4. Remove room messages from state and persistent storage
+    setMessages((prevMsgs) => {
+      const updatedMsgs = { ...prevMsgs };
+      delete updatedMsgs[chatId];
+      chatStorage.removeRoomMessages(chatId);
+      return updatedMsgs;
+    });
+
+    // 5. Leave real-time socket room
+    socketService.leaveRoom(chatId);
+
+    // 6. Delete on backend database and re-sync
+    try {
+      await chatApi.deleteRoom(chatId);
+      await fetchBackendRooms();
+    } catch (err) {
+      console.warn('Backend room delete sync notice:', err);
+    }
+  }, [fetchBackendRooms, loadBackendMessages]);
 
   // Add reaction
   const addReaction = useCallback((messageId: string, emoji: string) => {
@@ -627,14 +767,18 @@ export function useChat(): UseChatReturn {
     activeMessages,
     searchQuery,
     isLoading,
+    isLoadingMore,
+    hasMoreMessages: Boolean(hasMoreMap[activeChatId]),
     setSearchQuery,
     selectChat,
     sendMessage,
     editMessage,
     createNewContact,
     deleteMessage,
+    deleteChat,
     addReaction,
     loadBackendMessages,
+    loadMoreMessages,
     fetchBackendRooms,
   };
 }
