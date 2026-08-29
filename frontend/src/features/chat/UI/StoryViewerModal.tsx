@@ -90,7 +90,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                   onClose();
                 }
               }}
-              className="w-10 h-10 rounded-full bg-violet-600 hover:bg-violet-500 text-white flex items-center justify-center shadow-md cursor-pointer"
+              className="w-10 h-10 rounded-full bg-white hover:bg-white/90 text-slate-900 flex items-center justify-center shadow-md cursor-pointer"
             >
               <Send size={15} />
             </button>

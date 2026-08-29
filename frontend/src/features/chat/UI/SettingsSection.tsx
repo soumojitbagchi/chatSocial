@@ -59,11 +59,11 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+    <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-[#0b0d11]">
+      <section className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-[#1e222a] bg-white dark:bg-[#12151b] flex flex-col shrink-0">
+        <div className="p-4 border-b border-slate-100 dark:border-[#181b22]">
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Settings size={22} className="text-violet-600 dark:text-violet-400" />
+            <Settings size={22} className="text-slate-800 dark:text-slate-200" />
             <span>Settings</span>
           </h2>
         </div>
@@ -73,14 +73,14 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             onClick={() => setActiveSubTab('profile')}
             className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
               activeSubTab === 'profile'
-                ? 'bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800'
-                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent'
+                ? 'bg-slate-100 dark:bg-[#1a1e27] border border-slate-300/80 dark:border-[#262b37]'
+                : 'hover:bg-slate-50 dark:hover:bg-[#161922] border border-transparent'
             }`}
           >
             <img
               src={user.avatar}
               alt={user.name}
-              className="w-12 h-12 rounded-full object-cover shadow-sm ring-2 ring-violet-500/20"
+              className="w-12 h-12 rounded-full object-cover shadow-sm ring-2 ring-slate-400/20"
             />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.name}</h4>
@@ -89,15 +89,15 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           </div>
 
           <div className="pt-2 pb-1">
-            <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+            <div className="h-px bg-slate-100 dark:bg-[#181b22] my-1" />
           </div>
 
           <button
             onClick={() => setActiveSubTab('privacy')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left ${
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
               activeSubTab === 'privacy'
-                ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
             }`}
           >
             <Lock size={18} className="text-slate-400" />
@@ -106,10 +106,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('chats')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left ${
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
               activeSubTab === 'chats'
-                ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
             }`}
           >
             <Smartphone size={18} className="text-slate-400" />
@@ -118,10 +118,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('notifications')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left ${
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
               activeSubTab === 'notifications'
-                ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
             }`}
           >
             <Bell size={18} className="text-slate-400" />
@@ -130,10 +130,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('storage')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left ${
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
               activeSubTab === 'storage'
-                ? 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300'
-                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
             }`}
           >
             <Database size={18} className="text-slate-400" />
@@ -148,7 +148,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <button
               onClick={onToggleTheme}
               className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                theme === 'dark' ? 'bg-violet-600' : 'bg-slate-300'
+                theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
               }`}
             >
               <span
@@ -162,7 +162,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           {onLogout && (
             <button
               onClick={onLogout}
-              className="w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left mt-4"
+              className="w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left mt-4 cursor-pointer"
             >
               <LogOut size={18} />
               <span>Log out of chatSocial</span>
@@ -171,20 +171,20 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
       </section>
 
-      <section className="flex-1 overflow-y-auto p-6 md:p-10 bg-white dark:bg-slate-900/60">
+      <section className="flex-1 overflow-y-auto p-6 md:p-10 bg-white dark:bg-[#0b0d11]">
         <div className="max-w-2xl mx-auto space-y-6">
           {activeSubTab === 'profile' && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Profile Details</h3>
 
-              <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a]">
                 <div className="relative">
                   <img
                     src={user.avatar}
                     alt={user.name}
-                    className="w-24 h-24 rounded-full object-cover shadow-md ring-4 ring-white dark:ring-slate-900"
+                    className="w-24 h-24 rounded-full object-cover shadow-md ring-4 ring-white dark:ring-[#1a1d24]"
                   />
-                  <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center shadow cursor-pointer">
+                  <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center shadow cursor-pointer">
                     <Camera size={15} />
                   </button>
                 </div>
@@ -196,7 +196,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-4 p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+              <div className="space-y-4 p-6 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a]">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                     Display Name
@@ -206,7 +206,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-[#262c38] bg-white dark:bg-[#181c24] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-400"
                     />
                   ) : (
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{name}</p>
@@ -222,7 +222,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                       type="text"
                       value={about}
                       onChange={(e) => setAbout(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-[#262c38] bg-white dark:bg-[#181c24] text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/20 focus:border-slate-400"
                     />
                   ) : (
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{about}</p>
@@ -241,14 +241,14 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleSaveProfile}
-                        className="px-4 py-2 rounded-lg bg-violet-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow"
+                        className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-[#f8fafc] dark:hover:bg-slate-200 text-white dark:text-[#080a0e] font-semibold text-xs flex items-center gap-1.5 shadow cursor-pointer"
                       >
                         <Check size={14} />
                         <span>Save Changes</span>
                       </button>
                       <button
                         onClick={() => setIsEditing(false)}
-                        className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 text-xs font-semibold"
+                        className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-[#181c24] text-xs font-semibold cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -256,7 +256,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                   ) : (
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-[#262c38] hover:bg-white dark:hover:bg-[#181c24] text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Edit3 size={14} />
                       <span>Edit Profile</span>
@@ -283,7 +283,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 </div>
               </div>
 
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Read Receipts</h4>
@@ -293,11 +293,11 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                     type="checkbox"
                     checked={readReceipts}
                     onChange={(e) => setReadReceipts(e.target.checked)}
-                    className="w-4 h-4 accent-violet-600 cursor-pointer"
+                    className="w-4 h-4 accent-slate-900 cursor-pointer"
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-[#1e222a]">
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Two-Step Verification</h4>
                     <p className="text-[11px] text-slate-500">Require an extra PIN when registering your account</p>
@@ -314,7 +314,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chat Appearance</h3>
               
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Theme Mode</h4>
@@ -322,7 +322,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                   </div>
                   <button
                     onClick={onToggleTheme}
-                    className="px-3.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold cursor-pointer shadow"
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-[#f8fafc] dark:hover:bg-slate-200 text-white dark:text-[#080a0e] text-xs font-semibold cursor-pointer shadow-sm"
                   >
                     Toggle Theme
                   </button>
@@ -335,7 +335,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Notifications</h3>
               
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Notification Sounds</h4>
@@ -345,7 +345,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                     type="checkbox"
                     checked={soundEnabled}
                     onChange={(e) => setSoundEnabled(e.target.checked)}
-                    className="w-4 h-4 accent-violet-600 cursor-pointer"
+                    className="w-4 h-4 accent-slate-900 cursor-pointer"
                   />
                 </div>
               </div>
@@ -356,7 +356,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Storage & Data</h3>
               
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Local Cache</span>
                   <span className="font-mono text-slate-500">14.2 MB</span>
