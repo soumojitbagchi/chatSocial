@@ -27,11 +27,14 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     showNewChatModal,
     setShowNewChatModal,
     totalUnread,
+    socket,
     chat,
     groups,
     calls,
     status,
   } = useChatContext();
+
+  const isUserOnline = (userId?: string) => Boolean(userId && socket?.onlineUsers?.includes(userId));
 
   const handleLogout = () => {
     logout();
@@ -85,7 +88,8 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             onStartCall={(callType) => {
               if (chat.activeChat) {
-                calls.startCall(chat.activeChat.id, chat.activeChat.name, callType, chat.activeChat.avatar);
+                const targetId = chat.activeChat.targetUserId || chat.activeChat.id;
+                calls.startCall(targetId, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
             onOpenDetails={() => setActiveTab('settings')}
@@ -108,8 +112,8 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         <CallsSection
           calls={calls.calls}
           onStartCall={(name, callType, avatar) => {
-            const foundChat = chat.chats.find((c) => c.name.toLowerCase() === name.toLowerCase() || c.id === name);
-            const contactId = foundChat?.id || name;
+            const foundChat = chat.chats.find((c) => c.name.toLowerCase() === name.toLowerCase() || c.id === name || c.targetUserId === name);
+            const contactId = foundChat?.targetUserId || foundChat?.id || name;
             calls.startCall(contactId, name, callType, avatar);
           }}
         />
@@ -167,7 +171,8 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             onStartCall={(callType) => {
               if (chat.activeChat) {
-                calls.startCall(chat.activeChat.id, chat.activeChat.name, callType, chat.activeChat.avatar);
+                const targetId = chat.activeChat.targetUserId || chat.activeChat.id;
+                calls.startCall(targetId, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
             onOpenDetails={() => setActiveTab('settings')}
