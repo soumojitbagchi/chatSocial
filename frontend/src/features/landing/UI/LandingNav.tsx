@@ -7,8 +7,8 @@ export interface LandingNavProps {
   onSignUp: () => void;
   onOpenApp: () => void;
 }
-
-export function LandingNav({ onSignIn, onOpenApp }: LandingNavProps) {
+export function LandingNav({ onSignIn, onSignUp, onOpenApp }: LandingNavProps) {
+  void onSignUp;
   return (
     <header className="landing-nav">
       <button className="landing-brand" onClick={onOpenApp} aria-label="Open chatSocial">
