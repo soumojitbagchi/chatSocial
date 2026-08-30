@@ -312,7 +312,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           {chat.initials || (chat.name ? chat.name.slice(0, 2).toUpperCase() : 'C')}
                         </div>
                       )}
-                      {isOnline && (
+                      {isOnline && !chat.isGroup && (
                         <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
                       )}
                     </div>

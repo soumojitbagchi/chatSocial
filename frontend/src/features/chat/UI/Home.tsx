@@ -121,7 +121,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             onOpenDetails={() => setActiveTab('settings')}
             onBack={() => setMobileChatOpen(false)}
             onNewChat={() => setShowNewChatModal(true)}
-            isOnline={isUserOnline ? isUserOnline(chat.activeChat?.id) : false}
+            isOnline={isUserOnline ? ((chat.activeChat?.targetUserId ? isUserOnline(chat.activeChat.targetUserId) : false) || isUserOnline(chat.activeChat?.id)) : false}
             onDeleteMessage={chat.deleteMessage}
             onDeleteChat={chat.deleteChat}
             onLoadMoreMessages={chat.loadMoreMessages}
@@ -218,7 +218,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             onOpenDetails={() => setActiveTab('settings')}
             onNewChat={() => setShowNewChatModal(true)}
-            isOnline={isUserOnline ? isUserOnline(chat.activeChat?.id) : false}
+            isOnline={isUserOnline ? ((chat.activeChat?.targetUserId ? isUserOnline(chat.activeChat.targetUserId) : false) || isUserOnline(chat.activeChat?.id)) : false}
             onDeleteMessage={chat.deleteMessage}
             onDeleteChat={chat.deleteChat}
             onLoadMoreMessages={chat.loadMoreMessages}

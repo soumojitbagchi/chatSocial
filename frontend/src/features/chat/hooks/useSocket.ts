@@ -36,8 +36,8 @@ export function useSocket(): UseSocketReturn {
 
     const unbindDisconnect = socketService.on('disconnect', () => {
       setIsConnected(false);
+      setOnlineUsers([]);
     });
-
     const unbindOnlineList = socketService.on('users:online-list', (data: unknown) => {
       if (Array.isArray(data)) {
         const ids = data.filter((item): item is string => typeof item === 'string');

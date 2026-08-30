@@ -256,11 +256,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 {activeChat.initials || (activeChat.name ? activeChat.name.charAt(0).toUpperCase() : 'C')}
               </div>
             )}
-            {activeChat.online && (
+            {!activeChat.isGroup && isOnline && (
               <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
             )}
           </div>
-
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
               <span>{activeChat.name}</span>
