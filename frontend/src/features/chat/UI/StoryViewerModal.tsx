@@ -28,7 +28,6 @@ export interface StoryViewerModalProps {
   onSelectChat?: (roomId: string) => void;
 }
 
-const DURATION_PER_SLIDE = 5000; // 5 seconds per slide
 
 export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   deck,
@@ -57,7 +56,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   const currentSlide: ApiStoryItem | undefined = deck.stories[activeSlideIndex];
   const isOwner = Boolean(deck.isMe);
 
-  // Reset progress when active slide changes
   useEffect(() => {
     const timer = setTimeout(() => {
       setProgress(0);
@@ -66,7 +64,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     return () => clearTimeout(timer);
   }, [activeSlideIndex, deck.userId]);
 
-  // Handle slide progress timer
   useEffect(() => {
     if (isPaused || isSendingReply || showViewersSheet) return;
 
@@ -87,7 +84,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     return () => window.clearInterval(timer);
   }, [isPaused, isSendingReply, showViewersSheet, onNextSlide, activeSlideIndex, deck.userId]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement === replyInputRef.current) {
@@ -114,7 +110,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onNextSlide, onPrevSlide, onClose]);
 
-  // Send reply handler
   const handleSendReply = async (textToSend?: string) => {
     const message = textToSend || replyText;
     if (!message.trim() || !currentSlide || !onReply || isSendingReply) return;
@@ -134,7 +129,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     }
   };
 
-  // Delete current slide handler
   const handleDeleteCurrentSlide = async () => {
     if (!currentSlide || !onDeleteStory || isDeleting) return;
     if (!window.confirm('Delete this status update?')) return;
@@ -149,11 +143,9 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
     }
   };
 
-  // Quick Emoji Reactions
   const QUICK_REACTIONS = ['😍', '😂', '🔥', '👏', '❤️', '😮', '🙌', '💯'];
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Ignore clicks on buttons/inputs
     if ((e.target as HTMLElement).closest('button, input, textarea')) return;
     pressTimerRef.current = window.setTimeout(() => {
       setIsPaused(true);
@@ -190,7 +182,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
       aria-modal="true"
       aria-label={`${deck.userName}'s status`}
     >
-      {/* Outer Side Navigation Arrows (Desktop) */}
       <button
         onClick={onPrevSlide}
         className="hidden md:flex absolute left-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer z-50 shadow-xl border border-white/10"
@@ -209,7 +200,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
         <ChevronRight size={28} />
       </button>
 
-      {/* Main Story Phone Card */}
       <div
         className="relative w-full max-w-sm sm:max-w-md h-[88vh] max-h-[780px] rounded-3xl overflow-hidden bg-black border border-white/15 shadow-2xl flex flex-col justify-between select-none animate-in zoom-in-95 duration-150"
         onPointerDown={handlePointerDown}
@@ -217,7 +207,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
         onPointerLeave={handlePointerUp}
         onClick={handleTapZone}
       >
-        {/* Story Background / Media */}
         {currentSlide.mediaType === 'video' ? (
           <div className="absolute inset-0 w-full h-full bg-black flex items-center justify-center">
             <video
@@ -256,15 +245,11 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </div>
         )}
 
-        {/* Top Gradient Shadow */}
         <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none z-10" />
 
-        {/* Bottom Gradient Shadow */}
         <div className="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-        {/* Top Header & Segmented Progress Bars */}
         <div className="relative z-20 p-4 space-y-3">
-          {/* Segmented Progress Bars (1 per slide in deck) */}
           <div className="flex items-center gap-1.5 w-full">
             {deck.stories.map((storyItem, idx) => {
               let fillPercent = 0;
@@ -285,7 +270,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             })}
           </div>
 
-          {/* User Info & Controls Header */}
           <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-2.5">
               <div className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/80 shrink-0 bg-slate-800">
@@ -359,7 +343,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </div>
         </div>
 
-        {/* Caption Overlay (if image/video with text) */}
         {currentSlide.mediaType !== 'text' && currentSlide.caption && (
           <div className="relative z-20 px-6 py-2 text-center pointer-events-none">
             <p className="inline-block max-w-full px-4 py-2 rounded-2xl bg-black/60 backdrop-blur-md text-white text-xs sm:text-sm font-medium leading-relaxed drop-shadow-md break-words pointer-events-auto">
@@ -368,7 +351,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
           </div>
         )}
 
-        {/* Bottom Section: Owner Viewers Count OR Viewer WhatsApp-Style Reply Bar */}
         <div className="relative z-20 p-4 space-y-3 cs-story-interactive">
           {isOwner ? (
             <div className="flex flex-col items-center">
@@ -383,7 +365,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                 <span>{currentSlide.viewersCount || 0} views</span>
               </button>
 
-              {/* Viewers Sheet */}
               {showViewersSheet && (
                 <div
                   className="w-full mt-3 p-3 rounded-2xl bg-slate-900/95 border border-white/15 backdrop-blur-xl max-h-40 overflow-y-auto text-left space-y-2 animate-in fade-in slide-in-from-bottom-3"
@@ -417,7 +398,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             </div>
           ) : (
             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-              {/* Quick Reactions Bar */}
               <div className="flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                 {QUICK_REACTIONS.map((emoji) => (
                   <button
@@ -432,7 +412,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                 ))}
               </div>
 
-              {/* Reply Input Bar */}
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <input

@@ -1,11 +1,10 @@
 import React from 'react';
-import { 
-  MessageSquare, 
-  Users, 
-  CircleDashed, 
-  Phone, 
-  User, 
-  Settings, 
+import {
+  MessageSquare,
+  Users,
+  CircleDashed,
+  Phone,
+  Settings,
   LogOut,
   Moon,
   Sun
@@ -36,14 +35,11 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
 }) => {
   return (
     <aside className="cs-rail" aria-label="Main Navigation Rail">
-      {/* Top Infinity Brand Logo */}
       <div className="cs-rail-logo-wrap" title="chatSocial">
         <InfinityGradientLogo size={28} />
       </div>
 
-      {/* Main Navigation Tab Icons */}
       <nav className="cs-rail-nav">
-        {/* Chats Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'chats' ? 'active' : ''}`}
           onClick={() => setActiveTab('chats')}
@@ -56,16 +52,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           )}
         </button>
 
-        {/* Contacts */}
-        <button
-          className={`cs-rail-btn ${activeTab === 'contacts' ? 'active' : ''}`}
-          onClick={() => setActiveTab('contacts')}
-          title="Contacts"
-          aria-label="Contacts"
-        >
-          <User size={20} />
-        </button>
-
         <button
           className={`cs-rail-btn ${activeTab === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveTab('groups')}
@@ -75,7 +61,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <Users size={20} />
         </button>
 
-        {/* Status / Stories Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'status' ? 'active' : ''}`}
           onClick={() => setActiveTab('status')}
@@ -85,7 +70,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <CircleDashed size={20} />
         </button>
 
-        {/* Calls Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'calls' ? 'active' : ''}`}
           onClick={() => setActiveTab('calls')}
@@ -96,9 +80,7 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
         </button>
       </nav>
 
-      {/* Lower Section: Theme Switcher, Settings, Account Profile & Logout */}
       <div className="cs-rail-bottom">
-        {/* Theme Switcher */}
         {onToggleTheme && (
           <button
             className="cs-rail-btn cs-rail-sub-btn"
@@ -110,7 +92,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           </button>
         )}
 
-        {/* Settings Gear Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
@@ -120,7 +101,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <Settings size={20} />
         </button>
 
-        {/* User Account Profile */}
         <button
           className={`cs-rail-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => {
@@ -139,7 +119,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           </div>
         </button>
 
-        {/* Logout Button */}
         {onLogout && (
           <button
             className="cs-rail-btn cs-rail-sub-btn text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"

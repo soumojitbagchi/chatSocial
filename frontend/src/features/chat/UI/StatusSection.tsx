@@ -84,7 +84,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
   const myStoriesCount = myStatus?.stories?.length || 0;
   const hasMyStories = myStoriesCount > 0;
 
-  // Process chosen file safely
   const processFile = (file: File) => {
     setErrorMessage(null);
     if (!file) return;
@@ -110,17 +109,14 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
     setShowCreateModal(true);
   };
 
-  // Handle file picker selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       processFile(file);
     }
-    // Reset file input value so re-selecting same file triggers event
     if (e.target) e.target.value = '';
   };
 
-  // Drag & drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -143,7 +139,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
     }
   };
 
-  // Submit new status
   const handlePublishStatus = async () => {
     if (createMode === 'media' && !selectedFile) return;
     if (createMode === 'text' && !textContent.trim()) return;
@@ -167,7 +162,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         });
       }
 
-      // Cleanup and close
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -193,7 +187,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
 
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-slate-50 dark:bg-[#0b0d11]">
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -202,11 +195,7 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         onChange={handleFileChange}
       />
 
-      {/* ========================================================================= */}
-      {/* LEFT SIDEBAR: STATUS FEED & QUICK CREATION */}
-      {/* ========================================================================= */}
       <section className="w-full md:w-84 lg:w-96 border-r border-slate-200 dark:border-[#1e222a] bg-white dark:bg-[#12151b] flex flex-col shrink-0">
-        {/* Header Bar */}
         <div className="p-4 border-b border-slate-100 dark:border-[#181b22]">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
@@ -223,16 +212,12 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* ========================================================================= */}
-          {/* PROMINENT CREATION ACTION CARDS (LARGE SIZE & VIBRANT STYLING) */}
-          {/* ========================================================================= */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
               Create New Story
             </h4>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Option A: Upload Photo / Video */}
               <button
                 type="button"
                 onClick={() => {
@@ -252,7 +237,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                 </p>
               </button>
 
-              {/* Option B: Write Text Story */}
               <button
                 type="button"
                 onClick={() => {
@@ -274,7 +258,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             </div>
           </div>
 
-          {/* 1. My Status Card */}
           <div className="p-3 rounded-2xl bg-slate-100/80 dark:bg-[#181c24] border border-slate-200 dark:border-[#262c38] flex items-center justify-between gap-3 group transition-colors">
             <div
               className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
@@ -331,7 +314,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             </div>
           </div>
 
-          {/* 2. Recent Updates (Unviewed) */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
               Recent Updates
@@ -375,7 +357,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             )}
           </div>
 
-          {/* 3. Viewed Updates */}
           {viewedUpdates.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#181b22]">
               <button
@@ -427,9 +408,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* RIGHT CANVAS: CREATIVE STUDIO & DISCOVERY HERO */}
-      {/* ========================================================================= */}
       <section className="flex-1 hidden md:flex flex-col items-center justify-center p-8 bg-white dark:bg-[#0b0d11] text-center overflow-y-auto">
         <div className="max-w-md w-full flex flex-col items-center">
           <div className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-emerald-500/20 via-teal-500/20 to-indigo-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/10">
@@ -443,7 +421,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             Post photos, quick video clips, or styled thoughts with your contacts. Encrypted and automatically expires after 24 hours.
           </p>
 
-          {/* Large Hero Action Cards */}
           <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
             <button
               type="button"
@@ -506,9 +483,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* STATUS CREATOR MODAL (ENHANCED UI, LARGE DROPTARGET, RICH COLORS) */}
-      {/* ========================================================================= */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150">
           <div
@@ -516,7 +490,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
             role="dialog"
             aria-label="Create Status Update"
           >
-            {/* Modal Header with Big Segmented Mode Switcher */}
             <div className="px-6 py-4 border-b border-slate-100 dark:border-[#1d222c] flex items-center justify-between">
               <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-[#191d26] border border-slate-200/60 dark:border-slate-800">
                 <button
@@ -554,7 +527,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
               </button>
             </div>
 
-            {/* Error Message Toast */}
             {errorMessage && (
               <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
                 <X size={14} className="shrink-0" />
@@ -562,7 +534,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
               </div>
             )}
 
-            {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {createMode === 'media' ? (
                 <div className="space-y-4">
@@ -628,7 +599,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Text Canvas Preview */}
                   <div
                     className="relative rounded-3xl p-8 min-h-[240px] flex items-center justify-center text-center shadow-xl transition-all border border-white/10"
                     style={{
@@ -647,7 +617,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                     />
                   </div>
 
-                  {/* Font Style Selector */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
                       <Type size={14} className="text-violet-500" />
@@ -672,7 +641,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                     </div>
                   </div>
 
-                  {/* Background Selector */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
                       <Palette size={14} className="text-violet-500" />
@@ -697,7 +665,6 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
               )}
             </div>
 
-            {/* Modal Footer / Prominent Vibrant Button */}
             <div className="px-6 py-4 border-t border-slate-100 dark:border-[#1d222c] flex items-center justify-end gap-3 bg-slate-50 dark:bg-[#0f1115]">
               <button
                 type="button"
