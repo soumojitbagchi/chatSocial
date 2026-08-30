@@ -5,6 +5,8 @@ import {
     getAllRoomsController,
     updateRoomController,
     deleteRoomController,
+    addMemberController,
+    removeMemberController,
 } from "../controller/room.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 
@@ -17,5 +19,9 @@ router.get("/", getAllRoomsController);
 router.get("/:roomId", getRoomController);
 router.put("/:roomId", updateRoomController);
 router.delete("/:roomId", deleteRoomController);
+router.post("/:roomId/members", addMemberController);
+router.post("/:roomId/member", addMemberController);
+router.delete("/:roomId/members/:userId", removeMemberController);
+router.delete("/:roomId/member/:userId", removeMemberController);
 
 export default router;

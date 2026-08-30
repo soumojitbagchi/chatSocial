@@ -19,6 +19,18 @@ const roomSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        isPrivate: {
+            type: Boolean,
+            default: true,
+        },
+        avatar: {
+            type: String,
+            default: "",
+        },
+        admins: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        }],
         members: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
