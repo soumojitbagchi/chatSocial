@@ -34,6 +34,53 @@ const sentRequestSchema = new mongoose.Schema({
     },
 });
 
+const profileSchema = new mongoose.Schema({
+    displayName: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    bio: {
+        type: String,
+        trim: true,
+        default: "Building clean, fast, and delightful interfaces ⚡",
+    },
+    phone: {
+        type: String,
+        trim: true,
+        default: "+1 (555) 234-5678",
+    },
+    statusMessage: {
+        type: String,
+        trim: true,
+        default: "Available",
+    },
+    location: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    website: {
+        type: String,
+        trim: true,
+        default: "",
+    },
+    bannerUrl: {
+        type: String,
+        default: "",
+    },
+    theme: {
+        type: String,
+        enum: ["light", "dark", "system"],
+        default: "dark",
+    },
+    notifications: {
+        sound: { type: Boolean, default: true },
+        desktop: { type: Boolean, default: true },
+        readReceipts: { type: Boolean, default: true },
+    },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -68,6 +115,15 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "Hey there! I am using chatSocial.",
     },
+    phone: {
+        type: String,
+        trim: true,
+        default: "+1 (555) 234-5678",
+    },
+    profile: {
+        type: profileSchema,
+        default: () => ({}),
+    },
     contacts: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -87,5 +143,5 @@ userSchema.index({ username: "text", name: "text", email: "text" });
 
 const userData = mongoose.model("User", userSchema);
 
-export { userData, userData as User };
+export { userData, userData as User, profileSchema };
 export default userData;

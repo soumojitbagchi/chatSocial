@@ -31,37 +31,37 @@ export const searchUsersController = async (req, res) => {
                     .filter((r) => r.status === "pending")
                     .map((r) => r.from.toString())
             );
+            const directRoomNames = recentUsers.map((u) => `direct_${[currentUserId, u._id.toString()].sort().join("_")}`);
+            const existingRooms = await Room.find({ roomname: { $in: directRoomNames } }).select("_id roomname").lean();
+            const roomMap = new Map(existingRooms.map((r) => [r.roomname, r._id.toString()]));
 
-            const mapped = await Promise.all(
-                recentUsers.map(async (u) => {
-                    const uIdStr = u._id.toString();
-                    let connectionStatus = "none";
-                    let roomId = null;
+            const mapped = recentUsers.map((u) => {
+                const uIdStr = u._id.toString();
+                let connectionStatus = "none";
+                let roomId = null;
+                const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
 
-                    if (contactSet.has(uIdStr)) {
-                        connectionStatus = "connected";
-                        const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
-                        const existingRoom = await Room.findOne({ roomname: directName }).select("_id").lean();
-                        roomId = existingRoom ? existingRoom._id.toString() : null;
-                    } else if (sentPendingSet.has(uIdStr)) {
-                        connectionStatus = "pending_sent";
-                    } else if (receivedPendingSet.has(uIdStr)) {
-                        connectionStatus = "pending_received";
-                    }
+                if (contactSet.has(uIdStr)) {
+                    connectionStatus = "connected";
+                    roomId = roomMap.get(directName) || null;
+                } else if (sentPendingSet.has(uIdStr)) {
+                    connectionStatus = "pending_sent";
+                } else if (receivedPendingSet.has(uIdStr)) {
+                    connectionStatus = "pending_received";
+                }
 
-                    return {
-                        id: u._id.toString(),
-                        name: u.name,
-                        username: u.username,
-                        email: u.email,
-                        avatar: u.avatar || "",
-                        about: u.about || "Hey there! I am using chatSocial.",
-                        connectionStatus,
-                        roomId,
-                        online: presenceService.isUserOnline(u._id.toString()),
-                    };
-                })
-            );
+                return {
+                    id: u._id.toString(),
+                    name: u.name,
+                    username: u.username,
+                    email: u.email,
+                    avatar: u.avatar || "",
+                    about: u.about || "Hey there! I am using chatSocial.",
+                    connectionStatus,
+                    roomId,
+                    online: presenceService.isUserOnline(u._id.toString()),
+                };
+            });
 
             return res.status(200).json({ success: true, data: mapped });
         }
@@ -92,37 +92,37 @@ export const searchUsersController = async (req, res) => {
                 .filter((r) => r.status === "pending")
                 .map((r) => r.from.toString())
         );
+        const directRoomNames = matchingUsers.map((u) => `direct_${[currentUserId, u._id.toString()].sort().join("_")}`);
+        const existingRooms = await Room.find({ roomname: { $in: directRoomNames } }).select("_id roomname").lean();
+        const roomMap = new Map(existingRooms.map((r) => [r.roomname, r._id.toString()]));
 
-        const mapped = await Promise.all(
-            matchingUsers.map(async (u) => {
-                const uIdStr = u._id.toString();
-                let connectionStatus = "none";
-                let roomId = null;
+        const mapped = matchingUsers.map((u) => {
+            const uIdStr = u._id.toString();
+            let connectionStatus = "none";
+            let roomId = null;
+            const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
 
-                if (contactSet.has(uIdStr)) {
-                    connectionStatus = "connected";
-                    const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
-                    const existingRoom = await Room.findOne({ roomname: directName }).select("_id").lean();
-                    roomId = existingRoom ? existingRoom._id.toString() : null;
-                } else if (sentPendingSet.has(uIdStr)) {
-                    connectionStatus = "pending_sent";
-                } else if (receivedPendingSet.has(uIdStr)) {
-                    connectionStatus = "pending_received";
-                }
+            if (contactSet.has(uIdStr)) {
+                connectionStatus = "connected";
+                roomId = roomMap.get(directName) || null;
+            } else if (sentPendingSet.has(uIdStr)) {
+                connectionStatus = "pending_sent";
+            } else if (receivedPendingSet.has(uIdStr)) {
+                connectionStatus = "pending_received";
+            }
 
-                return {
-                    id: u._id.toString(),
-                    name: u.name,
-                    username: u.username,
-                    email: u.email,
-                    avatar: u.avatar || "",
-                    about: u.about || "Hey there! I am using chatSocial.",
-                    connectionStatus,
-                    roomId,
-                    online: presenceService.isUserOnline(u._id.toString()),
-                };
-            })
-        );
+            return {
+                id: u._id.toString(),
+                name: u.name,
+                username: u.username,
+                email: u.email,
+                avatar: u.avatar || "",
+                about: u.about || "Hey there! I am using chatSocial.",
+                connectionStatus,
+                roomId,
+                online: presenceService.isUserOnline(u._id.toString()),
+            };
+        });
 
         return res.status(200).json({ success: true, data: mapped });
     } catch (error) {
@@ -228,28 +228,22 @@ export const acceptConnectionRequestController = async (req, res) => {
             return res.status(404).json({ success: false, message: "Target user not found" });
         }
 
-        // Add to contacts of both users if not already present
-        if (!currentUser.contacts.some((id) => id.toString() === targetUserId)) {
-            currentUser.contacts.push(targetUserId);
-        }
-        if (!targetUser.contacts.some((id) => id.toString() === currentUserId)) {
-            targetUser.contacts.push(currentUserId);
-        }
-
-        // Update / remove pending requests
-        currentUser.connectionRequests = currentUser.connectionRequests.filter(
-            (r) => r.from.toString() !== targetUserId
-        );
-        currentUser.sentRequests = currentUser.sentRequests.filter(
-            (r) => r.to.toString() !== targetUserId
-        );
-
-        targetUser.connectionRequests = targetUser.connectionRequests.filter(
-            (r) => r.from.toString() !== currentUserId
-        );
-        targetUser.sentRequests = targetUser.sentRequests.filter(
-            (r) => r.to.toString() !== currentUserId
-        );
+        await Promise.all([
+            User.findByIdAndUpdate(currentUserId, {
+                $addToSet: { contacts: targetUserId },
+                $pull: {
+                    connectionRequests: { from: targetUserId },
+                    sentRequests: { to: targetUserId },
+                },
+            }),
+            User.findByIdAndUpdate(targetUserId, {
+                $addToSet: { contacts: currentUserId },
+                $pull: {
+                    connectionRequests: { from: currentUserId },
+                    sentRequests: { to: currentUserId },
+                },
+            }),
+        ]);
 
         // Find or create direct 1-to-1 room in MongoDB
         const directRoomName = `direct_${[currentUserId, targetUserId].sort().join("_")}`;
@@ -263,10 +257,21 @@ export const acceptConnectionRequestController = async (req, res) => {
                 createdBy: currentUserId,
                 members: [currentUserId, targetUserId],
             });
+        } else {
+            // Backfill members if the room was created without them
+            let needsSave = false;
+            if (!room.isDirect) {
+                room.isDirect = true;
+                needsSave = true;
+            }
+            if (!room.members || room.members.length === 0) {
+                room.members = [currentUserId, targetUserId];
+                needsSave = true;
+            }
+            if (needsSave) {
+                await room.save();
+            }
         }
-
-        await Promise.all([currentUser.save(), targetUser.save()]);
-
         return res.status(200).json({
             success: true,
             message: `Connected with ${targetUser.name}`,
@@ -413,6 +418,111 @@ export const getConnectionsController = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message || "Failed to fetch connections" });
     }
 };
+/**
+ * Get current user profile details
+ * GET /api/user/profile
+ */
+export const getProfileController = async (req, res) => {
+    try {
+        const currentUserId = req.user?.id || req.user?._id;
+        const user = await User.findById(currentUserId)
+            .select("-password")
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                id: user._id.toString(),
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                avatar: user.avatar || "",
+                about: user.about || "",
+                phone: user.phone || user.profile?.phone || "",
+                profile: user.profile || {},
+                createdAt: user.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error("getProfile error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to fetch profile" });
+    }
+};
+
+/**
+ * Update current user profile data
+ * PUT /api/user/profile or PATCH /api/user/profile
+ */
+export const updateProfileController = async (req, res) => {
+    try {
+        const currentUserId = req.user?.id || req.user?._id;
+        const { name, username, about, avatar, phone, profile } = req.body;
+
+        const updateFields = {};
+        if (name && typeof name === "string" && name.trim()) {
+            updateFields.name = name.trim();
+        }
+        if (username && typeof username === "string" && username.trim()) {
+            const cleanUsername = username.trim().toLowerCase().replace(/^@/, "");
+            const existing = await User.findOne({ username: cleanUsername, _id: { $ne: currentUserId } });
+            if (existing) {
+                return res.status(400).json({ success: false, message: "Username is already taken" });
+            }
+            updateFields.username = cleanUsername;
+        }
+        if (about !== undefined) {
+            updateFields.about = typeof about === "string" ? about.trim() : "";
+        }
+        if (avatar !== undefined) {
+            updateFields.avatar = typeof avatar === "string" ? avatar.trim() : "";
+        }
+        if (phone !== undefined) {
+            updateFields.phone = typeof phone === "string" ? phone.trim() : "";
+        }
+
+        if (profile && typeof profile === "object") {
+            Object.keys(profile).forEach((key) => {
+                updateFields[`profile.${key}`] = profile[key];
+            });
+            if (profile.displayName) updateFields.name = profile.displayName.trim();
+            if (profile.bio) updateFields.about = profile.bio.trim();
+            if (profile.phone) updateFields.phone = profile.phone.trim();
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            currentUserId,
+            { $set: updateFields },
+            { new: true, runValidators: true }
+        ).select("-password").lean();
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            data: {
+                id: updatedUser._id.toString(),
+                name: updatedUser.name,
+                username: updatedUser.username,
+                email: updatedUser.email,
+                avatar: updatedUser.avatar || "",
+                about: updatedUser.about || "",
+                phone: updatedUser.phone || updatedUser.profile?.phone || "",
+                profile: updatedUser.profile || {},
+                updatedAt: updatedUser.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error("updateProfile error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to update profile" });
+    }
+};
 
 export default {
     searchUsersController,
@@ -420,4 +530,6 @@ export default {
     acceptConnectionRequestController,
     rejectConnectionRequestController,
     getConnectionsController,
+    getProfileController,
+    updateProfileController,
 };
