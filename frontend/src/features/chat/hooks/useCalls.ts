@@ -113,7 +113,7 @@ export function useCalls(): UseCallsReturn {
         type = arg3 === 'video' ? 'video' : 'audio';
         avatar = arg4;
       }
-
+      mediaService.primeAudio();
       try {
         const newCall: ActiveCallState = {
           contactId,
@@ -157,8 +157,8 @@ export function useCalls(): UseCallsReturn {
     if (!current || !current.callId) return;
 
     try {
+      mediaService.primeAudio();
       setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connecting media...' } : null));
-
       await callService.acceptCall(current.callId);
 
       await mediaService.initCallMedia({

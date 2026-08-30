@@ -292,18 +292,31 @@ export class MediaService {
   }
 
   /**
-   * Play remote audio stream through HTMLAudioElement
+   * Prime audio element during user gesture to satisfy browser autoplay policy
    */
-  private playRemoteAudio(stream: MediaStream): void {
+  public primeAudio(): void {
     try {
       if (!this.audioElement) {
         this.audioElement = new Audio();
         this.audioElement.autoplay = true;
       }
-      this.audioElement.srcObject = stream;
-      this.audioElement.play().catch((err) => {
-        console.warn('[mediaService] Audio auto-play waiting for user interaction:', err);
-      });
+    } catch (err) {
+      console.warn('[mediaService] Failed to prime audio element:', err);
+    }
+  }
+
+  /**
+   * Play remote audio stream through HTMLAudioElement
+   */
+  private playRemoteAudio(stream: MediaStream): void {
+    try {
+      this.primeAudio();
+      if (this.audioElement) {
+        this.audioElement.srcObject = stream;
+        this.audioElement.play().catch((err) => {
+          console.warn('[mediaService] Audio auto-play waiting for user interaction:', err);
+        });
+      }
     } catch (err) {
       console.error('[mediaService] Failed to play remote audio:', err);
     }

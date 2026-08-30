@@ -67,7 +67,7 @@ const roomHandler = (io, socket) => {
     }
   });
 
-  socket.on("join-room", async (data = {}) => {
+  const handleJoinRoom = async (data = {}) => {
     try {
       const payload = normalizePayload(data);
       const roomId = payload.roomId || (typeof data === "string" ? data.trim() : null);
@@ -76,8 +76,20 @@ const roomHandler = (io, socket) => {
         return socket.emit("room:error", { message: "Room ID is required" });
       }
 
-      const room = await roomService.getRoom(roomId);
-      const stringRoomId = room._id.toString();
+      const stringRoomId = String(roomId);
+      socket.join(stringRoomId);
+
+      let roomname = stringRoomId;
+      let description = "";
+      try {
+        const room = await roomService.getRoom(stringRoomId);
+        if (room) {
+          roomname = room.roomname || stringRoomId;
+          description = room.description || "";
+        }
+      } catch {
+        // Fallback to room ID if room service query fails or in mock mode
+      }
 
       if (!roomMembers.has(stringRoomId)) {
         roomMembers.set(stringRoomId, new Map());
@@ -90,13 +102,11 @@ const roomHandler = (io, socket) => {
       }
       usersInRoom.get(userId).add(socket.id);
 
-      socket.join(stringRoomId);
-
       socket.emit("room:joined", {
         success: true,
         roomId: stringRoomId,
-        roomname: room.roomname,
-        description: room.description,
+        roomname,
+        description,
       });
 
       if (isFirstSocketForUser) {
@@ -109,9 +119,12 @@ const roomHandler = (io, socket) => {
     } catch (error) {
       socket.emit("room:error", { message: error.message || "Failed to join room" });
     }
-  });
+  };
 
-  socket.on("leave-room", (data = {}) => {
+  socket.on("join-room", handleJoinRoom);
+  socket.on("joinRoom", handleJoinRoom);
+
+  const handleLeaveRoom = (data = {}) => {
     try {
       const payload = normalizePayload(data);
       const roomId = payload.roomId || (typeof data === "string" ? data.trim() : null);
@@ -120,34 +133,37 @@ const roomHandler = (io, socket) => {
         return socket.emit("room:error", { message: "Room ID is required" });
       }
 
-      socket.leave(roomId);
+      const stringRoomId = String(roomId);
+      socket.leave(stringRoomId);
 
-      if (roomMembers.has(roomId)) {
-        const usersInRoom = roomMembers.get(roomId);
+      if (roomMembers.has(stringRoomId)) {
+        const usersInRoom = roomMembers.get(stringRoomId);
         if (usersInRoom.has(userId)) {
           const userSockets = usersInRoom.get(userId);
           userSockets.delete(socket.id);
           if (userSockets.size === 0) {
             usersInRoom.delete(userId);
-            socket.to(roomId).emit("user:left", {
+            socket.to(stringRoomId).emit("user:left", {
               userId,
               username,
-              roomId,
+              roomId: stringRoomId,
             });
           }
         }
         if (usersInRoom.size === 0) {
-          roomMembers.delete(roomId);
+          roomMembers.delete(stringRoomId);
         }
       }
 
-      socket.emit("room:left", { success: true, roomId });
+      socket.emit("room:left", { success: true, roomId: stringRoomId });
     } catch (error) {
       socket.emit("room:error", { message: error.message || "Failed to leave room" });
     }
-  });
+  };
 
-  socket.on("switch-room", async (data = {}) => {
+  socket.on("leave-room", handleLeaveRoom);
+  socket.on("leaveRoom", handleLeaveRoom);
+  const handleSwitchRoom = async (data = {}) => {
     try {
       const payload = normalizePayload(data);
       const { oldRoomId, newRoomId } = payload;
@@ -164,35 +180,46 @@ const roomHandler = (io, socket) => {
         });
       }
 
-      const targetRoom = await roomService.getRoom(newRoomId);
-      const targetRoomId = targetRoom._id.toString();
+      const stringOldId = String(oldRoomId);
+      const stringNewId = String(newRoomId);
 
       // Leave old room
-      socket.leave(oldRoomId);
-      if (roomMembers.has(oldRoomId)) {
-        const oldUsers = roomMembers.get(oldRoomId);
+      socket.leave(stringOldId);
+      if (roomMembers.has(stringOldId)) {
+        const oldUsers = roomMembers.get(stringOldId);
         if (oldUsers.has(userId)) {
           const oldSockets = oldUsers.get(userId);
           oldSockets.delete(socket.id);
           if (oldSockets.size === 0) {
             oldUsers.delete(userId);
-            socket.to(oldRoomId).emit("user:left", {
+            socket.to(stringOldId).emit("user:left", {
               userId,
               username,
-              roomId: oldRoomId,
+              roomId: stringOldId,
             });
           }
         }
         if (oldUsers.size === 0) {
-          roomMembers.delete(oldRoomId);
+          roomMembers.delete(stringOldId);
         }
       }
 
       // Join new room
-      if (!roomMembers.has(targetRoomId)) {
-        roomMembers.set(targetRoomId, new Map());
+      socket.join(stringNewId);
+      let roomname = stringNewId;
+      try {
+        const targetRoom = await roomService.getRoom(stringNewId);
+        if (targetRoom) {
+          roomname = targetRoom.roomname || stringNewId;
+        }
+      } catch {
+        // Fallback
       }
-      const newUsers = roomMembers.get(targetRoomId);
+
+      if (!roomMembers.has(stringNewId)) {
+        roomMembers.set(stringNewId, new Map());
+      }
+      const newUsers = roomMembers.get(stringNewId);
       const isFirstSocket = !newUsers.has(userId) || newUsers.get(userId).size === 0;
 
       if (!newUsers.has(userId)) {
@@ -200,28 +227,29 @@ const roomHandler = (io, socket) => {
       }
       newUsers.get(userId).add(socket.id);
 
-      socket.join(targetRoomId);
-
       if (isFirstSocket) {
-        socket.to(targetRoomId).emit("user:joined", {
+        socket.to(stringNewId).emit("user:joined", {
           userId,
           username,
-          roomId: targetRoomId,
+          roomId: stringNewId,
         });
       }
 
       socket.emit("room:switched", {
         success: true,
-        oldRoomId,
-        newRoomId: targetRoomId,
-        roomname: targetRoom.roomname,
+        oldRoomId: stringOldId,
+        newRoomId: stringNewId,
+        roomname,
       });
     } catch (error) {
       socket.emit("room:error", {
         message: error.message || "Failed to switch room",
       });
     }
-  });
+  };
+
+  socket.on("switch-room", handleSwitchRoom);
+  socket.on("switchRoom", handleSwitchRoom);
 
   socket.on("disconnect", () => {
     roomMembers.forEach((usersInRoom, roomId) => {
