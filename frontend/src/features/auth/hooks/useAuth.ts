@@ -111,13 +111,28 @@ export function useAuth(): UseAuthReturn {
     });
 
     try {
-      await chatApi.updateProfile({
+      const res = await chatApi.updateProfile({
         name: updated.name,
         username: updated.username,
         about: updated.about,
         avatar: updated.avatar,
         phone: updated.phone,
       });
+      if (res) {
+        setUser((prev) => {
+          const nextUser: User = {
+            id: res.id || prev?.id || '',
+            name: res.name || prev?.name || '',
+            email: res.email || prev?.email || '',
+            username: res.username || prev?.username || '',
+            avatar: res.avatar !== undefined ? res.avatar : prev?.avatar,
+            about: res.about !== undefined ? res.about : prev?.about,
+            phone: res.phone !== undefined ? res.phone : prev?.phone,
+          };
+          localStorage.setItem('chatSocial_user', JSON.stringify(nextUser));
+          return nextUser;
+        });
+      }
     } catch (err) {
       console.warn('Could not sync profile update to backend:', err);
     }

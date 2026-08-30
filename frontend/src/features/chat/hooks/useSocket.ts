@@ -30,21 +30,34 @@ export function useSocket(): UseSocketReturn {
     }
 
     socketService.connect();
+    const syncPresence = () => {
+      socketService.emit('online', {});
+      socketService.emit('getOnlineUsers', {});
+    };
+
+    syncPresence();
+
     const unbindConnect = socketService.on('connect', () => {
       setIsConnected(true);
+      syncPresence();
     });
 
     const unbindDisconnect = socketService.on('disconnect', () => {
       setIsConnected(false);
       setOnlineUsers([]);
     });
+    const heartbeat = setInterval(() => {
+      if (socketService.isConnected()) {
+        socketService.emit('getOnlineUsers', {});
+      }
+    }, 15000);
+
     const unbindOnlineList = socketService.on('users:online-list', (data: unknown) => {
       if (Array.isArray(data)) {
         const ids = data.filter((item): item is string => typeof item === 'string');
         setOnlineUsers(ids);
       }
     });
-
     const unbindUserOnline = socketService.on('user:online', (data: unknown) => {
       if (data && typeof data === 'object' && 'userId' in data) {
         const val = data.userId;
@@ -64,6 +77,7 @@ export function useSocket(): UseSocketReturn {
     });
 
     return () => {
+      clearInterval(heartbeat);
       unbindConnect();
       unbindDisconnect();
       unbindOnlineList();

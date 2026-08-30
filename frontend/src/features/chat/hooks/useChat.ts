@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ChatItem, RecentChatUser } from '../UI/ChatList';
 import { ChatMessage } from '../UI/ChatArea';
-import { chatApi, ApiMessage, ApiRoom } from '../api/chatApi';
+import { chatApi, ApiMessage, ApiRoom, ConnectionsData } from '../api/chatApi';
 import { socketService } from '../api/socketService';
 import { useAuthContext } from '../../auth/hooks/useAuthContext';
 import { chatStorage, generateValidObjectId } from '../api/chatStorage';
@@ -28,6 +28,8 @@ export interface UseChatReturn {
   loadBackendMessages: (roomId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   fetchBackendRooms: () => Promise<void>;
+  connections: ConnectionsData;
+  fetchConnections: () => Promise<void>;
 }
 
 export function useChat(): UseChatReturn {
@@ -40,7 +42,11 @@ export function useChat(): UseChatReturn {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading] = useState(false);
-
+  const [connections, setConnections] = useState<ConnectionsData>({
+    contacts: [],
+    pendingIncoming: [],
+    pendingOutgoing: [],
+  });
   const { user: authUser } = useAuthContext();
   const currentUserId = authUser?.id || authUser?._id || '';
 
@@ -64,20 +70,20 @@ export function useChat(): UseChatReturn {
         const backendMsgs = await chatApi.getMessages({ roomId, limit: 50, page: 1 });
         const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
           ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-              const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-              const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-              const isMe = Boolean(currentUserId && senderId === currentUserId);
+            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
+            const isMe = Boolean(currentUserId && senderId === currentUserId);
 
-              return {
-                id: m._id,
-                sender: isMe ? 'me' : 'other',
-                senderName: isMe ? 'You' : senderName,
-                type: 'text',
-                text: m.text,
-                time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                status: 'read',
-              };
-            })
+            return {
+              id: m._id,
+              sender: isMe ? 'me' : 'other',
+              senderName: isMe ? 'You' : senderName,
+              type: 'text',
+              text: m.text,
+              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'read',
+            };
+          })
           : [];
 
         setMessages((prev) => ({
@@ -150,32 +156,32 @@ export function useChat(): UseChatReturn {
       const backendRooms = await chatApi.getRooms();
       const mappedChats: ChatItem[] = Array.isArray(backendRooms)
         ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
-            const roomTitle = r.displayName || r.contactUser?.name || r.roomname || 'Chat';
-            const targetUserId = r.contactUser?.id || (
-              r.isDirect && Array.isArray(r.members)
-                ? (r.members.find((m) => {
-                    const mId = typeof m === 'object' && m !== null ? m._id : m;
-                    return mId && mId.toString() !== currentUserId;
-                  }) as { _id?: string } | string | undefined)
-                : undefined
-            );
-            const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
+          const roomTitle = r.displayName || r.contactUser?.name || r.roomname || 'Chat';
+          const targetUserId = r.contactUser?.id || (
+            r.isDirect && Array.isArray(r.members)
+              ? (r.members.find((m) => {
+                const mId = typeof m === 'object' && m !== null ? m._id : m;
+                return mId && mId.toString() !== currentUserId;
+              }) as { _id?: string } | string | undefined)
+              : undefined
+          );
+          const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
 
-            return {
-              id: r._id,
-              targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
-              name: roomTitle,
-              initials: roomTitle ? roomTitle.slice(0, 2).toUpperCase() : 'CH',
-              avatar: r.avatar || r.contactUser?.avatar || '',
-              avatarBg: '#6366f1',
-              lastMessage: r.description || 'No messages yet',
-              time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              unread: 0,
-              online: false,
-              isGroup: !r.isDirect,
-              statusText: r.description || (r.isDirect ? 'Direct Message' : 'Public Room'),
-            };
-          })
+          return {
+            id: r._id,
+            targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
+            name: roomTitle,
+            initials: roomTitle ? roomTitle.slice(0, 2).toUpperCase() : 'CH',
+            avatar: r.avatar || r.contactUser?.avatar || '',
+            avatarBg: '#6366f1',
+            lastMessage: r.description || 'No messages yet',
+            time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            online: false,
+            isGroup: !r.isDirect,
+            statusText: r.description || (r.isDirect ? 'Direct Message' : 'Public Room'),
+          };
+        })
         : [];
 
       // Fetch the actual last message per room so the sidebar shows real content
@@ -216,6 +222,7 @@ export function useChat(): UseChatReturn {
 
       const recents: RecentChatUser[] = patchedChats.slice(0, 6).map((c) => ({
         id: `recent-${c.id}`,
+        targetUserId: c.targetUserId,
         name: c.name,
         fullName: c.name,
         avatar: c.avatar,
@@ -224,15 +231,14 @@ export function useChat(): UseChatReturn {
         online: false,
         chatId: c.id,
       }));
-
       setRecentChats(recents);
       chatStorage.saveRecent(recents);
       setActiveChatId((prev) => {
         const targetId = patchedChats.some((c) => c.id === prev)
           ? prev
           : patchedChats.length > 0
-          ? patchedChats[0].id
-          : '';
+            ? patchedChats[0].id
+            : '';
         chatStorage.saveActiveRoomId(targetId);
         if (targetId) {
           socketService.joinRoom(targetId);
@@ -244,116 +250,61 @@ export function useChat(): UseChatReturn {
     }
   }, [currentUserId]);
 
-  // Initial fetch on mount & whenever user is authenticated
+  const fetchConnections = useCallback(async () => {
+    try {
+      const data = await chatApi.getConnections();
+      if (data && typeof data === 'object') {
+        setConnections({
+          contacts: Array.isArray(data.contacts) ? data.contacts : [],
+          pendingIncoming: Array.isArray(data.pendingIncoming) ? data.pendingIncoming : [],
+          pendingOutgoing: Array.isArray(data.pendingOutgoing) ? data.pendingOutgoing : [],
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch connections:', err);
+    }
+  }, []);
+
+  // Automatic API calls on mount, auth change, background interval (20s), and window focus
   useEffect(() => {
     if (!currentUserId) return;
     let isSubscribed = true;
 
-    void (async () => {
-      try {
-        const backendRooms = await chatApi.getRooms();
-        if (isSubscribed) {
-          const mappedChats: ChatItem[] = Array.isArray(backendRooms)
-            ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
-                const roomTitle = r.displayName || r.contactUser?.name || r.roomname || 'Chat';
-                const targetUserId = r.contactUser?.id || (
-                  r.isDirect && Array.isArray(r.members)
-                    ? (r.members.find((m) => {
-                        const mId = typeof m === 'object' && m !== null ? m._id : m;
-                        return mId && mId.toString() !== currentUserId;
-                      }) as { _id?: string } | string | undefined)
-                    : undefined
-                );
-                const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
-
-                return {
-                  id: r._id,
-                  targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
-                  name: roomTitle,
-                  initials: roomTitle ? roomTitle.slice(0, 2).toUpperCase() : 'CH',
-                  avatar: r.avatar || r.contactUser?.avatar || '',
-                  avatarBg: '#6366f1',
-                  lastMessage: r.description || 'No messages yet',
-                  time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  unread: 0,
-                  online: false,
-                  isGroup: !r.isDirect,
-                  statusText: r.description || (r.isDirect ? 'Direct Message' : 'Public Room'),
-                };
-              })
-            : [];
-
-          // Fetch actual last message per room for sidebar preview
-          const lastMsgPromises = mappedChats.map(async (chat) => {
-            try {
-              const msgs = await chatApi.getMessages({ roomId: chat.id, limit: 1, page: 1 });
-              if (Array.isArray(msgs) && msgs.length > 0) {
-                const lastMsg = msgs[msgs.length - 1];
-                return {
-                  id: chat.id,
-                  text: lastMsg.text || '',
-                  time: new Date(lastMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                };
-              }
-            } catch { /* ignore per-room fetch errors */ }
-            return null;
-          });
-
-          const lastMsgResults = await Promise.all(lastMsgPromises);
-          if (!isSubscribed) return;
-
-          const lastMsgMap = new Map<string, { text: string; time: string }>();
-          for (const result of lastMsgResults) {
-            if (result && result.text) {
-              lastMsgMap.set(result.id, { text: result.text, time: result.time });
-            }
-          }
-
-          const patchedChats = mappedChats.map((chat) => {
-            const lastMsg = lastMsgMap.get(chat.id);
-            if (lastMsg) {
-              return { ...chat, lastMessage: lastMsg.text, time: lastMsg.time };
-            }
-            return chat;
-          });
-
-          setChats(patchedChats);
-          chatStorage.saveChats(patchedChats);
-          const recents: RecentChatUser[] = patchedChats.slice(0, 6).map((c) => ({
-            id: `recent-${c.id}`,
-            name: c.name,
-            fullName: c.name,
-            avatar: c.avatar,
-            initials: c.initials,
-            avatarBg: c.avatarBg,
-            online: false,
-            chatId: c.id,
-          }));
-
-          setRecentChats(recents);
-          chatStorage.saveRecent(recents);
-
-          setActiveChatId((prev) => {
-            const targetId = patchedChats.some((c) => c.id === prev)
-              ? prev
-              : patchedChats.length > 0
-              ? patchedChats[0].id
-              : '';
-            chatStorage.saveActiveRoomId(targetId);
-            if (targetId) {
-              socketService.joinRoom(targetId);
-            }
-            return targetId;
-          });
-        }
-      } catch (err) {
-        console.warn('Could not fetch backend rooms:', err);
+    const initialTimer = setTimeout(() => {
+      if (isSubscribed) {
+        void fetchBackendRooms();
+        void fetchConnections();
       }
-    })();
+    }, 0);
 
-    // Listen for room creation from any user over Socket.IO
+    // Background auto-refresh interval (20s)
+    const interval = setInterval(() => {
+      if (isSubscribed) {
+        fetchBackendRooms();
+        fetchConnections();
+      }
+    }, 2000);
+
+    // Immediate re-sync when tab gains focus
+    const handleFocus = () => {
+      if (isSubscribed) {
+        fetchBackendRooms();
+        fetchConnections();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentUserId, fetchBackendRooms, fetchConnections]);
+
+  // Listen for room creation from any user over Socket.IO
+  useEffect(() => {
     const unbindRoomCreated = socketService.on('room:created', (data: unknown) => {
-      if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
         const roomname = data.roomname ? String(data.roomname) : 'New Room';
@@ -381,10 +332,9 @@ export function useChat(): UseChatReturn {
     });
 
     return () => {
-      isSubscribed = false;
       unbindRoomCreated();
     };
-  }, [currentUserId]);
+  }, []);
 
   // Load messages directly from backend API when activeChatId changes (capped to 50)
   useEffect(() => {
@@ -395,20 +345,20 @@ export function useChat(): UseChatReturn {
       if (!isSubscribed) return;
       const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
         ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-            const isMe = Boolean(currentUserId && senderId === currentUserId);
+          const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+          const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
+          const isMe = Boolean(currentUserId && senderId === currentUserId);
 
-            return {
-              id: m._id,
-              sender: isMe ? 'me' : 'other',
-              senderName: isMe ? 'You' : senderName,
-              type: 'text',
-              text: m.text,
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read',
-            };
-          })
+          return {
+            id: m._id,
+            sender: isMe ? 'me' : 'other',
+            senderName: isMe ? 'You' : senderName,
+            type: 'text',
+            text: m.text,
+            time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'read',
+          };
+        })
         : [];
 
       setMessages((prev) => ({
@@ -417,7 +367,7 @@ export function useChat(): UseChatReturn {
       }));
       setRoomPageMap((prev) => ({ ...prev, [activeChatId]: 1 }));
       setHasMoreMap((prev) => ({ ...prev, [activeChatId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
-    }).catch(() => {});
+    }).catch(() => { });
 
     return () => {
       isSubscribed = false;
@@ -895,6 +845,8 @@ export function useChat(): UseChatReturn {
     loadBackendMessages,
     loadMoreMessages,
     fetchBackendRooms,
+    connections,
+    fetchConnections,
   };
 }
 
