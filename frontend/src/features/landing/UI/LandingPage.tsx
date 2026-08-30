@@ -55,8 +55,8 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             </header>
             <div className="landing-chat-date">Today</div>
             <div className="landing-chat-feed">
-              <div className="landing-bubble received">Dinner on the roof tonight?</div>
-              <div className="landing-bubble sent">Yes. I’ll bring the good playlist.</div>
+              <div className="landing-bubble received">Would you still wait for me ?</div>
+              <div className="landing-bubble sent">Yes. I always do.</div>
               <div className="landing-voice">
                 <button aria-label="Play voice note">▶</button>
                 <span className="landing-wave" />

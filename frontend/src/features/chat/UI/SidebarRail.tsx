@@ -94,25 +94,21 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
         >
           <Phone size={20} />
         </button>
+      </nav>
 
-        {/* User Account / Profile */}
-        <button
-          className={`cs-rail-btn ${activeTab === 'profile' ? 'active' : ''}`}
-          onClick={() => {
-            if (onOpenProfile) onOpenProfile();
-            else setActiveTab('settings');
-          }}
-          title="Account Profile"
-          aria-label="Account Profile"
-        >
-          <div className="cs-rail-avatar-ring">
-            <img
-              src={userAvatar}
-              alt="You"
-              className="w-full h-full rounded-full object-cover"
-            />
-          </div>
-        </button>
+      {/* Lower Section: Theme Switcher, Settings, Account Profile & Logout */}
+      <div className="cs-rail-bottom">
+        {/* Theme Switcher */}
+        {onToggleTheme && (
+          <button
+            className="cs-rail-btn cs-rail-sub-btn"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+          </button>
+        )}
 
         {/* Settings Gear Tab */}
         <button
@@ -123,21 +119,27 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
         >
           <Settings size={20} />
         </button>
-      </nav>
 
-      {/* Bottom Controls: Theme Switcher & Logout */}
-      <div className="cs-rail-bottom">
-        {onToggleTheme && (
-          <button
-            className="cs-rail-btn cs-rail-sub-btn"
-            onClick={onToggleTheme}
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        )}
+        {/* User Account Profile */}
+        <button
+          className={`cs-rail-btn ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => {
+            if (onOpenProfile) onOpenProfile();
+            else setActiveTab('settings');
+          }}
+          title="Account Profile"
+          aria-label="Account Profile"
+        >
+          <div className={`cs-rail-avatar-ring ${activeTab === 'profile' || activeTab === 'settings' ? 'ring-2 ring-slate-900 dark:ring-white' : ''}`}>
+            <img
+              src={userAvatar}
+              alt="You"
+              className="w-full h-full rounded-full object-cover"
+            />
+          </div>
+        </button>
 
+        {/* Logout Button */}
         {onLogout && (
           <button
             className="cs-rail-btn cs-rail-sub-btn text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"

@@ -229,7 +229,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   return (
     <main className="cs-conversation" aria-label={`Conversation with ${activeChat.name}`}>
       <header className="cs-chat-header">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-90 transition-opacity" onClick={onOpenDetails} title="Click to view contact info">
           {onBack && (
             <button
               onClick={onBack}

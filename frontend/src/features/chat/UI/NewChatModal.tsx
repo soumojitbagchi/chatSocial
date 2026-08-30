@@ -6,6 +6,7 @@ export interface NewChatModalProps {
   contacts: ChatItem[];
   onSelectContact: (id: string) => void;
   onClose: () => void;
+  onSelectUserProfile?: (user: UserProfileResult) => void;
   onCreateNewContact?: (name: string) => void;
   onRefreshChats?: () => Promise<void>;
 }
@@ -14,6 +15,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   contacts,
   onSelectContact,
   onClose,
+  onSelectUserProfile,
   onCreateNewContact,
   onRefreshChats
 }) => {
@@ -108,21 +110,24 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
     }
   };
 
-  // 4. Open chat for connected user
+  // 4. Open chat for user
   const handleOpenConnectedChat = (user: UserProfileResult) => {
+    if (onSelectUserProfile) {
+      onSelectUserProfile(user);
+      onClose();
+      return;
+    }
     if (user.roomId) {
       onSelectContact(user.roomId);
       onClose();
     } else {
-      // Find matching contact in list
-      const matchingChat = contacts.find((c) => c.id === user.id || c.name.toLowerCase() === user.name.toLowerCase());
+      const matchingChat = contacts.find((c) => c.id === user.id || c.name.toLowerCase() === user.name.toLowerCase() || c.targetUserId === user.id);
       if (matchingChat) {
         onSelectContact(matchingChat.id);
-        onClose();
       } else if (onCreateNewContact) {
         onCreateNewContact(user.name);
-        onClose();
       }
+      onClose();
     }
   };
 
@@ -208,7 +213,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
                   key={user.id}
                   className="p-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-3 shadow-xs"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => handleOpenConnectedChat(user)} title={`Open chat with ${user.name}`}>
                     {/* Avatar */}
                     <div className="relative shrink-0">
                       <div className="w-11 h-11 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-white text-sm shadow-sm" style={{ backgroundColor: '#475569' }}>

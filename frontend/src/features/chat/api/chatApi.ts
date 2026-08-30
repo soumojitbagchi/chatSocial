@@ -126,8 +126,23 @@ export const chatApi = {
     return inFlightRoomsPromise;
   },
 
-  async createRoom(data: { roomname: string; description?: string }): Promise<ApiRoom> {
+  async getRoom(roomId: string): Promise<ApiRoom & { members?: Array<{ _id?: string; id?: string; name?: string; username?: string; avatar?: string; phone?: string; about?: string } | string>; admins?: Array<{ _id?: string; id?: string } | string>; createdBy?: string; avatar?: string }> {
+    const res = await api.get<ApiResponse<ApiRoom & { members?: Array<{ _id?: string; id?: string; name?: string; username?: string; avatar?: string; phone?: string; about?: string } | string>; admins?: Array<{ _id?: string; id?: string } | string>; createdBy?: string; avatar?: string }>>(`/rooms/${roomId}`);
+    return res.data.data;
+  },
+
+  async createRoom(data: { roomname: string; description?: string; isPrivate?: boolean; members?: string[]; avatar?: string }): Promise<ApiRoom> {
     const res = await api.post<ApiResponse<ApiRoom>>('/rooms', data);
+    return res.data.data;
+  },
+
+  async addRoomMember(roomId: string, targetUserId: string): Promise<ApiRoom> {
+    const res = await api.post<ApiResponse<ApiRoom>>(`/rooms/${roomId}/members`, { targetUserId });
+    return res.data.data;
+  },
+
+  async removeRoomMember(roomId: string, targetUserId: string): Promise<ApiRoom> {
+    const res = await api.delete<ApiResponse<ApiRoom>>(`/rooms/${roomId}/members/${targetUserId}`);
     return res.data.data;
   },
 

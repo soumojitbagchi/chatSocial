@@ -9,7 +9,10 @@ export interface UseGroupsReturn {
   groups: GroupItem[];
   selectedGroup: GroupItem | null;
   setSelectedGroup: (group: GroupItem | null) => void;
-  createGroup: (newGroup: Omit<GroupItem, 'id'>) => Promise<GroupItem>;
+  createGroup: (newGroup: Omit<GroupItem, 'id'> & { memberIds?: string[] }) => Promise<GroupItem>;
+  addMember: (groupId: string, targetUserId: string) => Promise<void>;
+  removeMember: (groupId: string, targetUserId: string) => Promise<void>;
+  updateGroupInfo: (groupId: string, data: { name?: string; description?: string; avatar?: string }) => Promise<void>;
   fetchBackendRooms: () => Promise<void>;
 }
 export function useGroups(): UseGroupsReturn {
@@ -23,26 +26,60 @@ export function useGroups(): UseGroupsReturn {
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
-      if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedGroups: GroupItem[] = backendRooms.map((r: ApiRoom) => ({
-          id: r._id,
-          name: r.roomname,
-          initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
-          membersCount: 1,
-          description: r.description || 'Public collaboration room',
-          lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unread: 0,
-          chatId: r._id,
-          isAdmin: false,
-          members: [
-            {
-              name: 'Room Admin',
-              role: 'Admin',
-              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
-            }
-          ]
-        }));
+      if (backendRooms && Array.isArray(backendRooms)) {
+        const groupRoomsOnly = backendRooms.filter((r: ApiRoom & { isDirect?: boolean }) => !r.isDirect && !r.roomname.startsWith('direct_'));
+        const mappedGroups: GroupItem[] = groupRoomsOnly.map((r: ApiRoom & { admins?: string[]; members?: Array<{ name?: string; role?: string; avatar?: string } | string>; avatar?: string }) => {
+          const adminIds = Array.isArray(r.admins) ? r.admins.map((a) => (typeof a === 'object' && a !== null && '_id' in a ? String((a as { _id: string })._id) : String(a))) : [];
+          const isUserAdmin = Boolean(userId && (r.createdBy?.toString() === userId.toString() || adminIds.includes(userId.toString())));
+
+          return {
+            id: r._id,
+            name: r.roomname,
+            initials: r.roomname.slice(0, 2).toUpperCase(),
+            avatar: r.avatar || '',
+            avatarBg: '#6f7771',
+            membersCount: Array.isArray(r.members) ? r.members.length : 1,
+            description: r.description || 'Group channel',
+            lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: 0,
+            chatId: r._id,
+            isAdmin: isUserAdmin,
+            members: Array.isArray(r.members) && r.members.length > 0
+              ? r.members.map((m) => {
+                  if (typeof m === 'object' && m !== null) {
+                    const mId = '_id' in m ? String((m as { _id: string })._id) : (('id' in m) ? String((m as { id: string }).id) : '');
+                    const isMemAdmin = Boolean(mId && (mId === String(r.createdBy) || adminIds.includes(mId)));
+                    return {
+                      id: mId,
+                      name: ('name' in m && typeof m.name === 'string') ? m.name : ('username' in m && typeof m.username === 'string' ? m.username : 'Member'),
+                      username: ('username' in m && typeof m.username === 'string') ? m.username : '',
+                      role: isMemAdmin ? 'Admin' : 'Member',
+                      avatar: ('avatar' in m && typeof m.avatar === 'string') ? m.avatar : '',
+                      about: ('about' in m && typeof m.about === 'string') ? m.about : '',
+                      phone: ('phone' in m && typeof m.phone === 'string') ? m.phone : (('profile' in m && typeof m.profile === 'object' && m.profile !== null && 'phone' in m.profile) ? String(m.profile.phone) : ''),
+                    };
+                  }
+                  const strId = String(m);
+                  const isMemAdmin = Boolean(strId === String(r.createdBy) || adminIds.includes(strId));
+                  return {
+                    id: strId,
+                    name: isMemAdmin ? 'Admin' : 'Member',
+                    role: isMemAdmin ? 'Admin' : 'Member',
+                    avatar: '',
+                    about: '',
+                  };
+                })
+              : [
+                  {
+                    id: String(userId),
+                    name: isUserAdmin ? 'You' : 'Admin',
+                    role: 'Admin',
+                    avatar: '',
+                    about: '',
+                  },
+                ],
+          };
+        });
         setGroups(mappedGroups);
         chatStorage.saveGroups(mappedGroups);
         setSelectedGroup((prev) => prev || mappedGroups[0] || null);
@@ -50,7 +87,7 @@ export function useGroups(): UseGroupsReturn {
     } catch {
       // Use local storage
     }
-  }, []);
+  }, [userId]);
   useEffect(() => {
     if (!userId) return;
     let isSubscribed = true;
@@ -58,28 +95,60 @@ export function useGroups(): UseGroupsReturn {
     void (async () => {
       try {
         const backendRooms = await chatApi.getRooms();
-        if (isSubscribed) {
-          const mappedGroups: GroupItem[] = Array.isArray(backendRooms)
-            ? backendRooms.map((r: ApiRoom) => ({
-                id: r._id,
-                name: r.roomname,
-                initials: r.roomname.slice(0, 2).toUpperCase(),
-                avatarBg: '#6366f1',
-                membersCount: 1,
-                description: r.description || 'Public collaboration room',
-                lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                unread: 0,
-                chatId: r._id,
-                isAdmin: false,
-                members: [
-                  {
-                    name: 'Room Admin',
-                    role: 'Admin',
-                    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'
-                  }
-                ]
-              }))
-            : [];
+        if (isSubscribed && Array.isArray(backendRooms)) {
+          const groupRoomsOnly = backendRooms.filter((r: ApiRoom & { isDirect?: boolean }) => !r.isDirect && !r.roomname.startsWith('direct_'));
+          const mappedGroups: GroupItem[] = groupRoomsOnly.map((r: ApiRoom & { admins?: string[]; members?: Array<{ name?: string; role?: string; avatar?: string } | string>; avatar?: string }) => {
+            const adminIds = Array.isArray(r.admins) ? r.admins.map((a) => (typeof a === 'object' && a !== null && '_id' in a ? String((a as { _id: string })._id) : String(a))) : [];
+            const isUserAdmin = Boolean(userId && (r.createdBy?.toString() === userId.toString() || adminIds.includes(userId.toString())));
+
+            return {
+              id: r._id,
+              name: r.roomname,
+              initials: r.roomname.slice(0, 2).toUpperCase(),
+              avatar: r.avatar || '',
+              avatarBg: '#6366f1',
+              membersCount: Array.isArray(r.members) ? r.members.length : 1,
+              description: r.description || 'Group channel',
+              lastActive: new Date(r.updatedAt || r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: 0,
+              chatId: r._id,
+              isAdmin: isUserAdmin,
+              members: Array.isArray(r.members) && r.members.length > 0
+                ? r.members.map((m) => {
+                    if (typeof m === 'object' && m !== null) {
+                      const mId = '_id' in m ? String((m as { _id: string })._id) : (('id' in m) ? String((m as { id: string }).id) : '');
+                      const isMemAdmin = Boolean(mId && (mId === String(r.createdBy) || adminIds.includes(mId)));
+                      return {
+                        id: mId,
+                        name: ('name' in m && typeof m.name === 'string') ? m.name : ('username' in m && typeof m.username === 'string' ? m.username : 'Member'),
+                        username: ('username' in m && typeof m.username === 'string') ? m.username : '',
+                        role: isMemAdmin ? 'Admin' : 'Member',
+                        avatar: ('avatar' in m && typeof m.avatar === 'string') ? m.avatar : '',
+                        about: ('about' in m && typeof m.about === 'string') ? m.about : '',
+                        phone: ('phone' in m && typeof m.phone === 'string') ? m.phone : (('profile' in m && typeof m.profile === 'object' && m.profile !== null && 'phone' in m.profile) ? String(m.profile.phone) : ''),
+                      };
+                    }
+                    const strId = String(m);
+                    const isMemAdmin = Boolean(strId === String(r.createdBy) || adminIds.includes(strId));
+                    return {
+                      id: strId,
+                      name: isMemAdmin ? 'Admin' : 'Member',
+                      role: isMemAdmin ? 'Admin' : 'Member',
+                      avatar: '',
+                      about: '',
+                    };
+                  })
+                : [
+                    {
+                      id: String(userId),
+                      name: isUserAdmin ? 'You' : 'Admin',
+                      role: 'Admin',
+                      avatar: '',
+                      about: '',
+                    },
+                  ],
+            };
+          });
           setGroups(mappedGroups);
           chatStorage.saveGroups(mappedGroups);
           setSelectedGroup((prev) => (mappedGroups.some((g) => g.id === prev?.id) ? prev : mappedGroups[0] || null));
@@ -131,15 +200,21 @@ export function useGroups(): UseGroupsReturn {
     };
   }, [userId]);
 
-  const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'>) => {
+  const createGroup = useCallback(async (newGroup: Omit<GroupItem, 'id'> & { memberIds?: string[] }) => {
     const validId = generateValidObjectId();
     try {
-      const created = await chatApi.createRoom({ roomname: newGroup.name, description: newGroup.description });
+      const created = await chatApi.createRoom({
+        roomname: newGroup.name,
+        description: newGroup.description,
+        isPrivate: true,
+        members: newGroup.memberIds || [],
+      });
       const roomId = created?._id || validId;
       const fullGroup: GroupItem = {
         ...newGroup,
         id: roomId,
-        chatId: roomId
+        chatId: roomId,
+        isAdmin: true,
       };
       setGroups((prev) => {
         const updated = [fullGroup, ...prev.filter((g) => g.id !== roomId)];
@@ -148,15 +223,16 @@ export function useGroups(): UseGroupsReturn {
       });
       setSelectedGroup(fullGroup);
       socketService.joinRoom(roomId);
+      socketService.emit('room:created', { roomId, roomname: newGroup.name, description: newGroup.description });
       await fetchBackendRooms();
       return fullGroup;
     } catch {
-      // Fallback: If REST fails, attempt via socket/local
       socketService.createRoom(newGroup.name, newGroup.description || '');
       const fullGroup: GroupItem = {
         ...newGroup,
         id: validId,
-        chatId: validId
+        chatId: validId,
+        isAdmin: true,
       };
       setGroups((prev) => {
         const updated = [fullGroup, ...prev];
@@ -168,11 +244,45 @@ export function useGroups(): UseGroupsReturn {
     }
   }, [fetchBackendRooms]);
 
+  const addMember = useCallback(async (groupId: string, targetUserId: string) => {
+    try {
+      await chatApi.addRoomMember(groupId, targetUserId);
+      await fetchBackendRooms();
+    } catch (err) {
+      throw err;
+    }
+  }, [fetchBackendRooms]);
+
+  const removeMember = useCallback(async (groupId: string, targetUserId: string) => {
+    try {
+      await chatApi.removeRoomMember(groupId, targetUserId);
+      await fetchBackendRooms();
+    } catch (err) {
+      throw err;
+    }
+  }, [fetchBackendRooms]);
+
+  const updateGroupInfo = useCallback(async (groupId: string, data: { name?: string; description?: string; avatar?: string }) => {
+    try {
+      await chatApi.updateRoom(groupId, {
+        roomname: data.name,
+        description: data.description,
+        avatar: data.avatar,
+      });
+      await fetchBackendRooms();
+    } catch (err) {
+      throw err;
+    }
+  }, [fetchBackendRooms]);
+
   return {
     groups,
     selectedGroup,
     setSelectedGroup,
     createGroup,
+    addMember,
+    removeMember,
+    updateGroupInfo,
     fetchBackendRooms,
   };
 }
