@@ -29,7 +29,7 @@ export function useGroups(): UseGroupsReturn {
       if (backendRooms && Array.isArray(backendRooms)) {
         const groupRoomsOnly = backendRooms.filter((r: ApiRoom & { isDirect?: boolean }) => !r.isDirect && !r.roomname.startsWith('direct_'));
         const mappedGroups: GroupItem[] = groupRoomsOnly.map((r: ApiRoom & { admins?: string[]; members?: Array<{ name?: string; role?: string; avatar?: string } | string>; avatar?: string }) => {
-          const adminIds = Array.isArray(r.admins) ? r.admins.map((a) => (typeof a === 'object' && a !== null && '_id' in a ? String((a as { _id: string })._id) : String(a))) : [];
+          const adminIds = Array.isArray(r.admins) ? r.admins.map((a: unknown) => (Boolean(a) && typeof a === 'object' && a !== null && '_id' in (a as Record<string, unknown>) ? String((a as { _id: string })._id) : String(a || ''))) : [];
           const isUserAdmin = Boolean(userId && (r.createdBy?.toString() === userId.toString() || adminIds.includes(userId.toString())));
 
           return {
@@ -98,7 +98,7 @@ export function useGroups(): UseGroupsReturn {
         if (isSubscribed && Array.isArray(backendRooms)) {
           const groupRoomsOnly = backendRooms.filter((r: ApiRoom & { isDirect?: boolean }) => !r.isDirect && !r.roomname.startsWith('direct_'));
           const mappedGroups: GroupItem[] = groupRoomsOnly.map((r: ApiRoom & { admins?: string[]; members?: Array<{ name?: string; role?: string; avatar?: string } | string>; avatar?: string }) => {
-            const adminIds = Array.isArray(r.admins) ? r.admins.map((a) => (typeof a === 'object' && a !== null && '_id' in a ? String((a as { _id: string })._id) : String(a))) : [];
+            const adminIds = Array.isArray(r.admins) ? r.admins.map((a: unknown) => (Boolean(a) && typeof a === 'object' && a !== null && '_id' in (a as Record<string, unknown>) ? String((a as { _id: string })._id) : String(a || ''))) : [];
             const isUserAdmin = Boolean(userId && (r.createdBy?.toString() === userId.toString() || adminIds.includes(userId.toString())));
 
             return {

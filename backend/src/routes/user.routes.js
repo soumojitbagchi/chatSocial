@@ -10,7 +10,7 @@ import {
     uploadAvatarController,
 } from "../controller/user.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
-import avatarUploadMiddleware from "../middleware/upload.middleware.js";
+import { avatarUploadMiddleware } from "../middleware/upload.middleware.js";
 
 const router = express.Router();
 

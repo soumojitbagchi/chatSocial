@@ -10,10 +10,15 @@ export const createMessage = async (param1, param2, param3) => {
     let roomId;
     let text;
 
+    let type = "text";
+    let meta = {};
+
     if (typeof param1 === "object" && param1 !== null) {
         userId = param1.userId;
         roomId = param1.roomId;
         text = param1.text ?? param1.message;
+        type = param1.type || "text";
+        meta = param1.meta || {};
     } else {
         userId = param1;
         roomId = param2;
@@ -59,6 +64,8 @@ export const createMessage = async (param1, param2, param3) => {
             userId,
             roomId,
             text: trimmedText,
+            type,
+            meta,
         });
 
         return await Message.findById(message._id).populate("userId", "name username avatar").lean();
@@ -69,6 +76,8 @@ export const createMessage = async (param1, param2, param3) => {
         userId,
         roomId,
         text: trimmedText,
+        type,
+        meta,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     };

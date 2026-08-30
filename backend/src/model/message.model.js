@@ -17,6 +17,14 @@ const messageSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
+        type: {
+            type: String,
+            default: "text",
+        },
+        meta: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
+        },
         edited: {
             type: Boolean,
             default: false,

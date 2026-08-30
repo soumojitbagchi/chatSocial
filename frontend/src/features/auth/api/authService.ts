@@ -68,6 +68,7 @@ export interface RegisterCredentials {
   email: string;
   password: string;
   username?: string;
+  phone?: string;
 }
 
 export const authService = {
@@ -75,6 +76,7 @@ export const authService = {
     try {
       const cleanEmail = data.email.trim().toLowerCase();
       const cleanName = data.name.trim();
+      const cleanNumber = data.phone?.trim() || '';
       const fallbackUsername = cleanEmail.split('@')[0] || `user_${Date.now()}`;
       const cleanUsername = (data.username?.trim() || fallbackUsername).toLowerCase().replace(/[^a-z0-9_.]/g, '_');
 
@@ -83,6 +85,7 @@ export const authService = {
         email: cleanEmail,
         password: data.password,
         username: cleanUsername,
+        phone: cleanNumber,
       });
 
       if (res.data.success && res.data.user) {

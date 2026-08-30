@@ -1,10 +1,19 @@
 import axios from 'axios';
 
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  message?: string;
+  data: T;
+  [key: string]: unknown;
+}
+
 export interface ApiRoom {
   _id: string;
+  id?: string;
   roomname: string;
   description: string;
   createdBy?: string;
+  avatar?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,6 +31,7 @@ export interface UserProfileResult {
   email: string;
   avatar?: string;
   about?: string;
+  phone?: string;
   connectionStatus: 'connected' | 'pending_sent' | 'pending_received' | 'none';
   roomId?: string | null;
   online?: boolean;
@@ -100,7 +110,7 @@ export const chatApi = {
       },
     });
     return {
-      avatar: res.data.avatar || res.data.data?.avatar || '',
+      avatar: String(res.data.avatar || res.data.data?.avatar || ''),
       user: res.data.data,
     };
   },
@@ -146,7 +156,7 @@ export const chatApi = {
     return res.data.data;
   },
 
-  async updateRoom(roomId: string, data: { roomname?: string; description?: string }): Promise<ApiRoom> {
+  async updateRoom(roomId: string, data: { roomname?: string; description?: string; avatar?: string }): Promise<ApiRoom> {
     const res = await api.put<ApiResponse<ApiRoom>>(`/rooms/${roomId}`, data);
     return res.data.data;
   },
@@ -261,6 +271,97 @@ export const chatApi = {
       return { contacts: [], pendingIncoming: [], pendingOutgoing: [] };
     }
   },
+
+  // Status & Stories REST API
+  async getStatuses(): Promise<StatusFeedResponse> {
+    try {
+      const res = await api.get<ApiResponse<StatusFeedResponse>>('/status');
+      return res.data?.data || { myStatus: null, recentUpdates: [], viewedUpdates: [], totalActive: 0 };
+    } catch (err) {
+      console.warn('Failed to fetch statuses feed:', err);
+      return { myStatus: null, recentUpdates: [], viewedUpdates: [], totalActive: 0 };
+    }
+  },
+
+  async createStatus(data: { file?: File | Blob | null; caption?: string; mediaType?: string; backgroundColor?: string; fontStyle?: string }): Promise<ApiStoryItem> {
+    if (data.file) {
+      const formData = new FormData();
+      formData.append('media', data.file);
+      if (data.caption) formData.append('caption', data.caption);
+      if (data.mediaType) formData.append('mediaType', data.mediaType);
+      if (data.backgroundColor) formData.append('backgroundColor', data.backgroundColor);
+      if (data.fontStyle) formData.append('fontStyle', data.fontStyle);
+
+      const res = await api.post<ApiResponse<ApiStoryItem>>('/status', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return res.data.data;
+    }
+
+    const res = await api.post<ApiResponse<ApiStoryItem>>('/status', {
+      caption: data.caption || '',
+      mediaType: data.mediaType || 'text',
+      backgroundColor: data.backgroundColor || '#12151b',
+      fontStyle: data.fontStyle || 'sans-serif',
+    });
+    return res.data.data;
+  },
+
+  async deleteStatus(statusId: string): Promise<void> {
+    await api.delete(`/status/${statusId}`);
+  },
+
+  async viewStatus(statusId: string): Promise<void> {
+    try {
+      await api.post(`/status/${statusId}/view`);
+    } catch {
+      // Non-critical background fire
+    }
+  },
+
+  async replyToStatus(statusId: string, replyText: string): Promise<{ message: ApiMessage; roomId: string; storyOwnerId: string }> {
+    const res = await api.post<ApiResponse<{ message: ApiMessage; roomId: string; storyOwnerId: string }>>(`/status/${statusId}/reply`, {
+      replyText,
+    });
+    return res.data.data;
+  },
 };
 
+export interface ApiStoryItem {
+  id: string;
+  mediaUrl?: string;
+  mediaType: 'image' | 'video' | 'text';
+  caption?: string;
+  backgroundColor?: string;
+  fontStyle?: string;
+  createdAt: string;
+  expiresAt: string;
+  time: string;
+  timeAgo: string;
+  viewedByMe?: boolean;
+  viewersCount?: number;
+  viewers?: Array<{ id: string; name: string; avatar?: string; viewedAt?: string }>;
+}
+
+export interface ApiUserStatusGroup {
+  userId: string;
+  userName: string;
+  userFullName: string;
+  avatar?: string;
+  isMe?: boolean;
+  stories: ApiStoryItem[];
+  allViewed?: boolean;
+  lastUpdated?: string;
+}
+
+export interface StatusFeedResponse {
+  myStatus: ApiUserStatusGroup | null;
+  recentUpdates: ApiUserStatusGroup[];
+  viewedUpdates: ApiUserStatusGroup[];
+  totalActive: number;
+}
+
 export default chatApi;
+

@@ -32,6 +32,8 @@ const messageHandlers = (io, socket) => {
                 userId: currentUserId,
                 roomId,
                 text: content,
+                type: payload.type || "text",
+                meta: payload.meta || {},
             });
 
             io.to(roomId).emit("receiveMessage", savedMessage);

@@ -2287,3 +2287,28 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* WhatsApp-Style Minimized Story Context Card */
+.cs-story-quote-card {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.cs-story-quote-card:hover {
+  opacity: 0.95;
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+

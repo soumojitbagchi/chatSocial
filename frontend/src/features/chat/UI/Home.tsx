@@ -214,9 +214,15 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
 
       {activeTab === 'status' && (
         <StatusSection
-          statusUpdates={status.statusUpdates}
-          onViewStory={status.viewStory}
-          onAddStory={() => status.addStory()}
+          myStatus={status.myStatus}
+          recentUpdates={status.recentUpdates}
+          viewedUpdates={status.viewedUpdates}
+          onOpenDeck={status.openStoryDeck}
+          onCreateStory={status.createStory}
+          onDeleteStory={status.deleteStory}
+          currentUserAvatar={userProfile.avatar}
+          currentUserName={userProfile.name}
+          isUploading={status.isUploading}
         />
       )}
 
@@ -319,10 +325,27 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {status.activeStory && (
+      {status.activeUserDeck && (
         <StoryViewerModal
-          story={status.activeStory}
-          onClose={status.closeStory}
+          deck={status.activeUserDeck}
+          activeSlideIndex={status.activeSlideIndex}
+          onClose={status.closeStoryDeck}
+          onNextSlide={status.nextSlide}
+          onPrevSlide={status.prevSlide}
+          onNextDeck={status.nextUserDeck}
+          onPrevDeck={status.prevUserDeck}
+          onDeleteStory={status.deleteStory}
+          onReply={async (statusId, text) => {
+            const res = await status.replyToStory(statusId, text);
+            if (res?.roomId) {
+              chat.selectChat(res.roomId);
+            }
+          }}
+          onSelectChat={(roomId) => {
+            chat.selectChat(roomId);
+            setActiveTab('chats');
+            setMobileChatOpen(true);
+          }}
         />
       )}
 
