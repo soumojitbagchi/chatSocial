@@ -36,12 +36,23 @@ export interface Reaction {
   reacted?: boolean;
 }
 
+export interface StoryReplyMeta {
+  statusId?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'text';
+  caption?: string;
+  backgroundColor?: string;
+  storyOwnerName?: string;
+  storyOwnerId?: string;
+  time?: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'me' | 'other' | 'system';
   senderName?: string;
   avatar?: string;
-  type?: 'text' | 'audio' | 'document' | 'photo' | 'gallery' | 'date' | 'call-log';
+  type?: 'text' | 'audio' | 'document' | 'photo' | 'gallery' | 'date' | 'call-log' | 'story-reply';
   text?: string;
   audioDuration?: string;
   audioUrl?: string;
@@ -56,6 +67,11 @@ export interface ChatMessage {
   reactions?: Reaction[];
   callType?: string;
   duration?: string;
+  meta?: {
+    storyReply?: StoryReplyMeta;
+    [key: string]: unknown;
+  };
+  storyReply?: StoryReplyMeta;
 }
 
 export interface ChatAreaProps {
@@ -435,6 +451,47 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                 <div className={`cs-msg-bubble-wrap ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`cs-msg-bubble ${isMe ? 'bubble-sent' : 'bubble-received'}`}>
+                    {/* WhatsApp-Style Minimized Story Context Quote Card */}
+                    {(msg.type === 'story-reply' || msg.meta?.storyReply || msg.storyReply) && (
+                      (() => {
+                        const storyQuote = (msg.meta?.storyReply || msg.storyReply) as StoryReplyMeta | undefined;
+                        return (
+                          <div className={`cs-story-quote-card mb-2 rounded-xl p-2.5 flex items-center justify-between gap-2.5 border-l-4 ${
+                            isMe
+                              ? 'bg-black/25 border-emerald-400 text-white'
+                              : 'bg-slate-100 dark:bg-[#181c24] border-emerald-500 text-slate-800 dark:text-slate-200'
+                          }`}>
+                            <div className="flex-1 min-w-0 pr-1">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block truncate">
+                                ⚡ Status • {storyQuote?.storyOwnerName || 'Contact'}
+                              </span>
+                              <p className={`text-xs truncate font-medium mt-0.5 ${
+                                isMe ? 'text-white/80' : 'text-slate-600 dark:text-slate-400'
+                              }`}>
+                                {storyQuote?.caption || (storyQuote?.mediaType === 'video' ? '📹 Video status' : storyQuote?.mediaType === 'image' ? '📷 Photo status' : 'Text status')}
+                              </p>
+                            </div>
+                            {storyQuote?.mediaUrl ? (
+                              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black/40 border border-white/20">
+                                {storyQuote.mediaType === 'video' ? (
+                                  <video src={storyQuote.mediaUrl} className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={storyQuote.mediaUrl} alt="Status preview" className="w-full h-full object-cover" />
+                                )}
+                              </div>
+                            ) : storyQuote?.backgroundColor ? (
+                              <div
+                                className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center p-1 text-[8px] font-bold text-white text-center leading-none overflow-hidden"
+                                style={{ background: storyQuote.backgroundColor }}
+                              >
+                                {storyQuote.caption?.slice(0, 10) || 'Text'}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()
+                    )}
+
                     {msg.type === 'audio' ? (
                       <div className="cs-audio-card">
                         <button

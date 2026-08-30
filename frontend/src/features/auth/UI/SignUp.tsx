@@ -23,10 +23,12 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const nameId = useId();
   const emailId = useId();
   const usernameId = useId();
   const passwordId = useId();
+  const phoneId = useId();
 
   const handleSuccessRedirect = () => {
     if (onLoginSuccess) {
@@ -46,6 +48,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
         name: name.trim(),
         email: email.trim(),
         username: username.trim() || undefined,
+        phone: phone.trim() || undefined,
         password,
       });
       setIsLoading(false);
@@ -77,7 +80,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   };
 
   return (
-    <div className="w-full min-h-screen md:grid md:grid-cols-2 bg-background text-foreground selection:bg-emerald-500/30 selection:text-emerald-200 relative">
+    <div className="w-full min-h-screen md:grid md:grid-cols-2 bg-background text-foreground selection:bg-[#f2552c]/30 selection:text-[#f2552c] relative">
       {isLoading && <Loader fullscreen text="Creating your chatSocial account..." />}
       <style>{`
         input[type="password"]::-ms-reveal,
@@ -92,14 +95,14 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
               <button
                 type="button"
                 onClick={onBackToHome}
-                className="text-xs font-mono text-muted-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+                className="text-xs font-mono text-muted-foreground hover:text-[#f2552c] transition-colors cursor-pointer"
               >
                 &larr; Home
               </button>
             ) : (
               <Link
                 to="/"
-                className="text-xs font-mono text-muted-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+                className="text-xs font-mono text-muted-foreground hover:text-[#f2552c] transition-colors cursor-pointer"
               >
                 &larr; Home
               </Link>
@@ -141,7 +144,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
@@ -158,7 +161,23 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                   placeholder="user@chatsocial.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+              <div className="grid gap-1.5 text-left">
+                <label htmlFor={phoneId} className="text-sm font-medium text-foreground/90">
+                  Phone Number <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <input
+                  id={phoneId}
+                  name="phone"
+                  type="text"
+                  required
+                  autoComplete="phone"
+                  placeholder="1234567890"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
@@ -174,7 +193,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                   placeholder="johndoe"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
               <div className="grid gap-1.5 text-left">
@@ -191,7 +210,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-12 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-11 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-5 pr-12 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm shadow-black/5 transition-all focus-visible:bg-slate-50 dark:focus-visible:bg-slate-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <button
                     type="button"
@@ -206,7 +225,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
 
               <button
                 type="submit"
-                className="mt-2 w-full inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 h-11 shadow-md shadow-emerald-900/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                className="mt-2 w-full inline-flex items-center justify-center rounded-lg bg-[#f2552c] hover:bg-[#d9441e] text-white font-semibold py-2.5 h-11 shadow-md shadow-[#f2552c]/20 transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2552c] cursor-pointer"
               >
                 Sign Up
               </button>
@@ -217,7 +236,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
             {onSwitchToSignIn ? (
               <button
                 type="button"
-                className="font-semibold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
+                className="font-semibold text-[#f2552c] hover:text-[#d9441e] hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
                 onClick={onSwitchToSignIn}
               >
                 Sign in
@@ -225,7 +244,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
             ) : (
               <Link
                 to="/signin"
-                className="font-semibold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
+                className="font-semibold text-[#f2552c] hover:text-[#d9441e] hover:underline transition-colors cursor-pointer bg-transparent border-0 p-0"
               >
                 Sign in
               </Link>

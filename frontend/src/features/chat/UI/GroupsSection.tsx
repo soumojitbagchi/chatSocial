@@ -28,6 +28,7 @@ export interface GroupItem {
   id: string;
   name: string;
   initials: string;
+  avatar?: string;
   avatarBg: string;
   membersCount: number;
   description: string;

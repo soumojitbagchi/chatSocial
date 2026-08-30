@@ -3,6 +3,7 @@ import authRoutes from "./routes/auth.routes.js"
 import roomRoutes from "./routes/room.routes.js"
 import messageRoutes from "./routes/message.route.js"
 import userRoutes from "./routes/user.routes.js"
+import statusRoutes from "./routes/status.routes.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import errorHandler from "./middleware/error.middleware.js"
@@ -23,6 +24,8 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/message", messageRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/status", statusRoutes);
+app.use("/api/statuses", statusRoutes);
 
 app.use(errorHandler)
 

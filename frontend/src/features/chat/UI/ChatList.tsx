@@ -35,6 +35,7 @@ export interface ChatItem {
   isGroup?: boolean;
   groupMembers?: string;
   targetUserId?: string;
+  isAdmin?: boolean;
 }
 
 export interface RecentChatUser {
