@@ -35,6 +35,26 @@ export const createMessage = async (param1, param2, param3) => {
             throw new Error("Room not found");
         }
 
+        // Validate participant access
+        if (roomExists.isDirect) {
+            const isParticipant = (
+                (Array.isArray(roomExists.members) && roomExists.members.some((m) => m && m.toString() === userId.toString())) ||
+                (roomExists.createdBy && roomExists.createdBy.toString() === userId.toString()) ||
+                (roomExists.roomname && roomExists.roomname.includes(userId.toString()))
+            );
+            if (!isParticipant) {
+                throw new Error("Unauthorized: You are not a participant in this direct chat");
+            }
+        } else if (roomExists.isPrivate && Array.isArray(roomExists.members) && roomExists.members.length > 0) {
+            const isMember = (
+                roomExists.members.some((m) => m && m.toString() === userId.toString()) ||
+                (roomExists.createdBy && roomExists.createdBy.toString() === userId.toString()) ||
+                (Array.isArray(roomExists.admins) && roomExists.admins.some((a) => a && a.toString() === userId.toString()))
+            );
+            if (!isMember) {
+                throw new Error("Unauthorized: You are not a member of this room");
+            }
+        }
         const message = await Message.create({
             userId,
             roomId,
@@ -56,21 +76,48 @@ export const createMessage = async (param1, param2, param3) => {
 /**
  * Get messages for a specific room with pagination
  */
-export const getAllMessages = async (param1, param2, param3) => {
+export const getAllMessages = async (param1, param2, param3, param4) => {
     let roomId;
     let limit = 50;
     let page = 1;
+    let requesterId = null;
 
     if (typeof param1 === "object" && param1 !== null) {
         roomId = param1.roomId || param1.room_id;
         if (param1.limit !== undefined) limit = param1.limit;
         if (param1.page !== undefined) page = param1.page;
+        requesterId = param1.userId || param1.requesterId || param2 || null;
     } else {
         roomId = param1;
         if (param2 !== undefined) limit = param2;
         if (param3 !== undefined) page = param3;
+        requesterId = param4 || null;
     }
 
+    if (requesterId && mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(roomId)) {
+        const roomExists = await Room.findById(roomId).select("members createdBy admins isPrivate isDirect roomname");
+        if (roomExists) {
+            if (roomExists.isDirect) {
+                const isParticipant = (
+                    (Array.isArray(roomExists.members) && roomExists.members.some((m) => m && m.toString() === requesterId.toString())) ||
+                    (roomExists.createdBy && roomExists.createdBy.toString() === requesterId.toString()) ||
+                    (roomExists.roomname && roomExists.roomname.includes(requesterId.toString()))
+                );
+                if (!isParticipant) {
+                    throw new Error("Unauthorized: You are not a participant in this direct chat");
+                }
+            } else if (roomExists.isPrivate && Array.isArray(roomExists.members) && roomExists.members.length > 0) {
+                const isMember = (
+                    roomExists.members.some((m) => m && m.toString() === requesterId.toString()) ||
+                    (roomExists.createdBy && roomExists.createdBy.toString() === requesterId.toString()) ||
+                    (Array.isArray(roomExists.admins) && roomExists.admins.some((a) => a && a.toString() === requesterId.toString()))
+                );
+                if (!isMember) {
+                    throw new Error("Unauthorized: You are not a member of this room");
+                }
+            }
+        }
+    }
     if (!roomId) {
         throw new Error("Room ID is required");
     }

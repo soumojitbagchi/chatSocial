@@ -164,15 +164,34 @@ const callHandlers = (io, socket) => {
                 callType,
             });
 
-            // Notify target user of incoming call
+            // Query caller profile from MongoDB to ensure latest avatar and name
+            let callerName = currentUsername;
+            let callerAvatar = "";
+            let callerUsername = "";
+            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(currentUserId)) {
+                try {
+                    const callerDoc = await User.findById(currentUserId).select("name username avatar").lean();
+                    if (callerDoc) {
+                        callerName = callerDoc.name || callerDoc.username || currentUsername;
+                        callerAvatar = callerDoc.avatar || "";
+                        callerUsername = callerDoc.username || "";
+                    }
+                } catch (err) {
+                    console.warn("[callHandlers] Could not fetch caller details from DB:", err.message);
+                }
+            }
+            // Notify target user of incoming call with full caller profile metadata
             const incomingPayload = {
                 callId: session.callId,
                 callerId: currentUserId,
-                callerName: currentUsername,
+                callerName,
+                callerAvatar,
+                callerUsername,
+                avatar: callerAvatar,
+                name: callerName,
                 type: session.type,
                 callType: session.type,
             };
-
             emitToUser(io, targetUserId, "call:incoming", incomingPayload);
             emitToUser(io, targetUserId, "incoming-call", incomingPayload); // legacy
 
@@ -214,15 +233,34 @@ const callHandlers = (io, socket) => {
                 receiverSocketId: socket.id,
                 callId,
             });
-
+            // Query acceptor profile from MongoDB to ensure latest avatar and name
+            let acceptorName = currentUsername;
+            let acceptorAvatar = "";
+            let acceptorUsername = "";
+            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(currentUserId)) {
+                try {
+                    const acceptorDoc = await User.findById(currentUserId).select("name username avatar").lean();
+                    if (acceptorDoc) {
+                        acceptorName = acceptorDoc.name || acceptorDoc.username || currentUsername;
+                        acceptorAvatar = acceptorDoc.avatar || "";
+                        acceptorUsername = acceptorDoc.username || "";
+                    }
+                } catch (err) {
+                    console.warn("[callHandlers] Could not fetch acceptor details from DB:", err.message);
+                }
+            }
             const acceptedPayload = {
                 callId: session.callId,
                 participantId: currentUserId,
                 acceptorId: currentUserId,
+                acceptorName,
+                acceptorAvatar,
+                acceptorUsername,
+                avatar: acceptorAvatar,
+                name: acceptorName,
                 acceptorSocketId: socket.id,
                 type: session.type,
             };
-
             // Notify caller
             emitToUser(io, session.callerId, "call:accepted", acceptedPayload);
             emitToUser(io, session.callerId, "call-accepted", acceptedPayload); // legacy

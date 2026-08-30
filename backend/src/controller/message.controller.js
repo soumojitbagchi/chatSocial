@@ -25,15 +25,25 @@ export const getAllMessagesController = async (req, res) => {
     try {
         const roomId = req.query?.roomId || req.params?.roomId || req.query?.room_id;
         const { limit, page } = req.query;
+        const currentUserId = req.user?.id || req.user?._id || null;
 
         if (!roomId) {
             return res.status(400).json({ success: false, message: "Room ID is required" });
         }
 
-        const messages = await messageService.getAllMessages({ roomId, limit, page });
+        const messages = await messageService.getAllMessages({ roomId, limit, page, userId: currentUserId });
         res.status(200).json({ success: true, data: messages });
     } catch (error) {
-        const statusCode = error.message.includes("Invalid") || error.message.includes("required") ? 400 : 500;
+        let statusCode = 400;
+        if (error.message.includes("Unauthorized")) {
+            statusCode = 403;
+        } else if (error.message.includes("Room not found")) {
+            statusCode = 404;
+        } else if (error.message.includes("Invalid") || error.message.includes("required")) {
+            statusCode = 400;
+        } else {
+            statusCode = 500;
+        }
         res.status(statusCode).json({ success: false, message: error.message });
     }
 };
