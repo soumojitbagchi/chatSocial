@@ -150,7 +150,7 @@ export function useChat(): UseChatReturn {
       const backendRooms = await chatApi.getRooms();
       const mappedChats: ChatItem[] = Array.isArray(backendRooms)
         ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
-            const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+            const roomTitle = r.displayName || r.contactUser?.name || r.roomname || 'Chat';
             const targetUserId = r.contactUser?.id || (
               r.isDirect && Array.isArray(r.members)
                 ? (r.members.find((m) => {
@@ -165,7 +165,7 @@ export function useChat(): UseChatReturn {
               id: r._id,
               targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
               name: roomTitle,
-              initials: roomTitle.slice(0, 2).toUpperCase(),
+              initials: roomTitle ? roomTitle.slice(0, 2).toUpperCase() : 'CH',
               avatar: r.avatar || r.contactUser?.avatar || '',
               avatarBg: '#6366f1',
               lastMessage: r.description || 'No messages yet',
@@ -178,13 +178,47 @@ export function useChat(): UseChatReturn {
           })
         : [];
 
-      setChats(mappedChats);
-      chatStorage.saveChats(mappedChats);
+      // Fetch the actual last message per room so the sidebar shows real content
+      const lastMsgPromises = mappedChats.map(async (chat) => {
+        try {
+          const msgs = await chatApi.getMessages({ roomId: chat.id, limit: 1, page: 1 });
+          if (Array.isArray(msgs) && msgs.length > 0) {
+            const lastMsg = msgs[msgs.length - 1];
+            return {
+              id: chat.id,
+              text: lastMsg.text || '',
+              time: new Date(lastMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+          }
+        } catch { /* ignore per-room fetch errors */ }
+        return null;
+      });
 
-      const recents: RecentChatUser[] = mappedChats.slice(0, 6).map((c) => ({
+      const lastMsgResults = await Promise.all(lastMsgPromises);
+      const lastMsgMap = new Map<string, { text: string; time: string }>();
+      for (const result of lastMsgResults) {
+        if (result && result.text) {
+          lastMsgMap.set(result.id, { text: result.text, time: result.time });
+        }
+      }
+
+      // Patch each chat's lastMessage with the real latest message text
+      const patchedChats = mappedChats.map((chat) => {
+        const lastMsg = lastMsgMap.get(chat.id);
+        if (lastMsg) {
+          return { ...chat, lastMessage: lastMsg.text, time: lastMsg.time };
+        }
+        return chat;
+      });
+
+      setChats(patchedChats);
+      chatStorage.saveChats(patchedChats);
+
+      const recents: RecentChatUser[] = patchedChats.slice(0, 6).map((c) => ({
         id: `recent-${c.id}`,
         name: c.name,
         fullName: c.name,
+        avatar: c.avatar,
         initials: c.initials,
         avatarBg: c.avatarBg,
         online: false,
@@ -194,10 +228,10 @@ export function useChat(): UseChatReturn {
       setRecentChats(recents);
       chatStorage.saveRecent(recents);
       setActiveChatId((prev) => {
-        const targetId = mappedChats.some((c) => c.id === prev)
+        const targetId = patchedChats.some((c) => c.id === prev)
           ? prev
-          : mappedChats.length > 0
-          ? mappedChats[0].id
+          : patchedChats.length > 0
+          ? patchedChats[0].id
           : '';
         chatStorage.saveActiveRoomId(targetId);
         if (targetId) {
@@ -221,7 +255,7 @@ export function useChat(): UseChatReturn {
         if (isSubscribed) {
           const mappedChats: ChatItem[] = Array.isArray(backendRooms)
             ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
-                const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+                const roomTitle = r.displayName || r.contactUser?.name || r.roomname || 'Chat';
                 const targetUserId = r.contactUser?.id || (
                   r.isDirect && Array.isArray(r.members)
                     ? (r.members.find((m) => {
@@ -236,7 +270,7 @@ export function useChat(): UseChatReturn {
                   id: r._id,
                   targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
                   name: roomTitle,
-                  initials: roomTitle.slice(0, 2).toUpperCase(),
+                  initials: roomTitle ? roomTitle.slice(0, 2).toUpperCase() : 'CH',
                   avatar: r.avatar || r.contactUser?.avatar || '',
                   avatarBg: '#6366f1',
                   lastMessage: r.description || 'No messages yet',
@@ -249,12 +283,47 @@ export function useChat(): UseChatReturn {
               })
             : [];
 
-          setChats(mappedChats);
-          chatStorage.saveChats(mappedChats);
-          const recents: RecentChatUser[] = mappedChats.slice(0, 6).map((c) => ({
+          // Fetch actual last message per room for sidebar preview
+          const lastMsgPromises = mappedChats.map(async (chat) => {
+            try {
+              const msgs = await chatApi.getMessages({ roomId: chat.id, limit: 1, page: 1 });
+              if (Array.isArray(msgs) && msgs.length > 0) {
+                const lastMsg = msgs[msgs.length - 1];
+                return {
+                  id: chat.id,
+                  text: lastMsg.text || '',
+                  time: new Date(lastMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                };
+              }
+            } catch { /* ignore per-room fetch errors */ }
+            return null;
+          });
+
+          const lastMsgResults = await Promise.all(lastMsgPromises);
+          if (!isSubscribed) return;
+
+          const lastMsgMap = new Map<string, { text: string; time: string }>();
+          for (const result of lastMsgResults) {
+            if (result && result.text) {
+              lastMsgMap.set(result.id, { text: result.text, time: result.time });
+            }
+          }
+
+          const patchedChats = mappedChats.map((chat) => {
+            const lastMsg = lastMsgMap.get(chat.id);
+            if (lastMsg) {
+              return { ...chat, lastMessage: lastMsg.text, time: lastMsg.time };
+            }
+            return chat;
+          });
+
+          setChats(patchedChats);
+          chatStorage.saveChats(patchedChats);
+          const recents: RecentChatUser[] = patchedChats.slice(0, 6).map((c) => ({
             id: `recent-${c.id}`,
             name: c.name,
             fullName: c.name,
+            avatar: c.avatar,
             initials: c.initials,
             avatarBg: c.avatarBg,
             online: false,
@@ -265,10 +334,10 @@ export function useChat(): UseChatReturn {
           chatStorage.saveRecent(recents);
 
           setActiveChatId((prev) => {
-            const targetId = mappedChats.some((c) => c.id === prev)
+            const targetId = patchedChats.some((c) => c.id === prev)
               ? prev
-              : mappedChats.length > 0
-              ? mappedChats[0].id
+              : patchedChats.length > 0
+              ? patchedChats[0].id
               : '';
             chatStorage.saveActiveRoomId(targetId);
             if (targetId) {
@@ -287,13 +356,13 @@ export function useChat(): UseChatReturn {
       if (!isSubscribed) return;
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
         const roomId = String(data.roomId);
-        const roomname = String(data.roomname);
+        const roomname = data.roomname ? String(data.roomname) : 'New Room';
         const description = 'description' in data && typeof data.description === 'string' ? data.description : '';
 
         const newChat: ChatItem = {
           id: roomId,
           name: roomname,
-          initials: roomname.slice(0, 2).toUpperCase(),
+          initials: roomname ? roomname.slice(0, 2).toUpperCase() : 'NR',
           avatarBg: '#6f7771',
           lastMessage: description || 'New room created',
           time: 'Just now',

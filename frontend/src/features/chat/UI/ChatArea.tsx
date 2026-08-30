@@ -1,22 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Search, 
-  Phone, 
-  Video, 
-  Info, 
-  MoreVertical, 
-  Paperclip, 
-  Smile, 
-  Mic, 
-  Send, 
-  CheckCheck, 
-  FileText, 
-  Download, 
-  Play, 
-  Pause, 
-  Volume2, 
-  Image as ImageIcon, 
-  User, 
+import {
+  Search,
+  Phone,
+  Video,
+  Info,
+  MoreVertical,
+  Paperclip,
+  Smile,
+  Mic,
+  Send,
+  CheckCheck,
+  FileText,
+  Download,
+  Play,
+  Pause,
+  Volume2,
+  Image as ImageIcon,
+  User,
   ArrowLeft,
   BarChart2,
   MessageSquare,
@@ -27,6 +27,7 @@ import {
   Check,
   History
 } from 'lucide-react';
+import type { ChatItem } from './ChatList';
 import '../style/components.css';
 
 export interface Reaction {
@@ -89,7 +90,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   },
   onStartCall,
   onOpenDetails,
-  onNewChat: _onNewChat,
+  onNewChat,
   isOnline = false,
   onDeleteMessage,
   onDeleteChat,
@@ -105,6 +106,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [pinnedMsgIds, setPinnedMsgIds] = useState<Set<string>>(new Set());
   const [starredMsgIds, setStarredMsgIds] = useState<Set<string>>(new Set());
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [inputText, setInputText] = useState('');
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -207,9 +209,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
             Select a conversation
           </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
             Choose a contact from the list or start a new chat to connect seamlessly with real-time zero-knowledge encryption.
           </p>
+          {onNewChat && (
+            <button
+              onClick={onNewChat}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 text-xs font-semibold shadow-sm transition-transform active:scale-95 cursor-pointer"
+            >
+              <User size={15} />
+              <span>Start New Conversation</span>
+            </button>
+          )}
         </div>
       </main>
     );
@@ -220,7 +231,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       <header className="cs-chat-header">
         <div className="flex items-center gap-3 min-w-0">
           {onBack && (
-            <button 
+            <button
               onClick={onBack}
               className="md:hidden p-1.5 -ml-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer"
               title="Back"
@@ -232,13 +243,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
           <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-xs ring-1 ring-black/5 dark:ring-white/10">
             {activeChat.avatar ? (
-              <img 
-                src={activeChat.avatar} 
-                alt={activeChat.name || 'Avatar'} 
-                className="w-full h-full object-cover rounded-full" 
+              <img
+                src={activeChat.avatar}
+                alt={activeChat.name || 'Avatar'}
+                className="w-full h-full object-cover rounded-full"
               />
             ) : (
-              <div 
+              <div
                 className="w-full h-full flex items-center justify-center font-bold text-white text-sm rounded-full"
                 style={{ backgroundColor: activeChat.avatarBg || '#475569' }}
               >
@@ -262,16 +273,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
 
         <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-          <button 
-            className="cs-header-btn" 
+          <button
+            className="cs-header-btn"
             title="Search in conversation"
             aria-label="Search in conversation"
           >
             <Search size={18} />
           </button>
 
-          <button 
-            className="cs-header-btn" 
+          <button
+            className="cs-header-btn"
             onClick={() => onStartCall && onStartCall('audio')}
             title="Voice call"
             aria-label="Start voice call"
@@ -279,8 +290,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Phone size={18} />
           </button>
 
-          <button 
-            className="cs-header-btn" 
+          <button
+            className="cs-header-btn"
             onClick={() => onStartCall && onStartCall('video')}
             title="Video call"
             aria-label="Start video call"
@@ -288,8 +299,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Video size={18} />
           </button>
 
-          <button 
-            className="cs-header-btn" 
+          <button
+            className="cs-header-btn"
             onClick={onOpenDetails}
             title="Contact Info"
             aria-label="Open contact details"
@@ -298,7 +309,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </button>
 
           <div className="relative">
-            <button 
+            <button
               className={`cs-header-btn ${showHeaderMenu ? 'active' : ''}`}
               title="More options"
               aria-label="Conversation options"
@@ -384,21 +395,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }
 
           const isMe = msg.sender === 'me';
-          const senderAvatar = isMe 
+          const senderAvatar = isMe
             ? (currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')
             : (activeChat.avatar || msg.avatar);
 
           return (
-            <div 
-              key={msg.id} 
+            <div
+              key={msg.id}
               className={`cs-msg-row ${isMe ? 'sent' : 'received'} group`}
             >
               {!isMe && (
                 <div className="cs-msg-avatar-wrap">
-                  <img 
-                    src={senderAvatar} 
-                    alt={msg.senderName || activeChat.name} 
-                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10" 
+                  <img
+                    src={senderAvatar}
+                    alt={msg.senderName || activeChat.name}
+                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10"
                   />
                 </div>
               )}
@@ -442,7 +453,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         </button>
 
                         <div className={`cs-audio-waveform-track ${isMe ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
-                          <div 
+                          <div
                             className="cs-audio-waveform-fill"
                             style={{ width: playingAudioId === msg.id ? `${audioProgress}%` : '0%' }}
                           />
@@ -467,7 +478,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                             {msg.fileSize || '14.23 KB'}
                           </span>
                         </div>
-                        <button 
+                        <button
                           className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'}`}
                           title="Download attachment"
                           aria-label="Download attachment"
@@ -477,9 +488,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       </div>
                     ) : msg.type === 'photo' ? (
                       <div className="cs-photo-card">
-                        <img 
-                          src={msg.imageUrl || msg.photoUrl} 
-                          alt={msg.caption || 'Photo'} 
+                        <img
+                          src={msg.imageUrl || msg.photoUrl}
+                          alt={msg.caption || 'Photo'}
                           className="rounded-xl max-h-60 w-full object-cover"
                         />
                         {msg.caption && (
@@ -494,7 +505,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   </div>
 
                   <div className="relative">
-                    <button 
+                    <button
                       className="cs-msg-hover-action"
                       title="Message options"
                       aria-label="Message options"
@@ -603,10 +614,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
               {isMe && (
                 <div className="cs-msg-avatar-wrap">
-                  <img 
-                    src={senderAvatar} 
-                    alt="You" 
-                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10" 
+                  <img
+                    src={senderAvatar}
+                    alt="You"
+                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10"
                   />
                 </div>
               )}
@@ -619,8 +630,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* Popovers: Attachment & Emoji Picker */}
       {showAttachMenu && (
         <div className="cs-attach-menu" ref={attachRef}>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="cs-attach-option"
             onClick={() => sendAttachmentSimulation('document')}
           >
@@ -629,8 +640,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
             <span>Document</span>
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="cs-attach-option"
             onClick={() => sendAttachmentSimulation('photo')}
           >
@@ -639,8 +650,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
             <span>Photos & Videos</span>
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="cs-attach-option"
             onClick={() => sendAttachmentSimulation('audio')}
           >
@@ -649,8 +660,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
             <span>Audio Memo</span>
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="cs-attach-option"
             onClick={() => setShowAttachMenu(false)}
           >
@@ -659,8 +670,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
             <span>Contact Card</span>
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="cs-attach-option"
             onClick={() => setShowAttachMenu(false)}
           >

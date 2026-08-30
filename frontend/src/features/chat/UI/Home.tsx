@@ -9,6 +9,7 @@ import SettingsSection from './SettingsSection';
 import NewChatModal from './NewChatModal';
 import CallModal from './CallModal';
 import StoryViewerModal from './StoryViewerModal';
+import EditProfileModal from './EditProfileModal';
 import { useAuthContext } from '../../auth/hooks/useAuthContext';
 import { useChatContext } from '../hooks/useChatContext';
 import '../style/components.css';
@@ -19,6 +20,7 @@ export interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ onLogout }) => {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const { user, logout, updateProfile } = useAuthContext();
   const {
     activeTab,
@@ -71,8 +73,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         totalUnread={totalUnread}
-        onLogout={handleLogout}
-        onOpenProfile={() => setActiveTab('settings')}
+        onOpenProfile={() => setShowEditProfileModal(true)}
         userAvatar={userProfile.avatar}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -262,6 +263,17 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         <StoryViewerModal
           story={status.activeStory}
           onClose={status.closeStory}
+        />
+      )}
+
+      {showEditProfileModal && (
+        <EditProfileModal
+          isOpen={showEditProfileModal}
+          onClose={() => setShowEditProfileModal(false)}
+          user={userProfile}
+          onSave={async (updated) => {
+            await updateProfile(updated);
+          }}
         />
       )}
     </div>

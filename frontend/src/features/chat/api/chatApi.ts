@@ -80,6 +80,17 @@ let inFlightRoomsPromise: Promise<ApiRoom[]> | null = null;
 const inFlightMessagesPromises = new Map<string, Promise<ApiMessage[]>>();
 
 export const chatApi = {
+  // User Profile REST API
+  async getProfile(): Promise<UserProfileResult> {
+    const res = await api.get<ApiResponse<UserProfileResult>>('/user/profile');
+    return res.data.data;
+  },
+
+  async updateProfile(data: { name?: string; username?: string; about?: string; avatar?: string; phone?: string; profile?: Record<string, unknown> }): Promise<UserProfileResult> {
+    const res = await api.put<ApiResponse<UserProfileResult>>('/user/profile', data);
+    return res.data.data;
+  },
+
   // Rooms REST API
   async getRooms(): Promise<ApiRoom[]> {
     if (inFlightRoomsPromise) {

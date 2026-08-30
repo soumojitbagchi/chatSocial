@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { 
-  Search, 
-  Plus, 
-  MoreVertical, 
-  SlidersHorizontal, 
-  Pin, 
-  CheckCheck, 
-  Image as ImageIcon, 
-  Video, 
-  FileText, 
+import {
+  Search,
+  Plus,
+  MoreVertical,
+  SlidersHorizontal,
+  Pin,
+  CheckCheck,
+  Image as ImageIcon,
+  Video,
+  FileText,
   X,
   UserPlus,
   Users,
@@ -71,13 +71,15 @@ export const ChatList: React.FC<ChatListProps> = ({
   searchQuery,
   setSearchQuery,
   onNewChat,
-  onSelectRecentUser
+  onSelectRecentUser,
+  isUserOnline,
+  onDeleteChat: _onDeleteChat
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'groups' | 'pinned'>('all');
   const [showMenu, setShowMenu] = useState(false);
 
   const filteredChats = chats.filter((chat) => {
-    const matchesSearch = 
+    const matchesSearch =
       searchQuery.trim() === '' ||
       chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       chat.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
@@ -120,18 +122,18 @@ export const ChatList: React.FC<ChatListProps> = ({
               </button>
 
               {showMenu && (
-                <div 
+                <div
                   className="absolute right-0 mt-2 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
                   onClick={() => setShowMenu(false)}
                 >
-                  <button 
+                  <button
                     className="w-full px-3.5 py-2 text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
                     onClick={onNewChat}
                   >
                     <UserPlus size={15} className="text-slate-400" />
                     <span>New Contact</span>
                   </button>
-                  <button 
+                  <button
                     className="w-full px-3.5 py-2 text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 cursor-pointer"
                     onClick={onNewChat}
                   >
@@ -158,7 +160,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           />
           <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             {searchQuery ? (
-              <button 
+              <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="pointer-events-auto hover:text-slate-600 dark:hover:text-slate-200"
@@ -185,6 +187,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
           <div className="cs-recent-row">
             {recentChats.map((user) => {
+              const isOnline = isUserOnline ? (isUserOnline(user.id) || (user.chatId ? isUserOnline(user.chatId) : false)) : Boolean(user.online);
               return (
                 <button
                   key={user.id}
@@ -193,6 +196,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     else if (onSelectRecentUser) onSelectRecentUser(user);
                   }}
                   className="cs-recent-item group"
+
                   title={user.fullName}
                 >
                   <div className="relative">
@@ -200,7 +204,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                       {user.avatar ? (
                         <img src={user.avatar} alt={user.name} className="w-full h-full object-cover rounded-full" />
                       ) : (
-                        <div 
+                        <div
                           className="w-full h-full flex items-center justify-center font-bold text-white text-sm rounded-full"
                           style={{ backgroundColor: user.avatarBg || '#475569' }}
                         >
@@ -208,7 +212,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                         </div>
                       )}
                     </div>
-                    {user.online && (
+                    {isOnline && (
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
                     )}
                   </div>
@@ -226,7 +230,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
               All Chats
             </span>
-            <button 
+            <button
               onClick={() => {
                 setActiveFilter((prev) => {
                   if (prev === 'all') return 'unread';
@@ -287,6 +291,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             ) : (
               filteredChats.map((chat) => {
                 const isSelected = chat.id === activeChatId;
+                const isOnline = isUserOnline ? ((chat.targetUserId ? isUserOnline(chat.targetUserId) : false) || isUserOnline(chat.id)) : Boolean(chat.online);
 
                 return (
                   <div
@@ -300,18 +305,17 @@ export const ChatList: React.FC<ChatListProps> = ({
                       {chat.avatar ? (
                         <img src={chat.avatar} alt={chat.name || 'Avatar'} className="w-full h-full object-cover rounded-full" />
                       ) : (
-                        <div 
+                        <div
                           className="w-full h-full flex items-center justify-center font-bold text-white text-sm rounded-full"
                           style={{ backgroundColor: chat.avatarBg || '#475569' }}
                         >
                           {chat.initials || (chat.name ? chat.name.slice(0, 2).toUpperCase() : 'C')}
                         </div>
                       )}
-                      {chat.online && (
+                      {isOnline && (
                         <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
                       )}
                     </div>
-
                     <div className="flex-1 min-w-0 pr-1">
                       <div className="flex items-center justify-between mb-0.5">
                         <h4 className="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate">
