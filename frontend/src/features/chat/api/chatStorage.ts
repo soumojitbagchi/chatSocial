@@ -130,7 +130,25 @@ export const chatStorage = {
     } catch (e) {
       console.warn('Failed to save groups', e);
     }
-  }
-};
+  },
 
+  clearAll(): void {
+    try {
+      localStorage.removeItem(CHATS_KEY);
+      localStorage.removeItem(RECENT_KEY);
+      localStorage.removeItem(ACTIVE_ROOM_KEY);
+      localStorage.removeItem(GROUPS_KEY);
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(MESSAGES_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn('Failed to clear chat storage', e);
+    }
+  },
+};
 export default chatStorage;

@@ -1,3 +1,4 @@
+import chatStorage from '../../chat/api/chatStorage';
 import axios from 'axios';
 
 export interface User {
@@ -213,6 +214,7 @@ export const authService = {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('chatSocial_user');
         localStorage.removeItem('chatSocial_token');
+        chatStorage.clearAll();
       }
     }
   },

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { authService, User, LoginCredentials, RegisterCredentials } from '../api/authService';
+import { chatApi } from '../../chat/api/chatApi';
 
 export interface UseAuthReturn {
   user: User | null;
@@ -101,13 +102,25 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
 
-  const updateProfile = useCallback((updated: Partial<User>) => {
+  const updateProfile = useCallback(async (updated: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
       const nextUser = { ...prev, ...updated };
       localStorage.setItem('chatSocial_user', JSON.stringify(nextUser));
       return nextUser;
     });
+
+    try {
+      await chatApi.updateProfile({
+        name: updated.name,
+        username: updated.username,
+        about: updated.about,
+        avatar: updated.avatar,
+        phone: updated.phone,
+      });
+    } catch (err) {
+      console.warn('Could not sync profile update to backend:', err);
+    }
   }, []);
 
   const clearError = useCallback(() => {
