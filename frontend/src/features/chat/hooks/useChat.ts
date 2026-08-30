@@ -62,7 +62,6 @@ export function useChat(): UseChatReturn {
     return messages[activeChatId] || [];
   }, [messages, activeChatId]);
 
-  // Load messages directly from backend API (page 1, up to 50 latest messages per room)
   const loadBackendMessages = useCallback(
     async (roomId: string) => {
       if (!roomId) return;
@@ -99,7 +98,6 @@ export function useChat(): UseChatReturn {
     [currentUserId]
   );
 
-  // Load older 50 messages when scrolling up / requesting history
   const loadMoreMessages = useCallback(async () => {
     const targetRoom = activeChatId;
     if (!targetRoom || isLoadingMore || hasMoreMap[targetRoom] === false) return;
@@ -150,7 +148,6 @@ export function useChat(): UseChatReturn {
     }
   }, [activeChatId, currentUserId, hasMoreMap, isLoadingMore, roomPageMap]);
 
-  // Fetch real rooms from backend API with user-context direct room name resolution
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
@@ -184,7 +181,6 @@ export function useChat(): UseChatReturn {
         })
         : [];
 
-      // Fetch the actual last message per room so the sidebar shows real content
       const lastMsgPromises = mappedChats.map(async (chat) => {
         try {
           const msgs = await chatApi.getMessages({ roomId: chat.id, limit: 1, page: 1 });
@@ -196,7 +192,7 @@ export function useChat(): UseChatReturn {
               time: new Date(lastMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
           }
-        } catch { /* ignore per-room fetch errors */ }
+        } catch {}
         return null;
       });
 
@@ -208,7 +204,6 @@ export function useChat(): UseChatReturn {
         }
       }
 
-      // Patch each chat's lastMessage with the real latest message text
       const patchedChats = mappedChats.map((chat) => {
         const lastMsg = lastMsgMap.get(chat.id);
         if (lastMsg) {
@@ -265,7 +260,6 @@ export function useChat(): UseChatReturn {
     }
   }, []);
 
-  // Automatic API calls on mount, auth change, background interval (20s), and window focus
   useEffect(() => {
     if (!currentUserId) return;
     let isSubscribed = true;
@@ -277,32 +271,41 @@ export function useChat(): UseChatReturn {
       }
     }, 0);
 
-    // Background auto-refresh interval (20s)
     const interval = setInterval(() => {
-      if (isSubscribed) {
-        fetchBackendRooms();
-        fetchConnections();
+      if (isSubscribed && document.visibilityState === 'visible') {
+        void fetchBackendRooms();
+        void fetchConnections();
       }
-    }, 2000);
+    }, 15000);
 
-    // Immediate re-sync when tab gains focus
-    const handleFocus = () => {
-      if (isSubscribed) {
-        fetchBackendRooms();
-        fetchConnections();
+    const handleVisibilityChange = () => {
+      if (isSubscribed && document.visibilityState === 'visible') {
+        void fetchBackendRooms();
+        void fetchConnections();
       }
     };
-    window.addEventListener('focus', handleFocus);
+
+    const handleOnline = () => {
+      if (isSubscribed) {
+        void fetchBackendRooms();
+        void fetchConnections();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       isSubscribed = false;
       clearTimeout(initialTimer);
       clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
   }, [currentUserId, fetchBackendRooms, fetchConnections]);
 
-  // Listen for room creation from any user over Socket.IO
   useEffect(() => {
     const unbindRoomCreated = socketService.on('room:created', (data: unknown) => {
       if (data && typeof data === 'object' && 'roomId' in data && 'roomname' in data) {
@@ -336,45 +339,72 @@ export function useChat(): UseChatReturn {
     };
   }, []);
 
-  // Load messages directly from backend API when activeChatId changes (capped to 50)
   useEffect(() => {
     if (!activeChatId) return;
     let isSubscribed = true;
 
-    chatApi.getMessages({ roomId: activeChatId, limit: 50, page: 1 }).then((backendMsgs) => {
-      if (!isSubscribed) return;
-      const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
-        ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-          const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-          const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-          const isMe = Boolean(currentUserId && senderId === currentUserId);
+    const syncActiveMessages = () => {
+      if (!activeChatId) return;
+      chatApi.getMessages({ roomId: activeChatId, limit: 50, page: 1 }).then((backendMsgs) => {
+        if (!isSubscribed) return;
+        const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
+          ? backendMsgs.slice(-50).map((m: ApiMessage) => {
+            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
+            const isMe = Boolean(currentUserId && senderId === currentUserId);
 
+            return {
+              id: m._id,
+              sender: isMe ? 'me' : 'other',
+              senderName: isMe ? 'You' : senderName,
+              type: 'text',
+              text: m.text,
+              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'read',
+            };
+          })
+          : [];
+
+        setMessages((prev) => {
+          const current = prev[activeChatId] || [];
+          if (current.length === mappedMsgs.length && current.every((c, i) => c.id === mappedMsgs[i]?.id && c.text === mappedMsgs[i]?.text)) {
+            return prev;
+          }
           return {
-            id: m._id,
-            sender: isMe ? 'me' : 'other',
-            senderName: isMe ? 'You' : senderName,
-            type: 'text',
-            text: m.text,
-            time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'read',
+            ...prev,
+            [activeChatId]: mappedMsgs,
           };
-        })
-        : [];
+        });
+        setRoomPageMap((prev) => ({ ...prev, [activeChatId]: 1 }));
+        setHasMoreMap((prev) => ({ ...prev, [activeChatId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
+      }).catch(() => { });
+    };
 
-      setMessages((prev) => ({
-        ...prev,
-        [activeChatId]: mappedMsgs,
-      }));
-      setRoomPageMap((prev) => ({ ...prev, [activeChatId]: 1 }));
-      setHasMoreMap((prev) => ({ ...prev, [activeChatId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
-    }).catch(() => { });
+    syncActiveMessages();
+
+    const interval = setInterval(() => {
+      if (isSubscribed && document.visibilityState === 'visible') {
+        syncActiveMessages();
+      }
+    }, 10000);
+
+    const handleFocus = () => {
+      if (isSubscribed && document.visibilityState === 'visible') {
+        syncActiveMessages();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
 
     return () => {
       isSubscribed = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
     };
   }, [activeChatId, currentUserId]);
 
-  // Listen for real-time socket messages with optimistic message deduplication
   useEffect(() => {
     const unbindReceive = socketService.on('receiveMessage', (data: unknown) => {
       if (data && typeof data === 'object') {
@@ -409,7 +439,6 @@ export function useChat(): UseChatReturn {
               return prev;
             }
 
-            // Reconcile optimistic pending message with confirmed server message
             const optIndex = isMe ? existing.findIndex((m) => m.id.startsWith('msg-') && m.text === text) : -1;
             let updated: ChatMessage[];
             if (optIndex > -1) {
@@ -548,7 +577,6 @@ export function useChat(): UseChatReturn {
     [loadBackendMessages]
   );
 
-  // Send message with single Socket.IO broadcast and deduplication
   const sendMessage = useCallback(
     async (text: string, type: string = 'text', meta: Record<string, unknown> = {}) => {
       const cleanText = text.trim();
@@ -572,7 +600,6 @@ export function useChat(): UseChatReturn {
         ...meta,
       };
 
-      // 1. Optimistic local append
       setMessages((prev) => {
         const existing = prev[activeChatId] || [];
         const updated = [...existing, newMsg].slice(-50);
@@ -582,10 +609,8 @@ export function useChat(): UseChatReturn {
         };
       });
 
-      // 2. Broadcast single message over Socket.IO (persists in MongoDB and broadcasts to room)
       socketService.sendMessage(activeChatId, cleanText);
 
-      // 3. Update chat list last message preview
       const computedMediaType: ChatItem['mediaType'] =
         type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
 
@@ -629,7 +654,7 @@ export function useChat(): UseChatReturn {
       socketService.editMessage(messageId, text);
       try {
         await chatApi.updateMessage(messageId, { text });
-      } catch { /* no-op */ }
+      } catch {}
     },
     [activeChatId]
   );
@@ -691,12 +716,10 @@ export function useChat(): UseChatReturn {
     [fetchBackendRooms]
   );
 
-  // Delete message, sync with backend, and re-render conversation state
   const deleteMessage = useCallback(
     async (messageId: string) => {
       if (!messageId || !activeChatId) return;
 
-      // 1. Optimistic removal & re-render active messages and sidebar preview
       setMessages((prev) => {
         const remaining = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
 
@@ -722,10 +745,8 @@ export function useChat(): UseChatReturn {
         };
       });
 
-      // 2. Broadcast real-time deletion over Socket.IO
       socketService.deleteMessage(messageId);
 
-      // 3. Persist deletion in backend database via REST API
       try {
         await chatApi.deleteMessage(messageId);
         await loadBackendMessages(activeChatId);
@@ -736,17 +757,14 @@ export function useChat(): UseChatReturn {
     [activeChatId, loadBackendMessages]
   );
 
-  // Delete conversation/chat, purge storage, leave socket room, sync backend & re-render
   const deleteChat = useCallback(
     async (chatId: string) => {
       if (!chatId) return;
 
-      // 1. Remove chat from chats list and persist
       setChats((prevChats) => {
         const remainingChats = prevChats.filter((c) => c.id !== chatId);
         chatStorage.saveChats(remainingChats);
 
-        // 2. If active chat was deleted, switch to the first remaining conversation
         setActiveChatId((currentActiveId) => {
           if (currentActiveId === chatId) {
             const nextChat = remainingChats.length > 0 ? remainingChats[0] : null;
@@ -764,7 +782,6 @@ export function useChat(): UseChatReturn {
         return remainingChats;
       });
 
-      // 3. Remove from recent chats list
       setRecentChats((prevRecent) => {
         const updatedRecent = prevRecent.filter(
           (r) => r.chatId !== chatId && r.id !== chatId && r.id !== `recent-${chatId}`
@@ -773,7 +790,6 @@ export function useChat(): UseChatReturn {
         return updatedRecent;
       });
 
-      // 4. Remove room messages from state and persistent storage
       setMessages((prevMsgs) => {
         const updatedMsgs = { ...prevMsgs };
         delete updatedMsgs[chatId];
@@ -781,10 +797,8 @@ export function useChat(): UseChatReturn {
         return updatedMsgs;
       });
 
-      // 5. Leave real-time socket room
       socketService.leaveRoom(chatId);
 
-      // 6. Delete on backend database and re-sync
       try {
         await chatApi.deleteRoom(chatId);
         await fetchBackendRooms();
