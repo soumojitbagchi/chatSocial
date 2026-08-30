@@ -25,9 +25,12 @@ import {
   Star,
   Copy,
   Check,
-  History
+  History,
+  Loader2,
+  X
 } from 'lucide-react';
 import type { ChatItem } from './ChatList';
+import { chatApi } from '../api/chatApi';
 import '../style/components.css';
 
 export interface Reaction {
@@ -126,10 +129,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChat]);
@@ -196,22 +205,46 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     console.log(`Reacted ${emoji} to msg ${msgId}`);
   };
 
-  const sendAttachmentSimulation = (type: string) => {
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'media' | 'doc') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setShowAttachMenu(false);
-    if (type === 'document') {
-      onSendMessage('Shared document: Proposal_Q4_Final.pdf', 'document', {
-        fileName: 'Proposal_Q4_Final.pdf',
-        fileSize: '2.4 MB'
-      });
-    } else if (type === 'photo') {
-      onSendMessage('Shared image', 'photo', {
-        imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&auto=format&fit=crop&q=80',
-        caption: 'Latest project prototype design 🚀'
-      });
-    } else if (type === 'audio') {
-      onSendMessage('Voice memo (0:34)', 'audio', {
-        audioDuration: '0.34'
-      });
+    setIsUploadingFile(true);
+    setUploadFileName(file.name);
+    setUploadError(null);
+
+    try {
+      const uploaded = await chatApi.uploadAttachment(file);
+      if (kind === 'media') {
+        const isVideo = file.type.startsWith('video/');
+        onSendMessage(uploaded.fileName || file.name, isVideo ? 'document' : 'photo', {
+          imageUrl: uploaded.url,
+          photoUrl: uploaded.url,
+          fileName: uploaded.fileName,
+          fileSize: uploaded.fileSize,
+          fileType: uploaded.fileType,
+          caption: inputText.trim() || undefined,
+        });
+        setInputText('');
+      } else {
+        onSendMessage(uploaded.fileName || file.name, 'document', {
+          imageUrl: uploaded.url,
+          audioUrl: uploaded.url,
+          fileName: uploaded.fileName,
+          fileSize: uploaded.fileSize,
+          fileType: uploaded.fileType,
+          caption: inputText.trim() || undefined,
+        });
+        setInputText('');
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload attachment');
+      setTimeout(() => setUploadError(null), 4000);
+    } finally {
+      setIsUploadingFile(false);
+      setUploadFileName('');
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -245,7 +278,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   return (
     <main className="cs-conversation" aria-label={`Conversation with ${activeChat.name}`}>
       <header className="cs-chat-header">
-        <div className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-90 transition-opacity" onClick={onOpenDetails} title="Click to view contact info">
+        <div className="flex ml-4 items-center gap-3 min-w-0 cursor-pointer hover:opacity-90 transition-opacity" onClick={onOpenDetails} title="Click to view contact info">
           {onBack && (
             <button
               onClick={onBack}
@@ -271,9 +304,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               >
                 {activeChat.initials || (activeChat.name ? activeChat.name.charAt(0).toUpperCase() : 'C')}
               </div>
-            )}
-            {!activeChat.isGroup && isOnline && (
-              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
             )}
           </div>
           <div className="min-w-0">
@@ -451,23 +481,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                 <div className={`cs-msg-bubble-wrap ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`cs-msg-bubble ${isMe ? 'bubble-sent' : 'bubble-received'}`}>
-                    {/* WhatsApp-Style Minimized Story Context Quote Card */}
                     {(msg.type === 'story-reply' || msg.meta?.storyReply || msg.storyReply) && (
                       (() => {
                         const storyQuote = (msg.meta?.storyReply || msg.storyReply) as StoryReplyMeta | undefined;
                         return (
-                          <div className={`cs-story-quote-card mb-2 rounded-xl p-2.5 flex items-center justify-between gap-2.5 border-l-4 ${
-                            isMe
-                              ? 'bg-black/25 border-emerald-400 text-white'
-                              : 'bg-slate-100 dark:bg-[#181c24] border-emerald-500 text-slate-800 dark:text-slate-200'
-                          }`}>
+                          <div className={`cs-story-quote-card mb-2 rounded-xl p-2.5 flex items-center justify-between gap-2.5 border-l-4 ${isMe
+                            ? 'bg-black/25 border-emerald-400 text-white'
+                            : 'bg-slate-100 dark:bg-[#181c24] border-emerald-500 text-slate-800 dark:text-slate-200'
+                            }`}>
                             <div className="flex-1 min-w-0 pr-1">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 block truncate">
                                 ⚡ Status • {storyQuote?.storyOwnerName || 'Contact'}
                               </span>
-                              <p className={`text-xs truncate font-medium mt-0.5 ${
-                                isMe ? 'text-white/80' : 'text-slate-600 dark:text-slate-400'
-                              }`}>
+                              <p className={`text-xs truncate font-medium mt-0.5 ${isMe ? 'text-white/80' : 'text-slate-600 dark:text-slate-400'
+                                }`}>
                                 {storyQuote?.caption || (storyQuote?.mediaType === 'video' ? '📹 Video status' : storyQuote?.mediaType === 'image' ? '📷 Photo status' : 'Text status')}
                               </p>
                             </div>
@@ -535,8 +562,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           </span>
                         </div>
                         <button
-                          className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'}`}
-                          title="Download attachment"
+                          onClick={() => {
+                            const targetUrl = msg.imageUrl || msg.audioUrl;
+                            if (targetUrl) window.open(targetUrl, '_blank');
+                          }}
+                          className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'} cursor-pointer`}
+                          title="Download / View attachment"
                           aria-label="Download attachment"
                         >
                           <Download size={14} />
@@ -683,33 +714,32 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Popovers: Attachment & Emoji Picker */}
       {showAttachMenu && (
         <div className="cs-attach-menu" ref={attachRef}>
           <button
             type="button"
-            className="cs-attach-option"
-            onClick={() => sendAttachmentSimulation('document')}
+            className="cs-attach-option cursor-pointer"
+            onClick={() => docInputRef.current?.click()}
           >
-            <div className="cs-attach-icon bg-orange-500 text-white">
+            <div className="cs-attach-icon bg-indigo-500 text-white">
               <FileText size={16} />
             </div>
             <span>Document</span>
           </button>
           <button
             type="button"
-            className="cs-attach-option"
-            onClick={() => sendAttachmentSimulation('photo')}
+            className="cs-attach-option cursor-pointer"
+            onClick={() => mediaInputRef.current?.click()}
           >
-            <div className="cs-attach-icon bg-orange-500 text-white">
+            <div className="cs-attach-icon bg-emerald-500 text-white">
               <ImageIcon size={16} />
             </div>
             <span>Photos & Videos</span>
           </button>
           <button
             type="button"
-            className="cs-attach-option"
-            onClick={() => sendAttachmentSimulation('audio')}
+            className="cs-attach-option cursor-pointer"
+            onClick={() => setShowAttachMenu(false)}
           >
             <div className="cs-attach-icon bg-orange-500 text-white">
               <Mic size={16} />
@@ -762,6 +792,36 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       )}
 
+      <input
+        ref={mediaInputRef}
+        type="file"
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(e) => handleUploadFile(e, 'media')}
+      />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.tar,.gz,.json"
+        className="hidden"
+        onChange={(e) => handleUploadFile(e, 'doc')}
+      />
+
+      {isUploadingFile && (
+        <div className="px-4 py-2 bg-emerald-500/10 border-t border-emerald-500/20 flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-center gap-2 font-medium">
+            <Loader2 size={14} className="animate-spin" />
+            <span>Uploading {uploadFileName} to cloud...</span>
+          </div>
+        </div>
+      )}
+      {uploadError && (
+        <div className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/20 flex items-center justify-between text-xs text-rose-600 dark:text-rose-400">
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="p-0.5"><X size={13} /></button>
+        </div>
+      )}
+
       <footer className="cs-composer-container">
         <form onSubmit={handleSend} className="cs-composer-bar">
           <button
@@ -784,7 +844,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Smile size={19} />
           </button>
 
-          {/* Main Input Field */}
           <div className="cs-composer-input-wrap">
             <input
               ref={inputRef}
@@ -798,7 +857,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             />
           </div>
 
-          {/* Send / Voice Note Button */}
           {inputText.trim() ? (
             <button
               type="submit"

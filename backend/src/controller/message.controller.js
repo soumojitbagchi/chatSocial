@@ -1,4 +1,5 @@
 import * as messageService from "../service/message.service.js";
+import { uploadImage } from "../service/imagekit.service.js";
 
 export const createMessageController = async (req, res) => {
     try {
@@ -106,5 +107,55 @@ export const deleteMessageController = async (req, res) => {
             statusCode = 403;
         }
         res.status(statusCode).json({ success: false, message: error.message });
+    }
+};
+
+export const uploadAttachmentController = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const fileBuffer = req.file?.buffer;
+        const originalName = req.file?.originalname || "file";
+        const mimetype = req.file?.mimetype || "application/octet-stream";
+        const size = req.file?.size || (fileBuffer ? fileBuffer.length : 0);
+
+        if (!fileBuffer) {
+            return res.status(400).json({ success: false, message: "No file provided for upload" });
+        }
+
+        const ext = originalName.includes(".") ? originalName.split(".").pop() : "bin";
+        const cleanFileName = `attach_${userId}_${Date.now()}.${ext}`;
+
+        const uploadResult = await uploadImage({
+            fileBuffer,
+            fileName: cleanFileName,
+            folder: "/chatSocial/attachments",
+            tags: ["attachment", String(userId)],
+        });
+
+        const formattedSize = size > 1024 * 1024
+            ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+            : `${Math.max(1, Math.round(size / 1024))} KB`;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                url: uploadResult.url,
+                fileId: uploadResult.fileId,
+                fileName: originalName,
+                fileSize: formattedSize,
+                fileType: mimetype,
+                name: originalName,
+            },
+        });
+    } catch (error) {
+        console.error("uploadAttachment error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to upload file attachment",
+        });
     }
 };

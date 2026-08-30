@@ -69,9 +69,11 @@ api.interceptors.request.use((config) => {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   return config;
 });
-
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -90,7 +92,6 @@ let inFlightRoomsPromise: Promise<ApiRoom[]> | null = null;
 const inFlightMessagesPromises = new Map<string, Promise<ApiMessage[]>>();
 
 export const chatApi = {
-  // User Profile REST API
   async getProfile(): Promise<UserProfileResult> {
     const res = await api.get<ApiResponse<UserProfileResult>>('/user/profile');
     return res.data.data;
@@ -104,17 +105,12 @@ export const chatApi = {
   async uploadAvatar(file: File | Blob, fileName?: string): Promise<{ avatar: string; user?: UserProfileResult }> {
     const formData = new FormData();
     formData.append('avatar', file, fileName || 'avatar.png');
-    const res = await api.post<ApiResponse<UserProfileResult & { avatar: string }>>('/user/avatar', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const res = await api.post<ApiResponse<UserProfileResult & { avatar: string }>>('/user/avatar', formData);
     return {
       avatar: String(res.data.avatar || res.data.data?.avatar || ''),
       user: res.data.data,
     };
   },
-  // Rooms REST API
   async getRooms(): Promise<ApiRoom[]> {
     if (inFlightRoomsPromise) {
       return inFlightRoomsPromise;
@@ -165,7 +161,6 @@ export const chatApi = {
     await api.delete(`/rooms/${roomId}`);
   },
 
-  // Messages REST API
   async getMessages(query?: string | { roomId?: string; limit?: number; page?: number }): Promise<ApiMessage[]> {
     const params = typeof query === 'string' ? { roomId: query } : query;
     const key = params?.roomId ? `${params.roomId}_${params.limit || 50}_${params.page || 1}` : 'all';
@@ -218,12 +213,17 @@ export const chatApi = {
     const res = await api.put<ApiResponse<ApiMessage>>(`/messages/${messageId}`, payload);
     return res.data.data;
   },
-
   async deleteMessage(messageId: string): Promise<void> {
     await api.delete(`/messages/${messageId}`);
   },
 
-  // User Discovery & Connections REST API
+  async uploadAttachment(file: File | Blob, fileName?: string): Promise<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }> {
+    const formData = new FormData();
+    formData.append('file', file, fileName || (file instanceof File ? file.name : 'attachment'));
+    const res = await api.post<ApiResponse<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }>>('/messages/upload', formData);
+    return res.data.data;
+  },
+
   async searchUsers(query: string = ''): Promise<UserProfileResult[]> {
     try {
       const res = await api.get<ApiResponse<UserProfileResult[]>>('/users/search', { params: { q: query } });
@@ -272,7 +272,6 @@ export const chatApi = {
     }
   },
 
-  // Status & Stories REST API
   async getStatuses(): Promise<StatusFeedResponse> {
     try {
       const res = await api.get<ApiResponse<StatusFeedResponse>>('/status');
@@ -292,11 +291,7 @@ export const chatApi = {
       if (data.backgroundColor) formData.append('backgroundColor', data.backgroundColor);
       if (data.fontStyle) formData.append('fontStyle', data.fontStyle);
 
-      const res = await api.post<ApiResponse<ApiStoryItem>>('/status', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const res = await api.post<ApiResponse<ApiStoryItem>>('/status', formData);
       return res.data.data;
     }
 
@@ -317,7 +312,6 @@ export const chatApi = {
     try {
       await api.post(`/status/${statusId}/view`);
     } catch {
-      // Non-critical background fire
     }
   },
 

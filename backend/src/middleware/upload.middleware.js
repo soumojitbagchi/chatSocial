@@ -22,9 +22,7 @@ const ALLOWED_STORY_MIME_TYPES = new Set([
     "video/x-matroska",
 ]);
 
-// 10 MB file size limit for avatars
-const MAX_AVATAR_SIZE = 10 * 1024 * 1024;
-// 25 MB file size limit for story media (images and videos)
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 const MAX_STORY_SIZE = 25 * 1024 * 1024;
 
 const avatarFileFilter = (req, file, cb) => {
@@ -65,10 +63,6 @@ const storyUpload = multer({
     fileFilter: storyFileFilter,
 });
 
-/**
- * Middleware for single avatar image upload
- * Accepts field names: 'avatar', 'image', or 'file'
- */
 export const avatarUploadMiddleware = (req, res, next) => {
     const singleUpload = avatarUpload.fields([
         { name: "avatar", maxCount: 1 },
@@ -81,7 +75,7 @@ export const avatarUploadMiddleware = (req, res, next) => {
             if (err.code === "LIMIT_FILE_SIZE") {
                 return res.status(400).json({
                     success: false,
-                    message: "File size exceeds the 10MB limit. Please choose a smaller image.",
+                    message: "File size exceeds the 5MB limit. Please choose a smaller image.",
                 });
             }
             return res.status(400).json({
@@ -103,10 +97,6 @@ export const avatarUploadMiddleware = (req, res, next) => {
     });
 };
 
-/**
- * Middleware for status story upload (image, video, or file)
- * Accepts field names: 'media', 'file', 'image', 'video', 'story'
- */
 export const storyUploadMiddleware = (req, res, next) => {
     const singleUpload = storyUpload.fields([
         { name: "media", maxCount: 1 },
@@ -143,7 +133,52 @@ export const storyUploadMiddleware = (req, res, next) => {
     });
 };
 
+const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+const attachmentUpload = multer({
+    storage,
+    limits: {
+        fileSize: MAX_ATTACHMENT_SIZE,
+        files: 1,
+    },
+});
+
+export const attachmentUploadMiddleware = (req, res, next) => {
+    const singleUpload = attachmentUpload.fields([
+        { name: "file", maxCount: 1 },
+        { name: "attachment", maxCount: 1 },
+        { name: "media", maxCount: 1 },
+        { name: "document", maxCount: 1 },
+    ]);
+
+    singleUpload(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            if (err.code === "LIMIT_FILE_SIZE") {
+                return res.status(400).json({
+                    success: false,
+                    message: "File size exceeds the 25MB limit.",
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                message: `Upload error: ${err.message}`,
+            });
+        } else if (err) {
+            return res.status(400).json({
+                success: false,
+                message: err.message || "Invalid file uploaded",
+            });
+        }
+
+        if (req.files) {
+            req.file = req.files.file?.[0] || req.files.attachment?.[0] || req.files.media?.[0] || req.files.document?.[0] || null;
+        }
+
+        next();
+    });
+};
+
 export default {
     avatarUploadMiddleware,
     storyUploadMiddleware,
+    attachmentUploadMiddleware,
 };
