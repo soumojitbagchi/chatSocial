@@ -60,6 +60,9 @@ export const login = async (req, res) => {
                 name: isUserExists.name,
                 email: isUserExists.email,
                 username: isUserExists.username,
+                avatar: isUserExists.avatar || "",
+                about: isUserExists.about || "",
+                phone: isUserExists.phone || "",
             },
             token
         });
@@ -143,6 +146,9 @@ export const register = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 username: user.username,
+                avatar: user.avatar || "",
+                about: user.about || "",
+                phone: user.phone || "",
             },
             token
         });
@@ -168,6 +174,9 @@ export const getMe = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 username: user.username,
+                avatar: user.avatar || "",
+                about: user.about || "",
+                phone: user.phone || "",
             }
         });
     } catch (error) {

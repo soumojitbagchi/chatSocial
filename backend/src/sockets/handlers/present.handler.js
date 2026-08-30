@@ -13,14 +13,27 @@ const presentHandler = (io, socket) => {
         socket.emit("users:online-list", presenceService.getAllOnlineUserIds());
     }
 
-    socket.on("online", () => {
+    socket.on("online", (data = {}, callback) => {
         const { isFirstSocket } = presenceService.addOnlineUser(userId, socket.id);
         if (isFirstSocket) {
             socket.broadcast.emit("user:online", { userId, username });
         }
-        socket.emit("users:online-list", presenceService.getAllOnlineUserIds());
+        const list = presenceService.getAllOnlineUserIds();
+        socket.emit("users:online-list", list);
+        if (typeof callback === "function") callback(list);
     });
 
+    socket.on("getOnlineUsers", (callback) => {
+        const list = presenceService.getAllOnlineUserIds();
+        socket.emit("users:online-list", list);
+        if (typeof callback === "function") callback(list);
+    });
+
+    socket.on("presence:sync", (callback) => {
+        const list = presenceService.getAllOnlineUserIds();
+        socket.emit("users:online-list", list);
+        if (typeof callback === "function") callback(list);
+    });
     socket.on("disconnect", () => {
         const { isLastSocket } = presenceService.removeOnlineUser(userId, socket.id);
         if (isLastSocket) {

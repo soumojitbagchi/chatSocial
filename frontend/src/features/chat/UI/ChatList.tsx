@@ -39,6 +39,7 @@ export interface ChatItem {
 
 export interface RecentChatUser {
   id: string;
+  targetUserId?: string;
   name: string;
   fullName: string;
   avatar?: string;
@@ -47,7 +48,6 @@ export interface RecentChatUser {
   online?: boolean;
   chatId?: string;
 }
-
 export interface ChatListProps {
   title?: string;
   chats: ChatItem[];
@@ -187,7 +187,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
           <div className="cs-recent-row">
             {recentChats.map((user) => {
-              const isOnline = isUserOnline ? (isUserOnline(user.id) || (user.chatId ? isUserOnline(user.chatId) : false)) : Boolean(user.online);
+              const isOnline = isUserOnline ? ((user.targetUserId ? isUserOnline(user.targetUserId) : false) || (user.chatId ? isUserOnline(user.chatId) : false) || isUserOnline(user.id)) : Boolean(user.online);
               return (
                 <button
                   key={user.id}

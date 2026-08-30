@@ -101,9 +101,8 @@ export const CallModal: React.FC<CallModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div
-        className={`relative w-full ${
-          isVideoCall && isConnected ? 'max-w-2xl min-h-[560px]' : 'max-w-md min-h-[460px]'
-        } rounded-3xl bg-[#12151b] border border-[#262c38] overflow-hidden shadow-2xl flex flex-col items-center justify-between p-6 text-white transition-all duration-300`}
+        className={`relative w-full ${isVideoCall && isConnected ? 'max-w-2xl min-h-[560px]' : 'max-w-md min-h-[460px]'
+          } rounded-3xl bg-[#12151b] border border-[#262c38] overflow-hidden shadow-2xl flex flex-col items-center justify-between p-6 text-white transition-all duration-300`}
       >
         <div className="absolute -top-24 -left-24 w-72 h-72 bg-slate-700/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -167,13 +166,12 @@ export const CallModal: React.FC<CallModalProps> = ({
               </div>
 
               <span
-                className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ring-4 ring-[#12151b] flex items-center justify-center text-xs shadow-md ${
-                  isConnected
+                className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ring-4 ring-[#12151b] flex items-center justify-center text-xs shadow-md ${isConnected
                     ? 'bg-emerald-500 text-white'
                     : isEndedOrRejected
-                    ? 'bg-rose-500 text-white'
-                    : 'bg-slate-700 text-white'
-                }`}
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-slate-700 text-white'
+                  }`}
               >
                 {isConnected ? <Volume2 size={13} /> : <Phone size={13} />}
               </span>
@@ -222,9 +220,8 @@ export const CallModal: React.FC<CallModalProps> = ({
               <button
                 onClick={onToggleMute}
                 disabled={isEndedOrRejected}
-                className={`w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                  isMuted ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
-                } ${isEndedOrRejected ? 'opacity-40 cursor-not-allowed' : ''}`}
+                className={`w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer ${isMuted ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+                  } ${isEndedOrRejected ? 'opacity-40 cursor-not-allowed' : ''}`}
                 title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
               >
                 {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
@@ -235,9 +232,8 @@ export const CallModal: React.FC<CallModalProps> = ({
                 <button
                   onClick={onToggleVideo}
                   disabled={isEndedOrRejected}
-                  className={`w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    isVideoOff ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
-                  } ${isEndedOrRejected ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer ${isVideoOff ? 'bg-rose-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+                    } ${isEndedOrRejected ? 'opacity-40 cursor-not-allowed' : ''}`}
                   title={isVideoOff ? 'Turn camera on' : 'Turn camera off'}
                 >
                   {isVideoOff ? <VideoOff size={22} /> : <Video size={22} />}
