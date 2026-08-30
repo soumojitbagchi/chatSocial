@@ -1,2 +1,10 @@
 node_modules
 .env
+
+# Test files
+test-*.js
+test/
+*.test.js
+*.spec.js
+test.js
+tests/

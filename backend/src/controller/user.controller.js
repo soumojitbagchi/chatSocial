@@ -2,11 +2,7 @@ import User from "../model/user.model.js";
 import Room from "../model/room.model.js";
 import mongoose from "mongoose";
 import * as presenceService from "../sockets/service/presence.service.js";
-
-/**
- * Search registered users by username, full name, or email
- * Query param: ?q=searchQuery
- */
+import { uploadImage, deleteImage } from "../service/imagekit.service.js";
 export const searchUsersController = async (req, res) => {
     try {
         const currentUserId = req.user?.id || req.user?._id;
@@ -461,8 +457,20 @@ export const updateProfileController = async (req, res) => {
     try {
         const currentUserId = req.user?.id || req.user?._id;
         const { name, username, about, avatar, phone, profile } = req.body;
-
         const updateFields = {};
+
+        // Handle optional direct image upload via multipart in updateProfile
+        if (req.file && req.file.buffer) {
+            const ext = (req.file.mimetype ? req.file.mimetype.split("/")[1] : "png").replace(/jpeg/, "jpg");
+            const fileName = `avatar_${currentUserId}_${Date.now()}.${ext}`;
+            const uploadResult = await uploadImage({
+                fileBuffer: req.file.buffer,
+                fileName,
+                folder: "/chatSocial/avatars",
+                tags: ["avatar", String(currentUserId)],
+            });
+            updateFields.avatar = uploadResult.url;
+        }
         if (name && typeof name === "string" && name.trim()) {
             updateFields.name = name.trim();
         }
@@ -524,6 +532,68 @@ export const updateProfileController = async (req, res) => {
     }
 };
 
+/**
+ * Dedicated Avatar Image Upload Controller
+ * POST /api/user/avatar or POST /api/users/avatar
+ */
+export const uploadAvatarController = async (req, res) => {
+    try {
+        const currentUserId = req.user?.id || req.user?._id;
+        if (!currentUserId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({
+                success: false,
+                message: "No image file uploaded. Please provide an image file under the 'avatar' or 'image' field.",
+            });
+        }
+
+        const ext = (req.file.mimetype ? req.file.mimetype.split("/")[1] : "png").replace(/jpeg/, "jpg");
+        const fileName = `avatar_${currentUserId}_${Date.now()}.${ext}`;
+
+        const uploadResult = await uploadImage({
+            fileBuffer: req.file.buffer,
+            fileName,
+            folder: "/chatSocial/avatars",
+            tags: ["avatar", String(currentUserId)],
+        });
+
+        const updatedUser = await User.findByIdAndUpdate(
+            currentUserId,
+            { $set: { avatar: uploadResult.url } },
+            { new: true, runValidators: true }
+        ).select("-password").lean();
+
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Profile avatar uploaded successfully",
+            avatar: uploadResult.url,
+            data: {
+                id: updatedUser._id.toString(),
+                name: updatedUser.name,
+                username: updatedUser.username,
+                email: updatedUser.email,
+                avatar: updatedUser.avatar,
+                about: updatedUser.about || "",
+                phone: updatedUser.phone || "",
+                updatedAt: updatedUser.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error("uploadAvatar error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to upload avatar to ImageKit",
+        });
+    }
+};
+
 export default {
     searchUsersController,
     sendConnectionRequestController,
@@ -532,4 +602,5 @@ export default {
     getConnectionsController,
     getProfileController,
     updateProfileController,
+    uploadAvatarController,
 };
