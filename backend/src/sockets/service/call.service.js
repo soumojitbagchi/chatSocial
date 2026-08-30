@@ -11,7 +11,7 @@ import callSessionManager, {
     clearAllSessions,
 } from "./callSession.manager.js";
 import mediaService from "./media.service.js";
-
+import { recordCallLog } from "../../service/callLog.service.js";
 /**
  * Call Service
  * Application-level call orchestration orchestrating CallSessionManager and MediaService.
@@ -102,9 +102,18 @@ export const rejectCall = async ({ userId, callId, reason = "Call declined" }) =
 
     console.log(`[callService] Rejected call [callId=${session.callId}] by user ${userId}: ${reason}`);
 
-    // Clean up mediasoup resources
-    await mediaService.cleanupCallMedia(session.callId);
+    void recordCallLog({
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        callId: session.callId,
+        type: session.type || "audio",
+        status: "rejected",
+        duration: 0,
+        startedAt: session.startedAt,
+        endedAt: new Date(),
+    });
 
+    await mediaService.cleanupCallMedia(session.callId);
     return {
         callId: session.callId,
         callerId: session.callerId,
@@ -132,6 +141,22 @@ export const endCall = async ({ userId, socketId, callId, reason = "Call ended" 
         return null;
     }
 
+    const durationSec = session.acceptedAt ? Math.round((Date.now() - new Date(session.acceptedAt).getTime()) / 1000) : 0;
+    const status = session.status === CALL_STATUS.ACCEPTED || session.status === CALL_STATUS.ACTIVE
+        ? "completed"
+        : "missed";
+
+    void recordCallLog({
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        callId: session.callId,
+        type: session.type || "audio",
+        status,
+        duration: durationSec,
+        startedAt: session.startedAt,
+        endedAt: new Date(),
+    });
+
     setCallEnded(session.callId, reason);
     console.log(`[callService] Ended call [callId=${session.callId}] reason: ${reason}`);
 
@@ -142,9 +167,7 @@ export const endCall = async ({ userId, socketId, callId, reason = "Call ended" 
         reason,
     };
 
-    // Clean up mediasoup resources and remove session
     await mediaService.cleanupCallMedia(session.callId);
-
     return result;
 };
 
@@ -161,19 +184,25 @@ export const handleDisconnect = async (socketId, userId) => {
         return null;
     }
 
-    const strUserId = userId ? String(userId) : null;
-    const isCaller = strUserId ? session.callerId === strUserId : false;
-    const peerId = isCaller ? session.receiverId : session.callerId;
+    const durationSec = session.acceptedAt ? Math.round((Date.now() - new Date(session.acceptedAt).getTime()) / 1000) : 0;
+    const status = session.status === CALL_STATUS.ACCEPTED || session.status === CALL_STATUS.ACTIVE
+        ? "completed"
+        : "missed";
 
-    const result = {
-        callId: session.callId,
-        peerId,
+    void recordCallLog({
         callerId: session.callerId,
         receiverId: session.receiverId,
-        reason: "Peer disconnected",
-    };
+        callId: session.callId,
+        type: session.type || "audio",
+        status,
+        duration: durationSec,
+        startedAt: session.startedAt,
+        endedAt: new Date(),
+    });
 
     setCallEnded(session.callId, "Peer disconnected");
+    console.log(`[callService] Disconnect cleanup for call [callId=${session.callId}] on socket ${socketId}`);
+
     await mediaService.cleanupCallMedia(session.callId);
 
     return result;

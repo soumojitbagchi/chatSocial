@@ -321,7 +321,39 @@ export const chatApi = {
     });
     return res.data.data;
   },
+  async getCallLogs(): Promise<ApiCallLog[]> {
+    try {
+      const res = await api.get<ApiResponse<ApiCallLog[]>>('/calls');
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async deleteCallLog(callRecordId: string): Promise<void> {
+    await api.delete(`/calls/${callRecordId}`);
+  },
+
+  async clearCallLogs(): Promise<void> {
+    await api.delete('/calls');
+  },
 };
+
+export interface ApiCallLog {
+  id: string;
+  callId: string;
+  name: string;
+  avatar: string;
+  type: 'audio' | 'video';
+  direction: 'incoming' | 'outgoing' | 'missed';
+  status: 'completed' | 'missed';
+  rawStatus?: string;
+  duration: string;
+  durationSeconds?: number;
+  time: string;
+  createdAt?: string;
+  otherUserId?: string;
+}
 
 export interface ApiStoryItem {
   id: string;

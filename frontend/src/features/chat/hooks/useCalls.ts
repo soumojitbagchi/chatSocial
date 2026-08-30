@@ -3,7 +3,7 @@ import { CallLogItem } from '../UI/CallsSection';
 import { socketService } from '../api/socketService';
 import { callService } from '../api/callService';
 import { mediaService } from '../api/mediaService';
-
+import { chatApi } from '../api/chatApi';
 export interface ActiveCallState {
   callId?: string;
   contactName: string;
@@ -61,15 +61,56 @@ export function useCalls(): UseCallsReturn {
 
   const callStartTimeRef = useRef<number | null>(null);
 
+  const fetchCallLogs = useCallback(async () => {
+    try {
+      const dbLogs = await chatApi.getCallLogs();
+      if (Array.isArray(dbLogs)) {
+        setCalls(dbLogs as CallLogItem[]);
+        if (typeof window !== 'undefined') {
+          if (dbLogs.length === 0) {
+            localStorage.removeItem(CALL_LOGS_KEY);
+          } else {
+            localStorage.setItem(CALL_LOGS_KEY, JSON.stringify(dbLogs.slice(0, 50)));
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    const timer = setTimeout(() => {
+      if (isSubscribed) {
+        void fetchCallLogs();
+      }
+    }, 0);
+
+    const handleFocus = () => {
+      if (isSubscribed && document.visibilityState === 'visible') {
+        void fetchCallLogs();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
+    window.addEventListener('online', handleFocus);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(timer);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('online', handleFocus);
+    };
+  }, [fetchCallLogs]);
+
   const saveCallLog = useCallback((log: CallLogItem) => {
     setCalls((prev) => {
       const updated = [log, ...prev];
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(CALL_LOGS_KEY, JSON.stringify(updated.slice(0, 50)));
-        } catch {
-          // Ignore localStorage errors
-        }
+        } catch {}
       }
       return updated;
     });
@@ -83,9 +124,7 @@ export function useCalls(): UseCallsReturn {
     return `${m}m ${s}s`;
   };
 
-  /**
-   * 1. Start an outgoing 1-to-1 WebRTC SFU Call
-   */
+
   const startCall = useCallback(
     async (
       arg1: string,
@@ -101,13 +140,11 @@ export function useCalls(): UseCallsReturn {
       let avatar: string | undefined = undefined;
 
       if (arg2 === 'audio' || arg2 === 'video') {
-        // 3-arg signature: startCall(name, 'audio' | 'video', avatar?)
         contactId = arg1;
         contactName = arg1;
         type = arg2;
         avatar = typeof arg3 === 'string' ? arg3 : undefined;
       } else {
-        // 4-arg signature: startCall(contactId, contactName, 'audio' | 'video', avatar?)
         contactId = arg1;
         contactName = typeof arg2 === 'string' ? arg2 : arg1;
         type = arg3 === 'video' ? 'video' : 'audio';
@@ -148,10 +185,6 @@ export function useCalls(): UseCallsReturn {
     },
     []
   );
-
-  /**
-   * 2. Accept an incoming call
-   */
   const acceptCall = useCallback(async () => {
     const current = activeCallRef.current;
     if (!current || !current.callId) return;
@@ -191,18 +224,13 @@ export function useCalls(): UseCallsReturn {
     }
   }, []);
 
-  /**
-   * 3. Reject an incoming call
-   */
   const rejectCall = useCallback(
     async (reason: string = 'Call declined') => {
       const current = activeCallRef.current;
       if (current && current.callId) {
         try {
           await callService.rejectCall(current.callId, reason);
-        } catch {
-          // Ignore
-        }
+        } catch {}
 
         const now = new Date();
         saveCallLog({
@@ -215,6 +243,7 @@ export function useCalls(): UseCallsReturn {
           duration: '0s',
           time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         });
+        void fetchCallLogs();
       }
 
       mediaService.cleanup();
@@ -222,21 +251,16 @@ export function useCalls(): UseCallsReturn {
       setRemoteStream(null);
       setActiveCall(null);
     },
-    [saveCallLog]
+    [saveCallLog, fetchCallLogs]
   );
 
-  /**
-   * 4. End an ongoing or ringing call
-   */
   const endCall = useCallback(
     async (reason: string = 'Call ended by user') => {
       const current = activeCallRef.current;
       if (current && current.callId) {
         try {
           await callService.endCall(current.callId, reason);
-        } catch {
-          // Ignore
-        }
+        } catch {}
 
         const durationSec = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
         const now = new Date();
@@ -251,6 +275,7 @@ export function useCalls(): UseCallsReturn {
           duration: formatCallDuration(durationSec),
           time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         });
+        void fetchCallLogs();
       }
 
       callStartTimeRef.current = null;
@@ -259,30 +284,20 @@ export function useCalls(): UseCallsReturn {
       setRemoteStream(null);
       setActiveCall(null);
     },
-    [saveCallLog]
+    [saveCallLog, fetchCallLogs]
   );
 
-  /**
-   * 5. Toggle microphone mute
-   */
   const toggleMute = useCallback(() => {
     const isMuted = mediaService.toggleMute();
     setActiveCall((prev) => (prev ? { ...prev, isMuted } : null));
   }, []);
 
-  /**
-   * 6. Toggle camera video on/off
-   */
   const toggleVideo = useCallback(() => {
     const isVideoOff = mediaService.toggleVideo();
     setActiveCall((prev) => (prev ? { ...prev, isVideoOff } : null));
   }, []);
 
-  /**
-   * Wire Socket.IO Application Call and Mediasoup Event Listeners
-   */
   useEffect(() => {
-    // A. call:incoming
     const handleIncoming = (payload: unknown) => {
       if (payload && typeof payload === 'object') {
         const data = payload as {
@@ -290,7 +305,6 @@ export function useCalls(): UseCallsReturn {
           callerId?: string;
           callerName?: string;
           callerAvatar?: string;
-          callerUsername?: string;
           avatar?: string;
           name?: string;
           type?: 'audio' | 'video';
@@ -298,7 +312,6 @@ export function useCalls(): UseCallsReturn {
         };
 
         if (activeCallRef.current) {
-          // Already busy in a call -> reject automatically
           if (data.callId) {
             callService.rejectCall(data.callId, 'User is busy in another call');
           }
@@ -319,7 +332,6 @@ export function useCalls(): UseCallsReturn {
             status: 'ringing',
             statusMessage: `Incoming ${data.type === 'video' || data.callType === 'video' ? 'Video' : 'Audio'} Call...`,
             isMuted: false,
-            isVideoOff: false,
           });
         }
       }
@@ -327,8 +339,6 @@ export function useCalls(): UseCallsReturn {
 
     const unbindIncoming = socketService.on('call:incoming', handleIncoming);
     const unbindIncomingLegacy = socketService.on('incoming-call', handleIncoming);
-
-    // B. call:accepted (Caller receives this when receiver accepts)
     const handleAccepted = async (payload: unknown) => {
       const current = activeCallRef.current;
       if (!current || current.direction !== 'outgoing') return;
@@ -389,7 +399,6 @@ export function useCalls(): UseCallsReturn {
     const unbindAccepted = socketService.on('call:accepted', handleAccepted);
     const unbindAcceptedLegacy = socketService.on('call-accepted', handleAccepted);
 
-    // C. media:newProducer (Peer created a new audio or video producer)
     const unbindNewProducer = socketService.on('media:newProducer', async (payload: unknown) => {
       if (payload && typeof payload === 'object') {
         const data = payload as { producerId?: string; kind?: 'audio' | 'video' };
@@ -398,8 +407,6 @@ export function useCalls(): UseCallsReturn {
         }
       }
     });
-
-    // D. media:producerClosed
     const unbindProducerClosed = socketService.on('media:producerClosed', (payload: unknown) => {
       if (payload && typeof payload === 'object') {
         const data = payload as { producerId?: string };
@@ -409,7 +416,7 @@ export function useCalls(): UseCallsReturn {
       }
     });
 
-    // E. call:rejected (Caller receives rejection)
+
     const handleRejected = (payload: unknown) => {
       const data = payload as { reason?: string; targetUserId?: string };
       const current = activeCallRef.current;
@@ -429,8 +436,8 @@ export function useCalls(): UseCallsReturn {
           duration: '0s',
           time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         });
+        void fetchCallLogs();
       }
-
       mediaService.cleanup();
       setLocalStream(null);
       setRemoteStream(null);
@@ -442,7 +449,7 @@ export function useCalls(): UseCallsReturn {
     const unbindRejected = socketService.on('call:rejected', handleRejected);
     const unbindRejectedLegacy = socketService.on('call-rejected', handleRejected);
 
-    // F. call:ended (Call terminated by peer or server)
+
     const handleEnded = (payload: unknown) => {
       const data = payload as { reason?: string; fromUserId?: string };
       const current = activeCallRef.current;
@@ -464,8 +471,8 @@ export function useCalls(): UseCallsReturn {
           duration: formatCallDuration(durationSec),
           time: `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
         });
+        void fetchCallLogs();
       }
-
       callStartTimeRef.current = null;
       mediaService.cleanup();
       setLocalStream(null);
@@ -478,7 +485,7 @@ export function useCalls(): UseCallsReturn {
     const unbindEnded = socketService.on('call:ended', handleEnded);
     const unbindEndedLegacy = socketService.on('call-ended', handleEnded);
 
-    // G. call:error
+
     const handleError = (payload: unknown) => {
       const data = payload as { message?: string; code?: string };
       const message = data?.message || 'Call error';
@@ -509,7 +516,7 @@ export function useCalls(): UseCallsReturn {
       unbindError();
       unbindErrorLegacy();
     };
-  }, [saveCallLog]);
+  }, [saveCallLog, fetchCallLogs]);
 
   return {
     calls,
