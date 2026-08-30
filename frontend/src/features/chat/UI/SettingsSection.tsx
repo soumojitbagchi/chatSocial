@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
-import { 
-  Settings, 
-  ShieldCheck, 
-  Lock, 
-  Bell, 
-  Moon, 
-  Sun, 
-  Database, 
-  LogOut, 
-  Camera, 
-  Edit3, 
-  Check, 
-  Smartphone
+import React, { useState, useRef } from 'react';
+import {
+  Settings,
+  ShieldCheck,
+  Lock,
+  Bell,
+  Moon,
+  Sun,
+  Database,
+  LogOut,
+  Camera,
+  Edit3,
+  Check,
+  Smartphone,
+  Loader2
 } from 'lucide-react';
+import { chatApi } from '../api/chatApi';
 import '../style/components.css';
 
 export interface UserProfileData {
@@ -50,7 +52,25 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   const [about, setAbout] = useState(user.about);
   const [readReceipts, setReadReceipts] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      const res = await chatApi.uploadAvatar(file, file.name);
+      if (res.avatar && onUpdateProfile) {
+        onUpdateProfile({ avatar: res.avatar });
+      }
+    } catch (err) {
+      console.warn('Failed to upload avatar to ImageKit:', err);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
   const handleSaveProfile = () => {
     if (onUpdateProfile) {
       onUpdateProfile({ name, about });
@@ -69,13 +89,12 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <div 
+          <div
             onClick={() => setActiveSubTab('profile')}
-            className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${
-              activeSubTab === 'profile'
+            className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-colors ${activeSubTab === 'profile'
                 ? 'bg-slate-100 dark:bg-[#1a1e27] border border-slate-300/80 dark:border-[#262b37]'
                 : 'hover:bg-slate-50 dark:hover:bg-[#161922] border border-transparent'
-            }`}
+              }`}
           >
             <img
               src={user.avatar}
@@ -94,11 +113,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('privacy')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
-              activeSubTab === 'privacy'
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${activeSubTab === 'privacy'
                 ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
-            }`}
+              }`}
           >
             <Lock size={18} className="text-slate-400" />
             <span>Privacy & Encryption</span>
@@ -106,11 +124,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('chats')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
-              activeSubTab === 'chats'
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${activeSubTab === 'chats'
                 ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
-            }`}
+              }`}
           >
             <Smartphone size={18} className="text-slate-400" />
             <span>Chat Theme & Wallpaper</span>
@@ -118,11 +135,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('notifications')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
-              activeSubTab === 'notifications'
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${activeSubTab === 'notifications'
                 ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
-            }`}
+              }`}
           >
             <Bell size={18} className="text-slate-400" />
             <span>Notifications & Sounds</span>
@@ -130,11 +146,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
           <button
             onClick={() => setActiveSubTab('storage')}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${
-              activeSubTab === 'storage'
+            className={`w-full p-3 rounded-xl flex items-center gap-3 text-xs font-semibold transition-colors text-left cursor-pointer ${activeSubTab === 'storage'
                 ? 'bg-slate-100 dark:bg-[#1a1e27] text-slate-900 dark:text-white font-bold'
                 : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#161922]'
-            }`}
+              }`}
           >
             <Database size={18} className="text-slate-400" />
             <span>Storage & Network</span>
@@ -147,14 +162,12 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             </span>
             <button
               onClick={onToggleTheme}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
-              }`}
+              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'
+                }`}
             >
               <span
-                className={`block w-4 h-4 rounded-full bg-white transition-transform transform ${
-                  theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`block w-4 h-4 rounded-full bg-white transition-transform transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
             </button>
           </div>
@@ -178,17 +191,32 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Profile Details</h3>
 
               <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a]">
-                <div className="relative">
+                <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                   <img
                     src={user.avatar}
                     alt={user.name}
                     className="w-24 h-24 rounded-full object-cover shadow-md ring-4 ring-white dark:ring-[#1a1d24]"
                   />
-                  <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center shadow cursor-pointer">
-                    <Camera size={15} />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/jpg"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploadingAvatar}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center shadow cursor-pointer transition-transform hover:scale-105"
+                    title="Upload profile picture"
+                  >
+                    {isUploadingAvatar ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
                   </button>
                 </div>
-
                 <div className="flex-1 text-center sm:text-left space-y-1">
                   <h4 className="text-base font-bold text-slate-900 dark:text-white">{user.name}</h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{user.username}</p>
@@ -270,7 +298,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           {activeSubTab === 'privacy' && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Privacy & Security</h3>
-              
+
               <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
                 <ShieldCheck size={28} className="text-emerald-600 shrink-0" />
                 <div>
@@ -313,7 +341,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           {activeSubTab === 'chats' && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chat Appearance</h3>
-              
+
               <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -334,7 +362,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           {activeSubTab === 'notifications' && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Notifications</h3>
-              
+
               <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -355,7 +383,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           {activeSubTab === 'storage' && (
             <div className="space-y-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Storage & Data</h3>
-              
+
               <div className="p-5 rounded-2xl bg-slate-50 dark:bg-[#12151b] border border-slate-200 dark:border-[#1e222a] space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-700 dark:text-slate-300">Local Cache</span>

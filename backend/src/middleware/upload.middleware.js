@@ -1,9 +1,7 @@
 import multer from "multer";
 
-// Configure in-memory storage for direct buffer forwarding to ImageKit
 const storage = multer.memoryStorage();
 
-// Allowed image MIME types
 const ALLOWED_MIME_TYPES = new Set([
     "image/jpeg",
     "image/jpg",

@@ -91,6 +91,19 @@ export const chatApi = {
     return res.data.data;
   },
 
+  async uploadAvatar(file: File | Blob, fileName?: string): Promise<{ avatar: string; user?: UserProfileResult }> {
+    const formData = new FormData();
+    formData.append('avatar', file, fileName || 'avatar.png');
+    const res = await api.post<ApiResponse<UserProfileResult & { avatar: string }>>('/user/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return {
+      avatar: res.data.avatar || res.data.data?.avatar || '',
+      user: res.data.data,
+    };
+  },
   // Rooms REST API
   async getRooms(): Promise<ApiRoom[]> {
     if (inFlightRoomsPromise) {

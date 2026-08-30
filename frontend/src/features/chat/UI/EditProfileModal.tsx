@@ -1,16 +1,6 @@
-import React, { useState } from 'react';
-import { 
-  X, 
-  User, 
-  AtSign, 
-  Phone, 
-  FileText, 
-  Camera, 
-  Check, 
-  Loader2, 
-  MapPin
-} from 'lucide-react';
-
+import React, { useState, useRef } from 'react';
+import { X, Camera, User, AtSign, FileText, Phone, MapPin, Check, Upload, Loader2 } from 'lucide-react';
+import { chatApi } from '../api/chatApi';
 export interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -56,7 +46,31 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image file size must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setError(null);
+    try {
+      const res = await chatApi.uploadAvatar(file, file.name);
+      if (res.avatar) {
+        setAvatar(res.avatar);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload avatar to ImageKit');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,13 +104,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div 
+      <div
         className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#111215] border border-slate-200 dark:border-[#22242a] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-[#f8fafc]"
         role="dialog"
         aria-labelledby="edit-profile-title"
@@ -133,34 +147,66 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </div>
           )}
 
-          {/* Avatar Section */}
+          {/* Avatar Section with ImageKit File Upload */}
           <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-slate-50 dark:bg-[#16181d] border border-slate-200 dark:border-[#22242a]">
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <img
                 src={avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
                 alt={name || 'Avatar'}
                 className="w-18 h-18 rounded-full object-cover shadow-sm ring-2 ring-slate-300 dark:ring-[#2e3340]"
               />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-xs">
-                <Camera size={12} />
-              </div>
+              <button
+                type="button"
+                disabled={isUploadingAvatar}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform"
+                title="Upload custom image"
+              >
+                {isUploadingAvatar ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+              </button>
             </div>
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/jpg"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
             <div className="flex-1 text-center sm:text-left space-y-2">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Choose Profile Picture
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Profile Picture
+                </span>
+                <button
+                  type="button"
+                  disabled={isUploadingAvatar}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  {isUploadingAvatar ? (
+                    <>
+                      <Loader2 size={11} className="animate-spin" />
+                      <span>Uploading ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={11} />
+                      <span>Upload</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
                 {AVATAR_PRESETS.map((presetUrl, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setAvatar(presetUrl)}
-                    className={`w-7 h-7 rounded-full overflow-hidden border transition-all cursor-pointer ${
-                      avatar === presetUrl 
-                        ? 'ring-2 ring-slate-900 dark:ring-white border-transparent scale-105' 
+                    className={`w-7 h-7 rounded-full overflow-hidden border transition-all cursor-pointer ${avatar === presetUrl
+                        ? 'ring-2 ring-slate-900 dark:ring-white border-transparent scale-105'
                         : 'border-slate-300 dark:border-[#2e3340] opacity-80 hover:opacity-100'
-                    }`}
+                      }`}
                   >
                     <img src={presetUrl} alt="Preset" className="w-full h-full object-cover" />
                   </button>
