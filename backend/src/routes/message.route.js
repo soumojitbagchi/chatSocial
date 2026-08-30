@@ -10,11 +10,13 @@ import authMiddleware from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/", authMiddleware, createMessageController);
+router.use(authMiddleware);
+
+router.post("/", createMessageController);
 router.get("/", getAllMessagesController);
 router.get("/room/:roomId", getAllMessagesController);
 router.get("/:messageId", getMessageByIdController);
-router.put("/:messageId", authMiddleware, updateMessageController);
-router.delete("/:messageId", authMiddleware, deleteMessageController);
+router.put("/:messageId", updateMessageController);
+router.delete("/:messageId", deleteMessageController);
 
 export default router;

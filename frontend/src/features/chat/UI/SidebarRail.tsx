@@ -66,7 +66,6 @@ export const SidebarRail: React.FC<SidebarRailProps> = ({
           <User size={20} />
         </button>
 
-        {/* Groups Tab */}
         <button
           className={`cs-rail-btn ${activeTab === 'groups' ? 'active' : ''}`}
           onClick={() => setActiveTab('groups')}

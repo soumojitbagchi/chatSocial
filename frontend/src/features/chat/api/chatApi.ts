@@ -15,6 +15,24 @@ export interface ApiMessageUser {
   username: string;
   avatar?: string;
 }
+export interface UserProfileResult {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  about?: string;
+  connectionStatus: 'connected' | 'pending_sent' | 'pending_received' | 'none';
+  roomId?: string | null;
+  online?: boolean;
+  requestedAt?: string;
+}
+
+export interface ConnectionsData {
+  contacts: UserProfileResult[];
+  pendingIncoming: UserProfileResult[];
+  pendingOutgoing: UserProfileResult[];
+}
 
 export interface ApiMessage {
   _id: string;
@@ -26,13 +44,6 @@ export interface ApiMessage {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message?: string;
-  data: T;
-}
-
 const api = axios.create({
   baseURL: '/api',
   withCredentials: true,
@@ -161,6 +172,55 @@ export const chatApi = {
 
   async deleteMessage(messageId: string): Promise<void> {
     await api.delete(`/messages/${messageId}`);
+  },
+
+  // User Discovery & Connections REST API
+  async searchUsers(query: string = ''): Promise<UserProfileResult[]> {
+    try {
+      const res = await api.get<ApiResponse<UserProfileResult[]>>('/users/search', { params: { q: query } });
+      return res.data?.data || [];
+    } catch (err) {
+      console.warn('Failed to search users:', err);
+      return [];
+    }
+  },
+
+  async sendConnectionRequest(targetUserId: string): Promise<{ success: boolean; message: string; status: string }> {
+    const res = await api.post<ApiResponse<{ status: string }>>('/users/connect', { targetUserId });
+    return {
+      success: res.data?.success || false,
+      message: res.data?.message || 'Connection request sent',
+      status: 'pending_sent',
+    };
+  },
+
+  async acceptConnectionRequest(targetUserId: string): Promise<{ success: boolean; message: string; status: string; room?: ApiRoom }> {
+    const res = await api.post<ApiResponse<{ status: string; room?: ApiRoom }>>('/users/accept', { targetUserId });
+    const dataObj = res.data?.data;
+    return {
+      success: res.data?.success || false,
+      message: res.data?.message || 'Connected successfully',
+      status: 'connected',
+      room: dataObj?.room || ('room' in (res.data || {}) ? (res.data as unknown as { room?: ApiRoom }).room : undefined),
+    };
+  },
+
+  async rejectConnectionRequest(targetUserId: string): Promise<{ success: boolean; message: string }> {
+    const res = await api.post<ApiResponse<void>>('/users/reject', { targetUserId });
+    return {
+      success: res.data?.success || false,
+      message: res.data?.message || 'Connection request removed',
+    };
+  },
+
+  async getConnections(): Promise<ConnectionsData> {
+    try {
+      const res = await api.get<ApiResponse<ConnectionsData>>('/users/connections');
+      return res.data?.data || { contacts: [], pendingIncoming: [], pendingOutgoing: [] };
+    } catch (err) {
+      console.warn('Failed to fetch connections:', err);
+      return { contacts: [], pendingIncoming: [], pendingOutgoing: [] };
+    }
   },
 };
 

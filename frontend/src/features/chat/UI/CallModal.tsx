@@ -103,10 +103,10 @@ export const CallModal: React.FC<CallModalProps> = ({
       <div
         className={`relative w-full ${
           isVideoCall && isConnected ? 'max-w-2xl min-h-[560px]' : 'max-w-md min-h-[460px]'
-        } rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl flex flex-col items-center justify-between p-6 text-white transition-all duration-300`}
+        } rounded-3xl bg-[#12151b] border border-[#262c38] overflow-hidden shadow-2xl flex flex-col items-center justify-between p-6 text-white transition-all duration-300`}
       >
-        <div className="absolute -top-24 -left-24 w-72 h-72 bg-violet-600/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-72 h-72 bg-slate-700/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Header */}
         <div className="relative z-10 text-center space-y-1 w-full">
@@ -130,7 +130,7 @@ export const CallModal: React.FC<CallModalProps> = ({
             />
 
             {/* Local Video Stream PIP */}
-            <div className="absolute bottom-3 right-3 w-32 h-44 rounded-xl overflow-hidden shadow-2xl border-2 border-violet-500/50 bg-slate-900 z-20">
+            <div className="absolute bottom-3 right-3 w-32 h-44 rounded-xl overflow-hidden shadow-2xl border-2 border-slate-600/50 bg-[#181c24] z-20">
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -139,7 +139,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                 className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'}`}
               />
               {isVideoOff && (
-                <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 text-xs font-medium">
+                <div className="w-full h-full flex items-center justify-center bg-[#181c24] text-slate-400 text-xs font-medium">
                   Camera Off
                 </div>
               )}
@@ -150,36 +150,36 @@ export const CallModal: React.FC<CallModalProps> = ({
             <div className="relative flex items-center justify-center">
               {(isOutgoingCalling || isIncomingRinging) && (
                 <>
-                  <div className="absolute w-36 h-36 rounded-full bg-violet-500/20 animate-ping" />
-                  <div className="absolute w-44 h-44 rounded-full bg-violet-500/10 animate-pulse" />
+                  <div className="absolute w-36 h-36 rounded-full bg-slate-500/20 animate-ping" />
+                  <div className="absolute w-44 h-44 rounded-full bg-slate-500/10 animate-pulse" />
                 </>
               )}
               {isConnected && <div className="absolute w-36 h-36 rounded-full bg-emerald-500/20 animate-pulse" />}
 
-              <div className="relative w-28 h-28 rounded-full overflow-hidden ring-4 ring-violet-500/40 shadow-2xl bg-slate-800 flex items-center justify-center">
+              <div className="relative w-28 h-28 rounded-full overflow-hidden ring-4 ring-slate-700/60 shadow-2xl bg-[#181c24] flex items-center justify-center">
                 {avatar ? (
                   <img src={avatar} alt={contactName} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-violet-700 flex items-center justify-center text-white font-bold text-3xl">
+                  <div className="w-full h-full bg-slate-800 flex items-center justify-center text-white font-bold text-3xl">
                     {contactName.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
 
               <span
-                className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ring-4 ring-slate-900 flex items-center justify-center text-xs shadow-md ${
+                className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ring-4 ring-[#12151b] flex items-center justify-center text-xs shadow-md ${
                   isConnected
                     ? 'bg-emerald-500 text-white'
                     : isEndedOrRejected
                     ? 'bg-rose-500 text-white'
-                    : 'bg-violet-600 text-white'
+                    : 'bg-slate-700 text-white'
                 }`}
               >
                 {isConnected ? <Volume2 size={13} /> : <Phone size={13} />}
               </span>
             </div>
 
-            <div className="mt-4 px-3 py-1 rounded-full bg-slate-800/80 border border-white/5 text-[11px] font-medium text-slate-300">
+            <div className="mt-4 px-3 py-1 rounded-full bg-[#181c24] border border-[#262c38] text-[11px] font-medium text-slate-300">
               {status === 'connected' ? (
                 <span className="flex items-center gap-1.5 text-emerald-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -188,7 +188,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               ) : status === 'calling' ? (
                 <span>Calling recipient...</span>
               ) : status === 'ringing' ? (
-                <span className="text-violet-300">Ringing...</span>
+                <span className="text-slate-300">Ringing...</span>
               ) : (
                 <span>{statusMessage || 'Connecting...'}</span>
               )}

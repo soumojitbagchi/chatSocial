@@ -10,10 +10,12 @@ import authMiddleware from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/", authMiddleware, createRoomController);
+router.use(authMiddleware);
+
+router.post("/", createRoomController);
 router.get("/", getAllRoomsController);
 router.get("/:roomId", getRoomController);
-router.put("/:roomId", authMiddleware, updateRoomController);
-router.delete("/:roomId", authMiddleware, deleteRoomController);
+router.put("/:roomId", updateRoomController);
+router.delete("/:roomId", deleteRoomController);
 
 export default router;

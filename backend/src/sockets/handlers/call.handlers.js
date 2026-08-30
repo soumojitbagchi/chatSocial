@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import User from "../../model/user.model.js";
+import Room from "../../model/room.model.js";
 import * as presenceService from "../service/presence.service.js";
 import * as callService from "../service/call.service.js";
 import * as mediaService from "../service/media.service.js";
@@ -72,7 +73,7 @@ const callHandlers = (io, socket) => {
     const handleCallStart = async (rawPayload = {}, callback) => {
         try {
             const data = parsePayload(rawPayload);
-            const targetUserId = data.targetUserId ? String(data.targetUserId) : null;
+            let targetUserId = data.targetUserId ? String(data.targetUserId) : null;
             const callType = data.type || data.callType || "audio";
 
             if (!targetUserId) {
@@ -82,6 +83,37 @@ const callHandlers = (io, socket) => {
                 });
             }
 
+            // Verify and resolve target user in DB
+            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(targetUserId)) {
+                try {
+                    const userExists = await User.exists({ _id: targetUserId });
+                    if (!userExists) {
+                        // If targetUserId is not a User, check if it's a direct Room ID
+                        const room = await Room.findById(targetUserId).lean();
+                        if (room && Array.isArray(room.members) && room.members.length > 0) {
+                            const otherMember = room.members.find(
+                                (m) => m && (m._id ? m._id.toString() : m.toString()) !== currentUserId
+                            );
+                            if (otherMember) {
+                                targetUserId = otherMember._id ? otherMember._id.toString() : otherMember.toString();
+                            } else {
+                                return sendResponse(callback, null, null, {
+                                    code: "USER_NOT_FOUND",
+                                    message: "No recipient found in this chat room",
+                                });
+                            }
+                        } else {
+                            return sendResponse(callback, null, null, {
+                                code: "USER_NOT_FOUND",
+                                message: "Target user does not exist",
+                            });
+                        }
+                    }
+                } catch (dbErr) {
+                    console.warn("[callHandlers] Target lookup warning:", dbErr);
+                }
+            }
+
             if (targetUserId === currentUserId) {
                 return sendResponse(callback, null, null, {
                     code: "CANNOT_CALL_SELF",
@@ -89,20 +121,6 @@ const callHandlers = (io, socket) => {
                 });
             }
 
-            // Verify target user in DB if valid ObjectId and DB is connected
-            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(targetUserId)) {
-                try {
-                    const userExists = await User.exists({ _id: targetUserId });
-                    if (!userExists) {
-                        return sendResponse(callback, null, null, {
-                            code: "USER_NOT_FOUND",
-                            message: "Target user does not exist",
-                        });
-                    }
-                } catch {
-                    // Ignore DB check error and fallback to presence
-                }
-            }
             // Check if target user is online
             const isOnline = presenceService.isUserOnline(targetUserId);
             if (!isOnline) {

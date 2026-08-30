@@ -71,9 +71,9 @@ export interface ChatAreaProps {
   onOpenDetails?: () => void;
   onNewChat?: () => void;
   isOnline?: boolean;
-  onDeleteMessage?: (messageId: string) => void;
+  onDeleteMessage?: (msgId: string) => void;
   onDeleteChat?: (chatId: string) => void;
-  onLoadMoreMessages?: () => Promise<void>;
+  onLoadMoreMessages?: () => void;
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
 }
@@ -89,7 +89,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   },
   onStartCall,
   onOpenDetails,
-  onNewChat,
+  onNewChat: _onNewChat,
   isOnline = false,
   onDeleteMessage,
   onDeleteChat,
@@ -200,13 +200,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   if (!activeChat) {
     return (
       <main className="cs-conversation-empty">
-        <div className="cs-empty-state">
-          <MessageSquare size={24} />
-          <h3>Select a conversation</h3>
-          <p>Choose someone from the list or start a new conversation.</p>
-          {onNewChat && (
-            <button className="cs-primary-button" onClick={onNewChat}>Start a conversation</button>
-          )}
+        <div className="text-center p-8 max-w-md">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mx-auto flex items-center justify-center mb-4 shadow-sm">
+            <Smile size={32} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
+            Select a conversation
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+            Choose a contact from the list or start a new chat to connect seamlessly with real-time zero-knowledge encryption.
+          </p>
         </div>
       </main>
     );
@@ -219,7 +222,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           {onBack && (
             <button 
               onClick={onBack}
-              className="md:hidden p-1.5 -ml-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"
+              className="md:hidden p-1.5 -ml-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer"
               title="Back"
               aria-label="Back to conversations"
             >
@@ -227,25 +230,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </button>
           )}
 
-          <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-sm">
-              {activeChat.avatar ? (
-                <img 
-                  src={activeChat.avatar} 
-                  alt={activeChat.name} 
-                  className="w-full h-full object-cover" 
-                />
-              ) : (
-                <div 
-                  className="w-full h-full flex items-center justify-center font-bold text-white text-sm"
-                  style={{ backgroundColor: activeChat.avatarBg || '#6f7771' }}
-                >
-                  {activeChat.initials || activeChat.name.charAt(0)}
-                </div>
-              )}
-            </div>
-            {isOnline && (
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+          <div className="relative shrink-0 w-11 h-11 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 shadow-xs ring-1 ring-black/5 dark:ring-white/10">
+            {activeChat.avatar ? (
+              <img 
+                src={activeChat.avatar} 
+                alt={activeChat.name || 'Avatar'} 
+                className="w-full h-full object-cover rounded-full" 
+              />
+            ) : (
+              <div 
+                className="w-full h-full flex items-center justify-center font-bold text-white text-sm rounded-full"
+                style={{ backgroundColor: activeChat.avatarBg || '#475569' }}
+              >
+                {activeChat.initials || (activeChat.name ? activeChat.name.charAt(0).toUpperCase() : 'C')}
+              </div>
+            )}
+            {activeChat.online && (
+              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 z-10" />
             )}
           </div>
 
@@ -363,10 +364,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         )}
         {messages.length === 0 && (
-          <div className="cs-empty-state my-auto self-center">
-            <MessageSquare size={24} />
-            <h3>No messages yet</h3>
-            <p>Send a message to get the conversation started.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto text-slate-400 select-none">
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 shadow-sm">
+              <MessageSquare size={22} />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white">No messages in this room yet</h4>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs">Type a message below and hit send to start the conversation on the server!</p>
           </div>
         )}
         {messages.map((msg) => {
@@ -395,7 +398,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   <img 
                     src={senderAvatar} 
                     alt={msg.senderName || activeChat.name} 
-                    className="w-8 h-8 rounded-full object-cover shadow-sm" 
+                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10" 
                   />
                 </div>
               )}
@@ -438,14 +441,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           )}
                         </button>
 
-                        <div className="cs-audio-waveform-track">
+                        <div className={`cs-audio-waveform-track ${isMe ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-700'}`}>
                           <div 
                             className="cs-audio-waveform-fill"
                             style={{ width: playingAudioId === msg.id ? `${audioProgress}%` : '0%' }}
                           />
                         </div>
 
-                        <span className="cs-audio-duration">
+                        <span className={`cs-audio-duration ${isMe ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
                           {playingAudioId === msg.id ? `0:${Math.floor((audioProgress / 100) * 34).toString().padStart(2, '0')}` : '0.00'}
                         </span>
 
@@ -453,19 +456,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       </div>
                     ) : msg.type === 'document' ? (
                       <div className="cs-doc-card">
-                        <div className="cs-doc-badge">
-                          <FileText size={18} className="text-orange-600" />
+                        <div className={`cs-doc-badge ${isMe ? 'bg-white/10 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}`}>
+                          <FileText size={18} className={isMe ? 'text-white' : 'text-slate-700 dark:text-slate-200'} />
                         </div>
                         <div className="flex flex-col min-w-0 pr-2">
-                          <span className="text-xs font-bold text-white truncate">
+                          <span className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
                             {msg.fileName || 'Document.pdf'}
                           </span>
-                          <span className="text-[10px] text-white/80 font-medium">
+                          <span className={`text-[10px] font-medium ${isMe ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
                             {msg.fileSize || '14.23 KB'}
                           </span>
                         </div>
                         <button 
-                          className="cs-doc-download-btn"
+                          className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'}`}
                           title="Download attachment"
                           aria-label="Download attachment"
                         >
@@ -480,7 +483,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           className="rounded-xl max-h-60 w-full object-cover"
                         />
                         {msg.caption && (
-                          <p className="mt-1.5 text-xs text-slate-800 dark:text-slate-100">{msg.caption}</p>
+                          <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
                         )}
                       </div>
                     ) : (
@@ -603,7 +606,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   <img 
                     src={senderAvatar} 
                     alt="You" 
-                    className="w-8 h-8 rounded-full object-cover shadow-sm" 
+                    className="w-9 h-9 rounded-full object-cover shadow-xs ring-1 ring-black/5 dark:ring-white/10" 
                   />
                 </div>
               )}

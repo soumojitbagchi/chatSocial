@@ -2,7 +2,6 @@ import userData from "../model/user.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-// Pre-computed dummy bcrypt hash (cost 10) to ensure constant-time comparison on unknown users
 const DUMMY_HASH = "$2b$10$wT8mQ0K6W9U0g6iFq7D0NuF7UaL/4xU0rR2jXj3jM9jI2FvC.XfK2";
 
 export const login = async (req, res) => {

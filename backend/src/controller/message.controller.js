@@ -2,7 +2,10 @@ import * as messageService from "../service/message.service.js";
 
 export const createMessageController = async (req, res) => {
     try {
-        const userId = req.user?.id || req.user?._id || req.body?.userId;
+        const userId = req.user?.id || req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
         const roomId = req.body?.roomId;
         const text = req.body?.text ?? req.body?.message;
 
@@ -49,7 +52,10 @@ export const getMessageByIdController = async (req, res) => {
 export const updateMessageController = async (req, res) => {
     try {
         const { messageId } = req.params;
-        const userId = req.user?.id || req.user?._id || req.body?.userId;
+        const userId = req.user?.id || req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
         const text = req.body?.text ?? req.body?.newMessage;
 
         const message = await messageService.updateMessage({
@@ -72,7 +78,10 @@ export const updateMessageController = async (req, res) => {
 export const deleteMessageController = async (req, res) => {
     try {
         const { messageId } = req.params;
-        const userId = req.user?.id || req.user?._id || req.body?.userId;
+        const userId = req.user?.id || req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
 
         const message = await messageService.deleteMessage({
             messageId,

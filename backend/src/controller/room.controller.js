@@ -31,7 +31,8 @@ export const getRoomController = async (req, res) => {
 
 export const getAllRoomsController = async (req, res) => {
     try {
-        const rooms = await getAllRooms();
+        const currentUserId = req.user?.id || req.user?._id || null;
+        const rooms = await getAllRooms(currentUserId);
         res.status(200).json({ success: true, data: rooms });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -41,10 +42,16 @@ export const getAllRoomsController = async (req, res) => {
 export const updateRoomController = async (req, res) => {
     try {
         const { roomId } = req.params;
-        const room = await updateRoom(roomId, req.body);
+        const currentUserId = req.user?.id || req.user?._id;
+        const room = await updateRoom(roomId, req.body, currentUserId);
         res.status(200).json({ success: true, data: room });
     } catch (error) {
-        const statusCode = error.message === "Room not found" ? 404 : 400;
+        let statusCode = 400;
+        if (error.message === "Room not found") {
+            statusCode = 404;
+        } else if (error.message.includes("Unauthorized")) {
+            statusCode = 403;
+        }
         res.status(statusCode).json({ success: false, message: error.message });
     }
 };
@@ -52,10 +59,16 @@ export const updateRoomController = async (req, res) => {
 export const deleteRoomController = async (req, res) => {
     try {
         const { roomId } = req.params;
-        const room = await deleteRoom(roomId);
+        const currentUserId = req.user?.id || req.user?._id;
+        const room = await deleteRoom(roomId, currentUserId);
         res.status(200).json({ success: true, message: "Room deleted successfully", data: room });
     } catch (error) {
-        const statusCode = error.message === "Room not found" ? 404 : 400;
+        let statusCode = 400;
+        if (error.message === "Room not found") {
+            statusCode = 404;
+        } else if (error.message.includes("Unauthorized")) {
+            statusCode = 403;
+        }
         res.status(statusCode).json({ success: false, message: error.message });
     }
 };

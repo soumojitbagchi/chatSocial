@@ -91,8 +91,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
                   onClose();
                 }
               }}
-              className="w-10 h-10 rounded-full bg-orange-600 hover:bg-orange-500 text-white flex items-center justify-center shadow-md cursor-pointer"
-              aria-label="Send reply"
+              className="w-10 h-10 rounded-full bg-white hover:bg-white/90 text-slate-900 flex items-center justify-center shadow-md cursor-pointer"
             >
               <Send size={15} />
             </button>

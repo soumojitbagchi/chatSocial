@@ -2,6 +2,7 @@ import express from "express"
 import authRoutes from "./routes/auth.routes.js"
 import roomRoutes from "./routes/room.routes.js"
 import messageRoutes from "./routes/message.route.js"
+import userRoutes from "./routes/user.routes.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import errorHandler from "./middleware/error.middleware.js"
@@ -15,9 +16,13 @@ app.use(cors({
     credentials: true
 }))
 
-app.use("/api/auth", authRoutes)
-app.use("/api/rooms", roomRoutes)
-app.use("/api/messages", messageRoutes)
+app.use("/api/auth", authRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/room", roomRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/message", messageRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/user", userRoutes);
 
 app.use(errorHandler)
 

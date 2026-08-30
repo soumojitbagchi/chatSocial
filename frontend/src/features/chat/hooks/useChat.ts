@@ -57,38 +57,41 @@ export function useChat(): UseChatReturn {
   }, [messages, activeChatId]);
 
   // Load messages directly from backend API (page 1, up to 50 latest messages per room)
-  const loadBackendMessages = useCallback(async (roomId: string) => {
-    if (!roomId) return;
-    try {
-      const backendMsgs = await chatApi.getMessages({ roomId, limit: 50, page: 1 });
-      const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
-        ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
-            const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
-            const isMe = Boolean(currentUserId && senderId === currentUserId);
+  const loadBackendMessages = useCallback(
+    async (roomId: string) => {
+      if (!roomId) return;
+      try {
+        const backendMsgs = await chatApi.getMessages({ roomId, limit: 50, page: 1 });
+        const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
+          ? backendMsgs.slice(-50).map((m: ApiMessage) => {
+              const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+              const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
+              const isMe = Boolean(currentUserId && senderId === currentUserId);
 
-            return {
-              id: m._id,
-              sender: isMe ? 'me' : 'other',
-              senderName: isMe ? 'You' : senderName,
-              type: 'text',
-              text: m.text,
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read'
-            };
-          })
-        : [];
+              return {
+                id: m._id,
+                sender: isMe ? 'me' : 'other',
+                senderName: isMe ? 'You' : senderName,
+                type: 'text',
+                text: m.text,
+                time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: 'read',
+              };
+            })
+          : [];
 
-      setMessages((prev) => ({
-        ...prev,
-        [roomId]: mappedMsgs
-      }));
-      setRoomPageMap((prev) => ({ ...prev, [roomId]: 1 }));
-      setHasMoreMap((prev) => ({ ...prev, [roomId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
-    } catch (err) {
-      console.warn(`Could not fetch remote messages for room ${roomId}:`, err);
-    }
-  }, [currentUserId]);
+        setMessages((prev) => ({
+          ...prev,
+          [roomId]: mappedMsgs,
+        }));
+        setRoomPageMap((prev) => ({ ...prev, [roomId]: 1 }));
+        setHasMoreMap((prev) => ({ ...prev, [roomId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
+      } catch (err) {
+        console.warn(`Could not fetch remote messages for room ${roomId}:`, err);
+      }
+    },
+    [currentUserId]
+  );
 
   // Load older 50 messages when scrolling up / requesting history
   const loadMoreMessages = useCallback(async () => {
@@ -103,8 +106,8 @@ export function useChat(): UseChatReturn {
       const olderMsgs = await chatApi.getMessages({ roomId: targetRoom, limit: 50, page: nextPage });
       if (Array.isArray(olderMsgs) && olderMsgs.length > 0) {
         const mappedOlder: ChatMessage[] = olderMsgs.map((m: ApiMessage) => {
-          const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
-          const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
+          const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+          const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
           const isMe = Boolean(currentUserId && senderId === currentUserId);
 
           return {
@@ -114,7 +117,7 @@ export function useChat(): UseChatReturn {
             type: 'text',
             text: m.text,
             time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'read'
+            status: 'read',
           };
         });
 
@@ -124,7 +127,7 @@ export function useChat(): UseChatReturn {
           const filteredNewOlder = mappedOlder.filter((m) => !existingIds.has(m.id));
           return {
             ...prev,
-            [targetRoom]: [...filteredNewOlder, ...currentList]
+            [targetRoom]: [...filteredNewOlder, ...currentList],
           };
         });
 
@@ -141,22 +144,38 @@ export function useChat(): UseChatReturn {
     }
   }, [activeChatId, currentUserId, hasMoreMap, isLoadingMore, roomPageMap]);
 
-  // Fetch real rooms from backend API
+  // Fetch real rooms from backend API with user-context direct room name resolution
   const fetchBackendRooms = useCallback(async () => {
     try {
       const backendRooms = await chatApi.getRooms();
       const mappedChats: ChatItem[] = Array.isArray(backendRooms)
-        ? backendRooms.map((r: ApiRoom) => ({
-            id: r._id,
-            name: r.roomname,
-            initials: r.roomname.slice(0, 2).toUpperCase(),
-            avatarBg: '#6f7771',
-            lastMessage: r.description || 'No messages yet',
-            time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            unread: 0,
-            online: false,
-            statusText: r.description || 'Public Room'
-          }))
+        ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
+            const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+            const targetUserId = r.contactUser?.id || (
+              r.isDirect && Array.isArray(r.members)
+                ? (r.members.find((m) => {
+                    const mId = typeof m === 'object' && m !== null ? m._id : m;
+                    return mId && mId.toString() !== currentUserId;
+                  }) as { _id?: string } | string | undefined)
+                : undefined
+            );
+            const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
+
+            return {
+              id: r._id,
+              targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
+              name: roomTitle,
+              initials: roomTitle.slice(0, 2).toUpperCase(),
+              avatar: r.avatar || r.contactUser?.avatar || '',
+              avatarBg: '#6366f1',
+              lastMessage: r.description || 'No messages yet',
+              time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: 0,
+              online: false,
+              isGroup: !r.isDirect,
+              statusText: r.description || (r.isDirect ? 'Direct Message' : 'Public Room'),
+            };
+          })
         : [];
 
       setChats(mappedChats);
@@ -169,12 +188,11 @@ export function useChat(): UseChatReturn {
         initials: c.initials,
         avatarBg: c.avatarBg,
         online: false,
-        chatId: c.id
+        chatId: c.id,
       }));
 
       setRecentChats(recents);
       chatStorage.saveRecent(recents);
-
       setActiveChatId((prev) => {
         const targetId = mappedChats.some((c) => c.id === prev)
           ? prev
@@ -190,7 +208,8 @@ export function useChat(): UseChatReturn {
     } catch (err) {
       console.warn('Could not fetch backend rooms:', err);
     }
-  }, []);
+  }, [currentUserId]);
+
   // Initial fetch on mount & whenever user is authenticated
   useEffect(() => {
     if (!currentUserId) return;
@@ -201,22 +220,37 @@ export function useChat(): UseChatReturn {
         const backendRooms = await chatApi.getRooms();
         if (isSubscribed) {
           const mappedChats: ChatItem[] = Array.isArray(backendRooms)
-            ? backendRooms.map((r: ApiRoom) => ({
-                id: r._id,
-                name: r.roomname,
-                initials: r.roomname.slice(0, 2).toUpperCase(),
-                avatarBg: '#6366f1',
-                lastMessage: r.description || 'No messages yet',
-                time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                unread: 0,
-                online: false,
-                statusText: r.description || 'Public Room'
-              }))
+            ? backendRooms.map((r: ApiRoom & { displayName?: string; isDirect?: boolean; contactUser?: { id?: string; name: string; avatar?: string }; members?: Array<{ _id?: string } | string> }) => {
+                const roomTitle = r.displayName || r.contactUser?.name || r.roomname;
+                const targetUserId = r.contactUser?.id || (
+                  r.isDirect && Array.isArray(r.members)
+                    ? (r.members.find((m) => {
+                        const mId = typeof m === 'object' && m !== null ? m._id : m;
+                        return mId && mId.toString() !== currentUserId;
+                      }) as { _id?: string } | string | undefined)
+                    : undefined
+                );
+                const resolvedTargetId = typeof targetUserId === 'object' && targetUserId !== null ? targetUserId._id : targetUserId;
+
+                return {
+                  id: r._id,
+                  targetUserId: resolvedTargetId ? String(resolvedTargetId) : undefined,
+                  name: roomTitle,
+                  initials: roomTitle.slice(0, 2).toUpperCase(),
+                  avatar: r.avatar || r.contactUser?.avatar || '',
+                  avatarBg: '#6366f1',
+                  lastMessage: r.description || 'No messages yet',
+                  time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  unread: 0,
+                  online: false,
+                  isGroup: !r.isDirect,
+                  statusText: r.description || (r.isDirect ? 'Direct Message' : 'Public Room'),
+                };
+              })
             : [];
 
           setChats(mappedChats);
           chatStorage.saveChats(mappedChats);
-
           const recents: RecentChatUser[] = mappedChats.slice(0, 6).map((c) => ({
             id: `recent-${c.id}`,
             name: c.name,
@@ -224,7 +258,7 @@ export function useChat(): UseChatReturn {
             initials: c.initials,
             avatarBg: c.avatarBg,
             online: false,
-            chatId: c.id
+            chatId: c.id,
           }));
 
           setRecentChats(recents);
@@ -264,8 +298,8 @@ export function useChat(): UseChatReturn {
           lastMessage: description || 'New room created',
           time: 'Just now',
           unread: 0,
-          online: true,
-          statusText: description
+          online: false,
+          statusText: description,
         };
 
         setChats((prev) => {
@@ -288,12 +322,12 @@ export function useChat(): UseChatReturn {
     if (!activeChatId) return;
     let isSubscribed = true;
 
-    chatApi.getMessages({ roomId: activeChatId, limit: 50 }).then((backendMsgs) => {
+    chatApi.getMessages({ roomId: activeChatId, limit: 50, page: 1 }).then((backendMsgs) => {
       if (!isSubscribed) return;
       const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
         ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
-            const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
+            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
             const isMe = Boolean(currentUserId && senderId === currentUserId);
 
             return {
@@ -303,22 +337,25 @@ export function useChat(): UseChatReturn {
               type: 'text',
               text: m.text,
               time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read'
+              status: 'read',
             };
           })
         : [];
 
       setMessages((prev) => ({
         ...prev,
-        [activeChatId]: mappedMsgs
+        [activeChatId]: mappedMsgs,
       }));
+      setRoomPageMap((prev) => ({ ...prev, [activeChatId]: 1 }));
+      setHasMoreMap((prev) => ({ ...prev, [activeChatId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
     }).catch(() => {});
 
     return () => {
       isSubscribed = false;
     };
   }, [activeChatId, currentUserId]);
-  // Listen for real-time socket messages
+
+  // Listen for real-time socket messages with optimistic message deduplication
   useEffect(() => {
     const unbindReceive = socketService.on('receiveMessage', (data: unknown) => {
       if (data && typeof data === 'object') {
@@ -344,7 +381,7 @@ export function useChat(): UseChatReturn {
             type: 'text',
             text,
             time: currentTime,
-            status: 'read'
+            status: 'read',
           };
 
           setMessages((prev) => {
@@ -352,10 +389,18 @@ export function useChat(): UseChatReturn {
             if (existing.some((m) => m.id === msgId)) {
               return prev;
             }
-            const updated = [...existing, incomingMsg].slice(-50);
+
+            // Reconcile optimistic pending message with confirmed server message
+            const optIndex = isMe ? existing.findIndex((m) => m.id.startsWith('msg-') && m.text === text) : -1;
+            let updated: ChatMessage[];
+            if (optIndex > -1) {
+              updated = existing.map((m, i) => (i === optIndex ? incomingMsg : m));
+            } else {
+              updated = [...existing, incomingMsg];
+            }
             return {
               ...prev,
-              [roomId]: updated
+              [roomId]: updated.slice(-50),
             };
           });
           setChats((prevChats) => {
@@ -365,7 +410,7 @@ export function useChat(): UseChatReturn {
                   ...c,
                   lastMessage: text,
                   time: currentTime,
-                  unread: c.id === activeChatIdRef.current ? 0 : (c.unread || 0) + 1
+                  unread: c.id === activeChatIdRef.current ? 0 : (c.unread || 0) + 1,
                 };
               }
               return c;
@@ -382,9 +427,9 @@ export function useChat(): UseChatReturn {
         const roomId = String(data.roomId);
         const msgs = Array.isArray(data.messages) ? data.messages : [];
         if (msgs.length > 0) {
-          const mappedMsgs: ChatMessage[] = msgs.map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' ? m.userId?._id : m.userId;
-            const senderName = typeof m.userId === 'object' ? m.userId?.name : 'User';
+          const mappedMsgs: ChatMessage[] = msgs.slice(-50).map((m: ApiMessage) => {
+            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
             const isMe = Boolean(currentUserId && senderId === currentUserId);
 
             return {
@@ -394,20 +439,14 @@ export function useChat(): UseChatReturn {
               type: 'text',
               text: m.text,
               time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read'
+              status: 'read',
             };
           });
 
-          setMessages((prev) => {
-            const localSaved = chatStorage.getRoomMessages(roomId);
-            const combined = [...localSaved, ...mappedMsgs];
-            const unique = Array.from(new Map(combined.map((m) => [m.id, m])).values());
-            chatStorage.saveRoomMessages(roomId, unique);
-            return {
-              ...prev,
-              [roomId]: unique
-            };
-          });
+          setMessages((prev) => ({
+            ...prev,
+            [roomId]: mappedMsgs,
+          }));
         }
       }
     });
@@ -419,10 +458,9 @@ export function useChat(): UseChatReturn {
         const newText = String(data.text);
         setMessages((prev) => {
           const updated = (prev[roomId] || []).map((m) => (m.id === msgId ? { ...m, text: newText } : m));
-          chatStorage.saveRoomMessages(roomId, updated);
           return {
             ...prev,
-            [roomId]: updated
+            [roomId]: updated,
           };
         });
       }
@@ -434,7 +472,7 @@ export function useChat(): UseChatReturn {
         const roomId = String(data.roomId);
         setMessages((prev) => {
           const remaining = (prev[roomId] || []).filter((m) => m.id !== messageId);
-          chatStorage.saveRoomMessages(roomId, remaining);
+
 
           setChats((prevChats) => {
             const lastRemaining = remaining[remaining.length - 1];
@@ -454,7 +492,7 @@ export function useChat(): UseChatReturn {
 
           return {
             ...prev,
-            [roomId]: remaining
+            [roomId]: remaining,
           };
         });
       }
@@ -467,296 +505,304 @@ export function useChat(): UseChatReturn {
       unbindDeleted();
     };
   }, [currentUserId]);
-  // Select chat handler
-  const selectChat = useCallback((id: string) => {
-    setActiveChatId((prevOldId) => {
-      chatStorage.saveActiveRoomId(id);
-      if (prevOldId && prevOldId !== id) {
-        socketService.switchRoom(prevOldId, id);
-      } else {
-        socketService.joinRoom(id);
-      }
-      return id;
-    });
 
-    // Request fresh messages from backend immediately
-    loadBackendMessages(id);
-    // Clear unread on select
-    setChats((prev) => {
-      const updated = prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c));
-      chatStorage.saveChats(updated);
-      return updated;
-    });
-  }, [loadBackendMessages]);
-
-  // Send message with instant local persistence, socket broadcast, and backend persistence
-  const sendMessage = useCallback(async (text: string, type: string = 'text', meta: Record<string, unknown> = {}) => {
-    if (!text.trim() || !activeChatId) return;
-
-    const now = new Date();
-    const hours = String(now.getHours() % 12 || 12).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
-    const currentTime = `${hours}:${minutes} ${ampm}`;
-
-    const tempId = `msg-${Date.now()}`;
-    const newMsg: ChatMessage = {
-      id: tempId,
-      sender: 'me',
-      senderName: 'You',
-      type: (type as ChatMessage['type']) || 'text',
-      text,
-      time: currentTime,
-      status: 'read',
-      ...meta
-    };
-
-    // 1. Append message locally (capped to 50)
-    setMessages((prev) => {
-      const existing = prev[activeChatId] || [];
-      const updated = [...existing, newMsg].slice(-50);
-      return {
-        ...prev,
-        [activeChatId]: updated
-      };
-    });
-
-    // 2. Emit over Socket.IO to backend
-    socketService.sendMessage(activeChatId, text);
-
-    // 3. Call REST endpoint and re-fetch to ensure complete sync
-    try {
-      await chatApi.createMessage({ roomId: activeChatId, text, userId: currentUserId });
-    } catch {
-      // Local persistent message remains active
-    }
-    // 4. Update chat list last message and persist
-    const computedMediaType: ChatItem['mediaType'] = type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
-    setChats((prevChats: ChatItem[]) => {
-      const updated: ChatItem[] = prevChats.map((c) => {
-        if (c.id === activeChatId) {
-          return {
-            ...c,
-            lastMessage: type === 'document' ? String(meta.fileName || 'Document') : text,
-            mediaType: computedMediaType,
-            time: currentTime,
-            unread: 0
-          };
+  const selectChat = useCallback(
+    (id: string) => {
+      setActiveChatId((prevOldId) => {
+        chatStorage.saveActiveRoomId(id);
+        if (prevOldId && prevOldId !== id) {
+          socketService.switchRoom(prevOldId, id);
+        } else {
+          socketService.joinRoom(id);
         }
-        return c;
+        return id;
       });
 
-      const currentChatIndex = updated.findIndex((c) => c.id === activeChatId);
-      if (currentChatIndex > -1) {
-        const [currentChat] = updated.splice(currentChatIndex, 1);
-        const reordered = [currentChat, ...updated];
-        chatStorage.saveChats(reordered);
-        return reordered;
-      }
-      chatStorage.saveChats(updated);
-      return updated;
-    });
-  }, [activeChatId, currentUserId]);
-
-  // Edit message & re-fetch
-  const editMessage = useCallback(async (messageId: string, text: string) => {
-    setMessages((prev) => {
-      const updated = (prev[activeChatId] || []).map((m) => (m.id === messageId ? { ...m, text } : m));
-      chatStorage.saveRoomMessages(activeChatId, updated);
-      return {
-        ...prev,
-        [activeChatId]: updated
-      };
-    });
-    socketService.editMessage(messageId, text);
-    try {
-      await chatApi.updateMessage(messageId, { text });
-    } catch {
-      // Saved locally
-    }
-  }, [activeChatId]);
-
-  // Create new contact or room on real backend & re-fetch
-  const createNewContact = useCallback(async (name: string) => {
-    const validId = generateValidObjectId();
-    const cleanRoomName = name.trim();
-
-    try {
-      const createdRoom = await chatApi.createRoom({ roomname: cleanRoomName, description: 'Direct chat room' });
-      const newId = createdRoom._id || validId;
-      const newChat: ChatItem = {
-        id: newId,
-        name: createdRoom.roomname || cleanRoomName,
-        initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6f7771',
-        lastMessage: 'Room created',
-        time: 'Just now',
-        unread: 0,
-        online: true,
-        statusText: createdRoom.description || 'Available'
-      };
+      loadBackendMessages(id);
 
       setChats((prev) => {
-        const updated = [newChat, ...prev.filter((c) => c.id !== newId)];
+        const updated = prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c));
         chatStorage.saveChats(updated);
         return updated;
       });
-      setActiveChatId(newId);
-      chatStorage.saveActiveRoomId(newId);
-      socketService.createRoom(cleanRoomName, 'Direct chat room');
-      socketService.joinRoom(newId);
+    },
+    [loadBackendMessages]
+  );
 
-      // Re-fetch rooms from backend to guarantee complete sync
-      await fetchBackendRooms();
-    } catch {
-      // Create locally persistent room with valid MongoDB ObjectId
-      const newChat: ChatItem = {
-        id: validId,
-        name: cleanRoomName,
-        initials: cleanRoomName.slice(0, 2).toUpperCase(),
-        avatarBg: '#6f7771',
-        lastMessage: 'Conversation started',
-        time: 'Just now',
-        unread: 0,
-        online: true,
-        statusText: 'Available'
+  // Send message with single Socket.IO broadcast and deduplication
+  const sendMessage = useCallback(
+    async (text: string, type: string = 'text', meta: Record<string, unknown> = {}) => {
+      const cleanText = text.trim();
+      if (!cleanText || !activeChatId) return;
+
+      const now = new Date();
+      const hours = String(now.getHours() % 12 || 12).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+      const currentTime = `${hours}:${minutes} ${ampm}`;
+
+      const tempId = `msg-${Date.now()}`;
+      const newMsg: ChatMessage = {
+        id: tempId,
+        sender: 'me',
+        senderName: 'You',
+        type: (type as ChatMessage['type']) || 'text',
+        text: cleanText,
+        time: currentTime,
+        status: 'read',
+        ...meta,
       };
-      setChats((prev) => {
-        const updated = [newChat, ...prev];
-        chatStorage.saveChats(updated);
-        return updated;
+
+      // 1. Optimistic local append
+      setMessages((prev) => {
+        const existing = prev[activeChatId] || [];
+        const updated = [...existing, newMsg].slice(-50);
+        return {
+          ...prev,
+          [activeChatId]: updated,
+        };
       });
-      setActiveChatId(validId);
-      chatStorage.saveActiveRoomId(validId);
-      socketService.createRoom(cleanRoomName, 'Direct chat room');
-      socketService.joinRoom(validId);
-    }
-  }, [fetchBackendRooms]);
 
-  // Delete message, sync with backend, and re-render conversation state
-  const deleteMessage = useCallback(async (messageId: string) => {
-    if (!messageId || !activeChatId) return;
+      // 2. Broadcast single message over Socket.IO (persists in MongoDB and broadcasts to room)
+      socketService.sendMessage(activeChatId, cleanText);
 
-    // 1. Optimistic removal & re-render active messages and sidebar preview
-    setMessages((prev) => {
-      const remaining = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
-      chatStorage.saveRoomMessages(activeChatId, remaining);
+      // 3. Update chat list last message preview
+      const computedMediaType: ChatItem['mediaType'] =
+        type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
 
-      setChats((prevChats) => {
-        const lastRemaining = remaining[remaining.length - 1];
-        const updatedChats = prevChats.map((c) => {
+      setChats((prevChats: ChatItem[]) => {
+        const updated: ChatItem[] = prevChats.map((c) => {
           if (c.id === activeChatId) {
             return {
               ...c,
-              lastMessage: lastRemaining ? (lastRemaining.text || 'Shared attachment') : (c.statusText || 'No messages yet'),
-              time: lastRemaining ? lastRemaining.time : c.time,
+              lastMessage: type === 'document' ? String(meta.fileName || 'Document') : cleanText,
+              mediaType: computedMediaType,
+              time: currentTime,
+              unread: 0,
             };
           }
           return c;
         });
-        chatStorage.saveChats(updatedChats);
-        return updatedChats;
+
+        const currentChatIndex = updated.findIndex((c) => c.id === activeChatId);
+        if (currentChatIndex > -1) {
+          const [currentChat] = updated.splice(currentChatIndex, 1);
+          const reordered = [currentChat, ...updated];
+          chatStorage.saveChats(reordered);
+          return reordered;
+        }
+        chatStorage.saveChats(updated);
+        return updated;
+      });
+    },
+    [activeChatId]
+  );
+
+  const editMessage = useCallback(
+    async (messageId: string, text: string) => {
+      setMessages((prev) => {
+        const updated = (prev[activeChatId] || []).map((m) => (m.id === messageId ? { ...m, text } : m));
+        return {
+          ...prev,
+          [activeChatId]: updated,
+        };
+      });
+      socketService.editMessage(messageId, text);
+      try {
+        await chatApi.updateMessage(messageId, { text });
+      } catch { /* no-op */ }
+    },
+    [activeChatId]
+  );
+
+  const createNewContact = useCallback(
+    async (name: string) => {
+      const validId = generateValidObjectId();
+      const cleanRoomName = name.trim();
+
+      try {
+        const createdRoom = await chatApi.createRoom({ roomname: cleanRoomName, description: 'Direct chat room' });
+        const newId = createdRoom._id || validId;
+        const newChat: ChatItem = {
+          id: newId,
+          name: createdRoom.roomname || cleanRoomName,
+          initials: cleanRoomName.slice(0, 2).toUpperCase(),
+          avatarBg: '#6366f1',
+          lastMessage: 'Room created',
+          time: 'Just now',
+          unread: 0,
+          online: false,
+          statusText: createdRoom.description || 'Available',
+        };
+
+        setChats((prev) => {
+          const updated = [newChat, ...prev.filter((c) => c.id !== newId)];
+          chatStorage.saveChats(updated);
+          return updated;
+        });
+        setActiveChatId(newId);
+        chatStorage.saveActiveRoomId(newId);
+        socketService.createRoom(cleanRoomName, 'Direct chat room');
+        socketService.joinRoom(newId);
+
+        await fetchBackendRooms();
+      } catch {
+        const newChat: ChatItem = {
+          id: validId,
+          name: cleanRoomName,
+          initials: cleanRoomName.slice(0, 2).toUpperCase(),
+          avatarBg: '#6366f1',
+          lastMessage: 'Conversation started',
+          time: 'Just now',
+          unread: 0,
+          online: false,
+          statusText: 'Available',
+        };
+        setChats((prev) => {
+          const updated = [newChat, ...prev];
+          chatStorage.saveChats(updated);
+          return updated;
+        });
+        setActiveChatId(validId);
+        chatStorage.saveActiveRoomId(validId);
+        socketService.createRoom(cleanRoomName, 'Direct chat room');
+        socketService.joinRoom(validId);
+      }
+    },
+    [fetchBackendRooms]
+  );
+
+  // Delete message, sync with backend, and re-render conversation state
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!messageId || !activeChatId) return;
+
+      // 1. Optimistic removal & re-render active messages and sidebar preview
+      setMessages((prev) => {
+        const remaining = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
+
+        setChats((prevChats) => {
+          const lastRemaining = remaining[remaining.length - 1];
+          const updatedChats = prevChats.map((c) => {
+            if (c.id === activeChatId) {
+              return {
+                ...c,
+                lastMessage: lastRemaining ? (lastRemaining.text || 'Shared attachment') : (c.statusText || 'No messages yet'),
+                time: lastRemaining ? lastRemaining.time : c.time,
+              };
+            }
+            return c;
+          });
+          chatStorage.saveChats(updatedChats);
+          return updatedChats;
+        });
+
+        return {
+          ...prev,
+          [activeChatId]: remaining,
+        };
       });
 
-      return {
-        ...prev,
-        [activeChatId]: remaining
-      };
-    });
+      // 2. Broadcast real-time deletion over Socket.IO
+      socketService.deleteMessage(messageId);
 
-    // 2. Broadcast real-time deletion over Socket.IO
-    socketService.deleteMessage(messageId);
-
-    // 3. Persist deletion in backend database via REST API
-    try {
-      await chatApi.deleteMessage(messageId);
-      // 4. Re-fetch and re-render fresh state from server
-      await loadBackendMessages(activeChatId);
-    } catch (err) {
-      console.warn('Backend message delete sync notice:', err);
-    }
-  }, [activeChatId, loadBackendMessages]);
+      // 3. Persist deletion in backend database via REST API
+      try {
+        await chatApi.deleteMessage(messageId);
+        await loadBackendMessages(activeChatId);
+      } catch (err) {
+        console.warn('Backend message delete sync notice:', err);
+      }
+    },
+    [activeChatId, loadBackendMessages]
+  );
 
   // Delete conversation/chat, purge storage, leave socket room, sync backend & re-render
-  const deleteChat = useCallback(async (chatId: string) => {
-    if (!chatId) return;
+  const deleteChat = useCallback(
+    async (chatId: string) => {
+      if (!chatId) return;
 
-    // 1. Remove chat from chats list and persist
-    setChats((prevChats) => {
-      const remainingChats = prevChats.filter((c) => c.id !== chatId);
-      chatStorage.saveChats(remainingChats);
+      // 1. Remove chat from chats list and persist
+      setChats((prevChats) => {
+        const remainingChats = prevChats.filter((c) => c.id !== chatId);
+        chatStorage.saveChats(remainingChats);
 
-      // 2. If active chat was deleted, switch to the first remaining conversation
-      setActiveChatId((currentActiveId) => {
-        if (currentActiveId === chatId) {
-          const nextChat = remainingChats.length > 0 ? remainingChats[0] : null;
-          const nextId = nextChat ? nextChat.id : '';
-          chatStorage.saveActiveRoomId(nextId);
-          if (nextId) {
-            socketService.joinRoom(nextId);
-            loadBackendMessages(nextId);
+        // 2. If active chat was deleted, switch to the first remaining conversation
+        setActiveChatId((currentActiveId) => {
+          if (currentActiveId === chatId) {
+            const nextChat = remainingChats.length > 0 ? remainingChats[0] : null;
+            const nextId = nextChat ? nextChat.id : '';
+            chatStorage.saveActiveRoomId(nextId);
+            if (nextId) {
+              socketService.joinRoom(nextId);
+              loadBackendMessages(nextId);
+            }
+            return nextId;
           }
-          return nextId;
-        }
-        return currentActiveId;
+          return currentActiveId;
+        });
+
+        return remainingChats;
       });
 
-      return remainingChats;
-    });
-
-    // 3. Remove from recent chats list
-    setRecentChats((prevRecent) => {
-      const updatedRecent = prevRecent.filter((r) => r.chatId !== chatId && r.id !== chatId && r.id !== `recent-${chatId}`);
-      chatStorage.saveRecent(updatedRecent);
-      return updatedRecent;
-    });
-
-    // 4. Remove room messages from state and persistent storage
-    setMessages((prevMsgs) => {
-      const updatedMsgs = { ...prevMsgs };
-      delete updatedMsgs[chatId];
-      chatStorage.removeRoomMessages(chatId);
-      return updatedMsgs;
-    });
-
-    // 5. Leave real-time socket room
-    socketService.leaveRoom(chatId);
-
-    // 6. Delete on backend database and re-sync
-    try {
-      await chatApi.deleteRoom(chatId);
-      await fetchBackendRooms();
-    } catch (err) {
-      console.warn('Backend room delete sync notice:', err);
-    }
-  }, [fetchBackendRooms, loadBackendMessages]);
-
-  // Add reaction
-  const addReaction = useCallback((messageId: string, emoji: string) => {
-    setMessages((prev) => {
-      const updated = (prev[activeChatId] || []).map((m) => {
-        if (m.id === messageId) {
-          const currentReactions = m.reactions || [];
-          const existing = currentReactions.find((r) => r.emoji === emoji);
-          let updatedReactions;
-          if (existing) {
-            updatedReactions = currentReactions.map((r) =>
-              r.emoji === emoji ? { ...r, count: r.count + 1 } : r
-            );
-          } else {
-            updatedReactions = [...currentReactions, { emoji, count: 1 }];
-          }
-          return { ...m, reactions: updatedReactions };
-        }
-        return m;
+      // 3. Remove from recent chats list
+      setRecentChats((prevRecent) => {
+        const updatedRecent = prevRecent.filter(
+          (r) => r.chatId !== chatId && r.id !== chatId && r.id !== `recent-${chatId}`
+        );
+        chatStorage.saveRecent(updatedRecent);
+        return updatedRecent;
       });
-      chatStorage.saveRoomMessages(activeChatId, updated);
-      return {
-        ...prev,
-        [activeChatId]: updated
-      };
-    });
-  }, [activeChatId]);
+
+      // 4. Remove room messages from state and persistent storage
+      setMessages((prevMsgs) => {
+        const updatedMsgs = { ...prevMsgs };
+        delete updatedMsgs[chatId];
+        chatStorage.removeRoomMessages(chatId);
+        return updatedMsgs;
+      });
+
+      // 5. Leave real-time socket room
+      socketService.leaveRoom(chatId);
+
+      // 6. Delete on backend database and re-sync
+      try {
+        await chatApi.deleteRoom(chatId);
+        await fetchBackendRooms();
+      } catch (err) {
+        console.warn('Backend room delete sync notice:', err);
+      }
+    },
+    [fetchBackendRooms, loadBackendMessages]
+  );
+
+  const addReaction = useCallback(
+    (messageId: string, emoji: string) => {
+      setMessages((prev) => {
+        const updated = (prev[activeChatId] || []).map((m) => {
+          if (m.id === messageId) {
+            const currentReactions = m.reactions || [];
+            const existing = currentReactions.find((r) => r.emoji === emoji);
+            let updatedReactions;
+            if (existing) {
+              updatedReactions = currentReactions.map((r) =>
+                r.emoji === emoji ? { ...r, count: r.count + 1 } : r
+              );
+            } else {
+              updatedReactions = [...currentReactions, { emoji, count: 1 }];
+            }
+            return { ...m, reactions: updatedReactions };
+          }
+          return m;
+        });
+        return {
+          ...prev,
+          [activeChatId]: updated,
+        };
+      });
+    },
+    [activeChatId]
+  );
 
   return {
     chats,
