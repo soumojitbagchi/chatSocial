@@ -1,0 +1,23 @@
+node_modules
+.env
+.env.*
+.DS_Store
+dist
+build
+
+# Test files & test scripts
+test-*.js
+test-*.ts
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+test/
+tests/
+__tests__/
+backend/test-*.js
+backend/test/
+backend/tests/
+frontend/test/
+frontend/tests/
+frontend/__tests__/
