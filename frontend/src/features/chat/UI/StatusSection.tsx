@@ -16,6 +16,7 @@ import {
   Palette,
   ArrowRight
 } from 'lucide-react';
+import { ApiUserStatusGroup, ApiStoryItem } from '../api/chatApi';
 import '../style/components.css';
 
 export interface StatusSectionProps {

@@ -55,7 +55,7 @@ export interface ChatMessage {
   sender: 'me' | 'other' | 'system';
   senderName?: string;
   avatar?: string;
-  type?: 'text' | 'audio' | 'document' | 'photo' | 'gallery' | 'date' | 'call-log' | 'story-reply';
+  type?: 'text' | 'audio' | 'document' | 'photo' | 'video' | 'gallery' | 'date' | 'call-log' | 'story-reply';
   text?: string;
   audioDuration?: string;
   audioUrl?: string;
@@ -144,6 +144,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }, [messages, activeChat]);
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest?.('.cs-msg-hover-action') || target.closest?.('.cs-msg-menu-popover')) {
+        return;
+      }
       if (attachRef.current && !attachRef.current.contains(e.target as Node)) {
         setShowAttachMenu(false);
       }
@@ -215,25 +219,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
     try {
       const uploaded = await chatApi.uploadAttachment(file);
+      const userCaption = inputText.trim();
+
       if (kind === 'media') {
         const isVideo = file.type.startsWith('video/');
-        onSendMessage(uploaded.fileName || file.name, isVideo ? 'document' : 'photo', {
+        onSendMessage(userCaption || (isVideo ? 'Video' : 'Photo'), isVideo ? 'video' : 'photo', {
+          url: uploaded.url,
           imageUrl: uploaded.url,
           photoUrl: uploaded.url,
-          fileName: uploaded.fileName,
+          mediaUrl: uploaded.url,
+          fileName: file.name,
           fileSize: uploaded.fileSize,
           fileType: uploaded.fileType,
-          caption: inputText.trim() || undefined,
+          caption: userCaption || undefined,
         });
         setInputText('');
       } else {
-        onSendMessage(uploaded.fileName || file.name, 'document', {
+        onSendMessage(file.name || 'Document', 'document', {
+          url: uploaded.url,
           imageUrl: uploaded.url,
           audioUrl: uploaded.url,
-          fileName: uploaded.fileName,
+          mediaUrl: uploaded.url,
+          fileName: file.name || 'Document',
           fileSize: uploaded.fileSize,
           fileType: uploaded.fileType,
-          caption: inputText.trim() || undefined,
+          caption: userCaption || undefined,
         });
         setInputText('');
       }
@@ -555,15 +565,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         </div>
                         <div className="flex flex-col min-w-0 pr-2">
                           <span className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
-                            {msg.fileName || 'Document.pdf'}
+                            {msg.fileName || msg.text || 'Document.pdf'}
                           </span>
                           <span className={`text-[10px] font-medium ${isMe ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
-                            {msg.fileSize || '14.23 KB'}
+                            {msg.fileSize || 'Attachment'}
                           </span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => {
-                            const targetUrl = msg.imageUrl || msg.audioUrl;
+                            const targetUrl = msg.imageUrl || msg.photoUrl || msg.audioUrl || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string) || (msg.meta?.fileUrl as string);
                             if (targetUrl) window.open(targetUrl, '_blank');
                           }}
                           className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'} cursor-pointer`}
@@ -573,14 +584,30 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           <Download size={14} />
                         </button>
                       </div>
-                    ) : msg.type === 'photo' ? (
+                    ) : msg.type === 'video' ? (
+                      <div className="cs-photo-card">
+                        <video
+                          src={msg.imageUrl || msg.photoUrl || msg.audioUrl || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string)}
+                          controls
+                          playsInline
+                          className="rounded-xl max-h-64 w-full object-cover bg-black"
+                        />
+                        {msg.caption && msg.caption !== 'Video' && msg.caption !== '📹 Video' && !msg.caption.startsWith('attach_') && (
+                          <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
+                        )}
+                      </div>
+                    ) : (msg.type === 'photo' || msg.imageUrl || msg.photoUrl || msg.meta?.imageUrl || msg.meta?.photoUrl) ? (
                       <div className="cs-photo-card">
                         <img
-                          src={msg.imageUrl || msg.photoUrl}
+                          src={msg.imageUrl || msg.photoUrl || (msg.meta?.imageUrl as string) || (msg.meta?.photoUrl as string) || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string)}
                           alt={msg.caption || 'Photo'}
-                          className="rounded-xl max-h-60 w-full object-cover"
+                          className="rounded-xl max-h-64 w-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                          onClick={() => {
+                            const url = msg.imageUrl || msg.photoUrl || (msg.meta?.imageUrl as string) || (msg.meta?.photoUrl as string) || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string);
+                            if (url) window.open(url, '_blank');
+                          }}
                         />
-                        {msg.caption && (
+                        {msg.caption && msg.caption !== 'Photo' && msg.caption !== '📷 Photo' && !msg.caption.startsWith('attach_') && (
                           <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
                         )}
                       </div>
@@ -607,8 +634,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                     {activeMenuMsgId === msg.id && (
                       <div
-                        className={`absolute ${isMe ? 'right-0 top-full' : 'left-0 top-full'} mt-1 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 dark:text-slate-200 text-xs font-medium`}
+                        className={`cs-msg-menu-popover absolute ${isMe ? 'right-0 top-full' : 'left-0 top-full'} mt-1 w-36 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 dark:text-slate-200 text-xs font-medium`}
                         onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
                       >
                         {msg.text && (
                           <button
@@ -662,11 +690,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           <span>{starredMsgIds.has(msg.id) ? 'Unstar' : 'Star'}</span>
                         </button>
 
-                        {onDeleteMessage && (
+                        {onDeleteMessage && (isMe || activeChat?.isAdmin) && (
                           <button
                             type="button"
                             className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
-                            onClick={() => {
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onDeleteMessage(msg.id);
+                              setActiveMenuMsgId(null);
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               onDeleteMessage(msg.id);
                               setActiveMenuMsgId(null);
                             }}

@@ -241,7 +241,20 @@ export const deleteMessage = async (param1, param2) => {
         throw new Error("Message not found");
     }
 
-    if (userId && message.userId.toString() !== userId.toString()) {
+    const isOwner = userId && message.userId.toString() === userId.toString();
+    
+    let isAuthorized = isOwner;
+    if (userId && !isAuthorized) {
+        const room = await Room.findById(message.roomId);
+        if (room && !room.isDirect) {
+            isAuthorized = Boolean(
+                (room.createdBy && room.createdBy.toString() === userId.toString()) ||
+                (Array.isArray(room.admins) && room.admins.some((a) => a && a.toString() === userId.toString()))
+            );
+        }
+    }
+
+    if (userId && !isAuthorized) {
         throw new Error("Unauthorized: You can only delete your own messages");
     }
 

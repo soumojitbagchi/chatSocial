@@ -304,6 +304,7 @@ export function useCalls(): UseCallsReturn {
           callId?: string;
           callerId?: string;
           callerName?: string;
+          callerUsername?: string;
           callerAvatar?: string;
           avatar?: string;
           name?: string;

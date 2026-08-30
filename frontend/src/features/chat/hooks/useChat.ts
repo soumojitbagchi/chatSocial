@@ -32,6 +32,32 @@ export interface UseChatReturn {
   fetchConnections: () => Promise<void>;
 }
 
+export const mapApiMessageToChatMessage = (m: ApiMessage, currentUserId?: string | null): ChatMessage => {
+  const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
+  const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
+  const isMe = Boolean(currentUserId && senderId === currentUserId);
+  const msgMeta = (m.meta as Record<string, unknown>) || {};
+  const msgType = (m.type as ChatMessage['type']) || 'text';
+
+  return {
+    id: m._id,
+    sender: isMe ? 'me' : 'other',
+    senderName: isMe ? 'You' : senderName,
+    type: msgType,
+    text: m.text,
+    time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    status: 'read',
+    imageUrl: (msgMeta.imageUrl || msgMeta.photoUrl || msgMeta.url || msgMeta.mediaUrl) as string | undefined,
+    photoUrl: (msgMeta.imageUrl || msgMeta.photoUrl || msgMeta.url || msgMeta.mediaUrl) as string | undefined,
+    audioUrl: (msgMeta.audioUrl || msgMeta.url) as string | undefined,
+    fileName: (msgMeta.fileName || m.text) as string | undefined,
+    fileSize: msgMeta.fileSize as string | undefined,
+    fileType: msgMeta.fileType as string | undefined,
+    caption: msgMeta.caption as string | undefined,
+    meta: msgMeta,
+  };
+};
+
 export function useChat(): UseChatReturn {
   const [chats, setChats] = useState<ChatItem[]>(() => chatStorage.getChats());
   const [recentChats, setRecentChats] = useState<RecentChatUser[]>(() => chatStorage.getRecent());
@@ -68,21 +94,7 @@ export function useChat(): UseChatReturn {
       try {
         const backendMsgs = await chatApi.getMessages({ roomId, limit: 50, page: 1 });
         const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
-          ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-            const isMe = Boolean(currentUserId && senderId === currentUserId);
-
-            return {
-              id: m._id,
-              sender: isMe ? 'me' : 'other',
-              senderName: isMe ? 'You' : senderName,
-              type: 'text',
-              text: m.text,
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read',
-            };
-          })
+          ? backendMsgs.slice(-50).map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId))
           : [];
 
         setMessages((prev) => ({
@@ -109,21 +121,7 @@ export function useChat(): UseChatReturn {
     try {
       const olderMsgs = await chatApi.getMessages({ roomId: targetRoom, limit: 50, page: nextPage });
       if (Array.isArray(olderMsgs) && olderMsgs.length > 0) {
-        const mappedOlder: ChatMessage[] = olderMsgs.map((m: ApiMessage) => {
-          const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-          const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-          const isMe = Boolean(currentUserId && senderId === currentUserId);
-
-          return {
-            id: m._id,
-            sender: isMe ? 'me' : 'other',
-            senderName: isMe ? 'You' : senderName,
-            type: 'text',
-            text: m.text,
-            time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'read',
-          };
-        });
+        const mappedOlder: ChatMessage[] = olderMsgs.map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId));
 
         setMessages((prev) => {
           const currentList = prev[targetRoom] || [];
@@ -348,21 +346,7 @@ export function useChat(): UseChatReturn {
       chatApi.getMessages({ roomId: activeChatId, limit: 50, page: 1 }).then((backendMsgs) => {
         if (!isSubscribed) return;
         const mappedMsgs: ChatMessage[] = Array.isArray(backendMsgs)
-          ? backendMsgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-            const isMe = Boolean(currentUserId && senderId === currentUserId);
-
-            return {
-              id: m._id,
-              sender: isMe ? 'me' : 'other',
-              senderName: isMe ? 'You' : senderName,
-              type: 'text',
-              text: m.text,
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read',
-            };
-          })
+          ? backendMsgs.slice(-50).map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId))
           : [];
 
         setMessages((prev) => {
@@ -423,14 +407,25 @@ export function useChat(): UseChatReturn {
           const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
           const currentTime = `${hours}:${minutes} ${ampm}`;
 
+          const rawType = 'type' in data && typeof data.type === 'string' ? data.type : 'text';
+          const rawMeta = 'meta' in data && typeof data.meta === 'object' && data.meta !== null ? (data.meta as Record<string, unknown>) : {};
+
           const incomingMsg: ChatMessage = {
             id: msgId,
             sender: isMe ? 'me' : 'other',
             senderName: isMe ? 'You' : senderName,
-            type: 'text',
+            type: (rawType as ChatMessage['type']) || 'text',
             text,
             time: currentTime,
             status: 'read',
+            imageUrl: (rawMeta.imageUrl || rawMeta.photoUrl) as string | undefined,
+            photoUrl: (rawMeta.imageUrl || rawMeta.photoUrl) as string | undefined,
+            audioUrl: rawMeta.audioUrl as string | undefined,
+            fileName: rawMeta.fileName as string | undefined,
+            fileSize: rawMeta.fileSize as string | undefined,
+            fileType: rawMeta.fileType as string | undefined,
+            caption: rawMeta.caption as string | undefined,
+            meta: rawMeta,
           };
 
           setMessages((prev) => {
@@ -475,21 +470,7 @@ export function useChat(): UseChatReturn {
         const roomId = String(data.roomId);
         const msgs = Array.isArray(data.messages) ? data.messages : [];
         if (msgs.length > 0) {
-          const mappedMsgs: ChatMessage[] = msgs.slice(-50).map((m: ApiMessage) => {
-            const senderId = typeof m.userId === 'object' && m.userId !== null ? m.userId._id : m.userId;
-            const senderName = typeof m.userId === 'object' && m.userId !== null ? m.userId.name : 'User';
-            const isMe = Boolean(currentUserId && senderId === currentUserId);
-
-            return {
-              id: m._id,
-              sender: isMe ? 'me' : 'other',
-              senderName: isMe ? 'You' : senderName,
-              type: 'text',
-              text: m.text,
-              time: new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'read',
-            };
-          });
+          const mappedMsgs: ChatMessage[] = msgs.slice(-50).map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId));
 
           setMessages((prev) => ({
             ...prev,
@@ -597,7 +578,14 @@ export function useChat(): UseChatReturn {
         text: cleanText,
         time: currentTime,
         status: 'read',
-        ...meta,
+        imageUrl: (meta.imageUrl || meta.photoUrl || meta.url || meta.mediaUrl) as string | undefined,
+        photoUrl: (meta.imageUrl || meta.photoUrl || meta.url || meta.mediaUrl) as string | undefined,
+        audioUrl: (meta.audioUrl || meta.url) as string | undefined,
+        fileName: (meta.fileName || cleanText) as string | undefined,
+        fileSize: meta.fileSize as string | undefined,
+        fileType: meta.fileType as string | undefined,
+        caption: meta.caption as string | undefined,
+        meta,
       };
 
       setMessages((prev) => {
@@ -609,7 +597,27 @@ export function useChat(): UseChatReturn {
         };
       });
 
-      socketService.sendMessage(activeChatId, cleanText);
+      socketService.sendMessage(activeChatId, cleanText, type, meta);
+
+      // Persist to REST API to guarantee database sync & real ID assignment
+      chatApi.createMessage({
+        roomId: activeChatId,
+        text: cleanText,
+        type,
+        meta,
+      }).then((saved) => {
+        if (saved && saved._id) {
+          setMessages((prev) => {
+            const list = prev[activeChatId] || [];
+            return {
+              ...prev,
+              [activeChatId]: list.map((m) => (m.id === tempId ? { ...m, id: saved._id } : m)),
+            };
+          });
+        }
+      }).catch((err) => {
+        console.warn('REST createMessage sync error:', err);
+      });
 
       const computedMediaType: ChatItem['mediaType'] =
         type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
@@ -720,6 +728,8 @@ export function useChat(): UseChatReturn {
     async (messageId: string) => {
       if (!messageId || !activeChatId) return;
 
+      const previousMessages = messages[activeChatId] || [];
+
       setMessages((prev) => {
         const remaining = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
 
@@ -747,14 +757,23 @@ export function useChat(): UseChatReturn {
 
       socketService.deleteMessage(messageId);
 
-      try {
-        await chatApi.deleteMessage(messageId);
-        await loadBackendMessages(activeChatId);
-      } catch (err) {
-        console.warn('Backend message delete sync notice:', err);
+      if (!messageId.startsWith('msg-')) {
+        try {
+          await chatApi.deleteMessage(messageId);
+        } catch (err: unknown) {
+          console.warn('Backend message delete sync notice:', err);
+          setMessages((prev) => ({
+            ...prev,
+            [activeChatId]: previousMessages,
+          }));
+          const errMsg = err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+            : (err instanceof Error ? err.message : 'Failed to delete message');
+          if (errMsg) alert(errMsg);
+        }
       }
     },
-    [activeChatId, loadBackendMessages]
+    [activeChatId, messages]
   );
 
   const deleteChat = useCallback(

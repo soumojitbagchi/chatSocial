@@ -166,8 +166,8 @@ class SocketService {
   }
 
   // Real-time Chat & Room emitters
-  public sendMessage(roomId: string, text: string) {
-    this.emit('sendMessage', { roomId, text });
+  public sendMessage(roomId: string, text: string, type: string = 'text', meta: Record<string, unknown> = {}) {
+    this.emit('sendMessage', { roomId, text, type, meta });
   }
 
   public editMessage(messageId: string, newMessage: string) {

@@ -49,6 +49,8 @@ export interface ApiMessage {
   userId: string | ApiMessageUser;
   roomId: string;
   text: string;
+  type?: string;
+  meta?: Record<string, unknown>;
   edited?: boolean;
   deleted?: boolean;
   createdAt: string;
@@ -203,7 +205,7 @@ export const chatApi = {
     }
   },
 
-  async createMessage(data: { roomId: string; text: string; userId?: string }): Promise<ApiMessage> {
+  async createMessage(data: { roomId: string; text: string; type?: string; meta?: Record<string, unknown>; userId?: string }): Promise<ApiMessage> {
     const res = await api.post<ApiResponse<ApiMessage>>('/messages', data);
     return res.data.data;
   },
@@ -220,7 +222,11 @@ export const chatApi = {
   async uploadAttachment(file: File | Blob, fileName?: string): Promise<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }> {
     const formData = new FormData();
     formData.append('file', file, fileName || (file instanceof File ? file.name : 'attachment'));
-    const res = await api.post<ApiResponse<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }>>('/messages/upload', formData);
+    const res = await api.post<ApiResponse<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }>>('/messages/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data.data;
   },
 

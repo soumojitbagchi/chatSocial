@@ -28,6 +28,7 @@ export interface StoryViewerModalProps {
   onSelectChat?: (roomId: string) => void;
 }
 
+const DURATION_PER_SLIDE = 5000;
 
 export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   deck,

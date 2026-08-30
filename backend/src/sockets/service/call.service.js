@@ -200,6 +200,15 @@ export const handleDisconnect = async (socketId, userId) => {
         endedAt: new Date(),
     });
 
+    const otherId = session.callerId === (userId ? String(userId) : "") ? session.receiverId : session.callerId;
+    const result = {
+        callId: session.callId,
+        callerId: session.callerId,
+        receiverId: session.receiverId,
+        peerId: otherId,
+        reason: "Peer disconnected",
+    };
+
     setCallEnded(session.callId, "Peer disconnected");
     console.log(`[callService] Disconnect cleanup for call [callId=${session.callId}] on socket ${socketId}`);
 

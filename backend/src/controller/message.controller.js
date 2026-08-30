@@ -9,11 +9,15 @@ export const createMessageController = async (req, res) => {
         }
         const roomId = req.body?.roomId;
         const text = req.body?.text ?? req.body?.message;
+        const type = req.body?.type || "text";
+        const meta = req.body?.meta || {};
 
         const message = await messageService.createMessage({
             userId,
             roomId,
             text,
+            type,
+            meta,
         });
         res.status(201).json({ success: true, data: message });
     } catch (error) {
