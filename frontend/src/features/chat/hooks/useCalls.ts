@@ -289,6 +289,10 @@ export function useCalls(): UseCallsReturn {
           callId?: string;
           callerId?: string;
           callerName?: string;
+          callerAvatar?: string;
+          callerUsername?: string;
+          avatar?: string;
+          name?: string;
           type?: 'audio' | 'video';
           callType?: 'audio' | 'video';
         };
@@ -302,14 +306,18 @@ export function useCalls(): UseCallsReturn {
         }
 
         if (data.callId && data.callerId) {
+          const resolvedName = data.callerName || data.name || (data.callerUsername ? `@${data.callerUsername}` : `User ${data.callerId.slice(-4)}`);
+          const resolvedAvatar = data.callerAvatar || data.avatar || '';
+
           setActiveCall({
             callId: data.callId,
             contactId: data.callerId,
-            contactName: data.callerName || `User ${data.callerId.slice(-4)}`,
+            contactName: resolvedName,
+            avatar: resolvedAvatar,
             type: data.type || data.callType || 'audio',
             direction: 'incoming',
             status: 'ringing',
-            statusMessage: 'Incoming call...',
+            statusMessage: `Incoming ${data.type === 'video' || data.callType === 'video' ? 'Video' : 'Audio'} Call...`,
             isMuted: false,
             isVideoOff: false,
           });
@@ -325,9 +333,20 @@ export function useCalls(): UseCallsReturn {
       const current = activeCallRef.current;
       if (!current || current.direction !== 'outgoing') return;
 
-      const data = payload as { callId?: string; participantId?: string; type?: 'audio' | 'video' };
+      const data = payload as {
+        callId?: string;
+        participantId?: string;
+        acceptorName?: string;
+        acceptorAvatar?: string;
+        avatar?: string;
+        name?: string;
+        type?: 'audio' | 'video';
+      };
       const callId = data.callId || current.callId;
       if (!callId) return;
+
+      const resolvedAvatar = data.acceptorAvatar || data.avatar || current.avatar;
+      const resolvedName = data.acceptorName || data.name || current.contactName;
 
       try {
         setActiveCall((prev) =>
@@ -335,12 +354,13 @@ export function useCalls(): UseCallsReturn {
             ? {
                 ...prev,
                 callId,
+                contactName: resolvedName,
+                avatar: resolvedAvatar,
                 status: 'connected',
                 statusMessage: 'Connecting media...',
               }
             : null
         );
-
         await mediaService.initCallMedia({
           callId,
           type: current.type,

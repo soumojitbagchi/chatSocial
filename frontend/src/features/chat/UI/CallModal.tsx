@@ -113,7 +113,7 @@ export const CallModal: React.FC<CallModalProps> = ({
             <ShieldCheck size={13} />
             <span>MEDIASOUP SFU ENCRYPTED</span>
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight mt-2">{contactName}</h2>
+          <h2 className="text-2xl font-bold text-white tracking-tight mt-2">{contactName || 'User'}</h2>
           <p className="text-xs font-mono text-white/80 font-medium">{getSubStatusText()}</p>
         </div>
 
@@ -157,10 +157,10 @@ export const CallModal: React.FC<CallModalProps> = ({
 
               <div className="relative w-28 h-28 rounded-full overflow-hidden ring-4 ring-slate-700/60 shadow-2xl bg-[#181c24] flex items-center justify-center">
                 {avatar ? (
-                  <img src={avatar} alt={contactName} className="w-full h-full object-cover" />
+                  <img src={avatar} alt={contactName || 'Caller'} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-slate-800 flex items-center justify-center text-white font-bold text-3xl">
-                    {contactName.charAt(0).toUpperCase()}
+                    {contactName ? contactName.charAt(0).toUpperCase() : 'U'}
                   </div>
                 )}
               </div>

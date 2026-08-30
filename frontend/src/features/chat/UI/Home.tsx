@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import SidebarRail from './SidebarRail';
 import ChatList from './ChatList';
 import ChatArea from './ChatArea';
@@ -7,10 +7,11 @@ import CallsSection from './CallsSection';
 import StatusSection from './StatusSection';
 import SettingsSection from './SettingsSection';
 import NewChatModal from './NewChatModal';
+import { useAuthContext } from '../../auth/hooks/useAuthContext';
 import CallModal from './CallModal';
 import StoryViewerModal from './StoryViewerModal';
 import EditProfileModal from './EditProfileModal';
-import { useAuthContext } from '../../auth/hooks/useAuthContext';
+import ContactDetailsModal from './ContactDetailsModal';
 import { useChatContext } from '../hooks/useChatContext';
 import '../style/components.css';
 
@@ -21,6 +22,7 @@ export interface HomeProps {
 export const Home: React.FC<HomeProps> = ({ onLogout }) => {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showContactDetailsModal, setShowContactDetailsModal] = useState(false);
   const { user, logout, updateProfile } = useAuthContext();
   const {
     activeTab,
@@ -36,7 +38,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     calls,
     status,
   } = useChatContext();
-  // Fetch fresh backend data only when switching to specific tabs
   const { fetchBackendRooms: fetchRooms, loadBackendMessages: loadMsgs, activeChatId } = chat;
   const { fetchBackendRooms: fetchGroupRooms } = groups;
 
@@ -52,7 +53,63 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
   }, [activeTab, fetchRooms, loadMsgs, activeChatId, fetchGroupRooms]);
 
   const isUserOnline = (userId?: string) => Boolean(userId && socket?.onlineUsers?.includes(userId));
+  const direct1to1Chats = useMemo(() => {
+    return chat.chats.filter((c) => !c.isGroup);
+  }, [chat.chats]);
 
+  const contactListItems = useMemo(() => {
+    const directChats = chat.chats.filter((c) => !c.isGroup);
+    const seenUserIds = new Set<string>();
+    directChats.forEach((c) => {
+      if (c.targetUserId) seenUserIds.add(c.targetUserId);
+    });
+
+    const additionalContacts: typeof directChats = [];
+    if (chat.connections && Array.isArray(chat.connections.contacts)) {
+      chat.connections.contacts.forEach((u) => {
+        if (!seenUserIds.has(u.id)) {
+          seenUserIds.add(u.id);
+          additionalContacts.push({
+            id: u.roomId || u.id,
+            targetUserId: u.id,
+            name: u.name,
+            initials: u.name ? u.name.slice(0, 2).toUpperCase() : 'U',
+            avatar: u.avatar || '',
+            avatarBg: '#475569',
+            lastMessage: u.about || 'Connected contact',
+            time: 'Connected',
+            unread: 0,
+            online: false,
+            isGroup: false,
+            statusText: u.about || 'Available on chatSocial',
+          });
+        }
+      });
+    }
+
+    return [...directChats, ...additionalContacts];
+  }, [chat.chats, chat.connections]);
+
+  const handleSelectDirectUser = useCallback((targetUser: { id?: string; name: string; username?: string; avatar?: string; about?: string; roomId?: string | null }) => {
+    const targetUserId = targetUser.id ? String(targetUser.id) : '';
+    const existingChat = chat.chats.find((c) => !c.isGroup && (c.targetUserId === targetUserId || (targetUser.roomId && c.id === targetUser.roomId)));
+    if (existingChat) {
+      chat.selectChat(existingChat.id);
+      setActiveTab('chats');
+      setMobileChatOpen(true);
+      return;
+    }
+
+    if (targetUser.roomId) {
+      chat.selectChat(targetUser.roomId);
+    } else if (targetUserId) {
+      chat.selectChat(targetUserId);
+    } else {
+      chat.createNewContact(targetUser.name);
+    }
+    setActiveTab('chats');
+    setMobileChatOpen(true);
+  }, [chat, setActiveTab]);
   const handleLogout = () => {
     logout();
     if (onLogout) onLogout();
@@ -68,7 +125,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
 
   return (
     <div className={`cs-app ${theme} ${mobileChatOpen ? 'conversation-open' : ''}`}>
-      {/* 1. Leftmost Vertical Navigation Rail */}
       <SidebarRail
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -79,12 +135,10 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         onToggleTheme={toggleTheme}
       />
 
-      {/* 2. Middle & Right Main Canvas by Active Tab */}
       {activeTab === 'chats' && (
         <>
-          {/* Middle Conversation Sidebar */}
           <ChatList
-            chats={chat.chats}
+            chats={direct1to1Chats}
             recentChats={chat.recentChats}
             activeChatId={chat.activeChatId}
             onSelectChat={(chatId) => {
@@ -118,7 +172,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
                 calls.startCall(targetId, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
-            onOpenDetails={() => setActiveTab('settings')}
+            onOpenDetails={() => setShowContactDetailsModal(true)}
             onBack={() => setMobileChatOpen(false)}
             onNewChat={() => setShowNewChatModal(true)}
             isOnline={isUserOnline ? ((chat.activeChat?.targetUserId ? isUserOnline(chat.activeChat.targetUserId) : false) || isUserOnline(chat.activeChat?.id)) : false}
@@ -131,19 +185,22 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         </>
       )}
 
-      {/* 3. Groups Section View */}
       {activeTab === 'groups' && (
         <GroupsSection
           groups={groups.groups}
+          contacts={chat.chats}
           onSelectGroupChat={(chatId) => {
             chat.selectChat(chatId);
             setActiveTab('chats');
           }}
+          onSelectUser={handleSelectDirectUser}
           onCreateGroup={groups.createGroup}
+          onAddMember={groups.addMember}
+          onRemoveMember={groups.removeMember}
+          onUpdateGroupInfo={groups.updateGroupInfo}
         />
       )}
 
-      {/* 4. Calls Section View */}
       {activeTab === 'calls' && (
         <CallsSection
           calls={calls.calls}
@@ -155,7 +212,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* 5. Status & Stories Section View */}
       {activeTab === 'status' && (
         <StatusSection
           statusUpdates={status.statusUpdates}
@@ -164,7 +220,6 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* 6. Settings & Profile Section View */}
       {(activeTab === 'settings' || activeTab === 'profile') && (
         <SettingsSection
           user={userProfile}
@@ -175,18 +230,22 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         />
       )}
 
-      {/* Contacts view alias */}
       {activeTab === 'contacts' && (
         <>
           <ChatList
             title="Contacts"
-            chats={chat.chats}
+            chats={contactListItems}
             recentChats={chat.recentChats}
             activeChatId={chat.activeChatId}
             onSelectChat={(chatId) => {
-              chat.selectChat(chatId);
+              const selectedContact = contactListItems.find((c) => c.id === chatId || c.targetUserId === chatId);
+              if (selectedContact && selectedContact.id && selectedContact.id !== selectedContact.targetUserId) {
+                chat.selectChat(selectedContact.id);
+              } else {
+                chat.selectChat(chatId);
+              }
               setActiveTab('chats');
-
+              setMobileChatOpen(true);
             }}
             searchQuery={chat.searchQuery}
             setSearchQuery={chat.setSearchQuery}
@@ -195,6 +254,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
               if (recentUser.chatId) {
                 chat.selectChat(recentUser.chatId);
                 setActiveTab('chats');
+                setMobileChatOpen(true);
               }
             }}
             isUserOnline={isUserOnline}
@@ -216,7 +276,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
                 calls.startCall(targetId, chat.activeChat.name, callType, chat.activeChat.avatar);
               }
             }}
-            onOpenDetails={() => setActiveTab('settings')}
+            onOpenDetails={() => setShowContactDetailsModal(true)}
             onNewChat={() => setShowNewChatModal(true)}
             isOnline={isUserOnline ? ((chat.activeChat?.targetUserId ? isUserOnline(chat.activeChat.targetUserId) : false) || isUserOnline(chat.activeChat?.id)) : false}
             onDeleteMessage={chat.deleteMessage}
@@ -228,11 +288,11 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
         </>
       )}
 
-      {/* 7. Interactive Modals */}
       {showNewChatModal && (
         <NewChatModal
           contacts={chat.chats}
           onSelectContact={chat.selectChat}
+          onSelectUserProfile={handleSelectDirectUser}
           onClose={() => setShowNewChatModal(false)}
           onCreateNewContact={chat.createNewContact}
           onRefreshChats={chat.fetchBackendRooms}
@@ -274,6 +334,27 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           onSave={async (updated) => {
             await updateProfile(updated);
           }}
+        />
+      )}
+
+      {showContactDetailsModal && chat.activeChat && (
+        <ContactDetailsModal
+          isOpen={showContactDetailsModal}
+          onClose={() => setShowContactDetailsModal(false)}
+          contact={chat.activeChat}
+          contacts={chat.chats}
+          isOnline={isUserOnline ? ((chat.activeChat.targetUserId ? isUserOnline(chat.activeChat.targetUserId) : false) || isUserOnline(chat.activeChat.id)) : false}
+          onStartCall={(callType) => {
+            const targetId = chat.activeChat?.targetUserId || chat.activeChat?.id;
+            if (targetId && chat.activeChat) {
+              calls.startCall(targetId, chat.activeChat.name, callType, chat.activeChat.avatar);
+            }
+          }}
+          onDeleteChat={chat.deleteChat}
+          onSelectUser={handleSelectDirectUser}
+          onAddMember={groups.addMember}
+          onRemoveMember={groups.removeMember}
+          onUpdateGroupInfo={groups.updateGroupInfo}
         />
       )}
     </div>
