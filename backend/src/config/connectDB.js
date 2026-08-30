@@ -1,11 +1,22 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
+import dotenv from "dotenv";
 
-const connectDB = async ()=>{
-    await mongoose.connect(process.env.MONGO_URI).then(()=>{
-        console.log("Connected to MongoDB")
-    }).catch((err)=>{
-        console.log(err)
-    })
+if (!process.env.MONGO_URI) {
+    dotenv.config();
+    if (!process.env.MONGO_URI) {
+        dotenv.config({ path: "backend/.env" });
+    }
 }
 
-export default connectDB
+const connectDB = async () => {
+    const uri = process.env.MONGO_URI || "mongodb://localhost:27017/chatSocial";
+    try {
+        await mongoose.connect(uri);
+        console.log("Connected to MongoDB");
+    } catch (err) {
+        console.error("MongoDB connection error:", err);
+        throw err;
+    }
+};
+
+export default connectDB;
