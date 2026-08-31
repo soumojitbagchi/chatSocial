@@ -30,6 +30,8 @@ export interface UseChatReturn {
   fetchBackendRooms: () => Promise<void>;
   connections: ConnectionsData;
   fetchConnections: () => Promise<void>;
+  acceptConnectionRequest: (targetUserId: string) => Promise<{ success: boolean; message: string; status: string; room?: ApiRoom }>;
+  rejectConnectionRequest: (targetUserId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const mapApiMessageToChatMessage = (m: ApiMessage, currentUserId?: string | null): ChatMessage => {
@@ -97,9 +99,19 @@ export function useChat(): UseChatReturn {
           ? backendMsgs.slice(-50).map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId))
           : [];
 
+        // Deduplicate by message ID
+        const seen = new Set<string>();
+        const deduped: ChatMessage[] = [];
+        for (const m of mappedMsgs) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            deduped.push(m);
+          }
+        }
+
         setMessages((prev) => ({
           ...prev,
-          [roomId]: mappedMsgs,
+          [roomId]: deduped,
         }));
         setRoomPageMap((prev) => ({ ...prev, [roomId]: 1 }));
         setHasMoreMap((prev) => ({ ...prev, [roomId]: Array.isArray(backendMsgs) && backendMsgs.length >= 50 }));
@@ -190,7 +202,7 @@ export function useChat(): UseChatReturn {
               time: new Date(lastMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
           }
-        } catch {}
+        } catch { }
         return null;
       });
 
@@ -349,14 +361,26 @@ export function useChat(): UseChatReturn {
           ? backendMsgs.slice(-50).map((m: ApiMessage) => mapApiMessageToChatMessage(m, currentUserId))
           : [];
 
+        const seen = new Set<string>();
+        const deduped: ChatMessage[] = [];
+        for (const m of mappedMsgs) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            deduped.push(m);
+          }
+        }
+
         setMessages((prev) => {
           const current = prev[activeChatId] || [];
-          if (current.length === mappedMsgs.length && current.every((c, i) => c.id === mappedMsgs[i]?.id && c.text === mappedMsgs[i]?.text)) {
+          const pendingOptimistic = current.filter((m) => m.id.startsWith('msg-') && !seen.has(m.id));
+          const finalMsgs = [...deduped, ...pendingOptimistic].slice(-50);
+
+          if (current.length === finalMsgs.length && current.every((c, i) => c.id === finalMsgs[i]?.id && c.text === finalMsgs[i]?.text)) {
             return prev;
           }
           return {
             ...prev,
-            [activeChatId]: mappedMsgs,
+            [activeChatId]: finalMsgs,
           };
         });
         setRoomPageMap((prev) => ({ ...prev, [activeChatId]: 1 }));
@@ -527,13 +551,31 @@ export function useChat(): UseChatReturn {
       }
     });
 
+    const unbindConnReceived = socketService.on('connection:received', () => {
+      void fetchConnections();
+    });
+    const unbindConnRequest = socketService.on('connection:request', () => {
+      void fetchConnections();
+    });
+    const unbindConnAccepted = socketService.on('connection:accepted', () => {
+      void fetchConnections();
+      void fetchBackendRooms();
+    });
+    const unbindConnRejected = socketService.on('connection:rejected', () => {
+      void fetchConnections();
+    });
+
     return () => {
       unbindReceive();
       unbindList();
       unbindUpdated();
       unbindDeleted();
+      unbindConnReceived();
+      unbindConnRequest();
+      unbindConnAccepted();
+      unbindConnRejected();
     };
-  }, [currentUserId]);
+  }, [currentUserId, fetchConnections, fetchBackendRooms]);
 
   const selectChat = useCallback(
     (id: string) => {
@@ -597,27 +639,29 @@ export function useChat(): UseChatReturn {
         };
       });
 
-      socketService.sendMessage(activeChatId, cleanText, type, meta);
-
-      // Persist to REST API to guarantee database sync & real ID assignment
-      chatApi.createMessage({
-        roomId: activeChatId,
-        text: cleanText,
-        type,
-        meta,
-      }).then((saved) => {
-        if (saved && saved._id) {
-          setMessages((prev) => {
-            const list = prev[activeChatId] || [];
-            return {
-              ...prev,
-              [activeChatId]: list.map((m) => (m.id === tempId ? { ...m, id: saved._id } : m)),
-            };
-          });
-        }
-      }).catch((err) => {
-        console.warn('REST createMessage sync error:', err);
-      });
+      if (socketService.isConnected()) {
+        socketService.sendMessage(activeChatId, cleanText, type, meta);
+      } else {
+        // Fallback to REST API only when socket is disconnected
+        chatApi.createMessage({
+          roomId: activeChatId,
+          text: cleanText,
+          type,
+          meta,
+        }).then((saved) => {
+          if (saved && saved._id) {
+            setMessages((prev) => {
+              const list = prev[activeChatId] || [];
+              return {
+                ...prev,
+                [activeChatId]: list.map((m) => (m.id === tempId ? { ...m, id: saved._id } : m)),
+              };
+            });
+          }
+        }).catch((err) => {
+          console.warn('REST createMessage fallback notice:', err);
+        });
+      }
 
       const computedMediaType: ChatItem['mediaType'] =
         type === 'photo' ? 'photo' : type === 'document' ? 'document' : undefined;
@@ -662,7 +706,7 @@ export function useChat(): UseChatReturn {
       socketService.editMessage(messageId, text);
       try {
         await chatApi.updateMessage(messageId, { text });
-      } catch {}
+      } catch { }
     },
     [activeChatId]
   );
@@ -855,6 +899,41 @@ export function useChat(): UseChatReturn {
     },
     [activeChatId]
   );
+  const acceptConnectionRequest = useCallback(
+    async (targetUserId: string) => {
+      try {
+        const res = await chatApi.acceptConnectionRequest(targetUserId);
+        await fetchConnections();
+        await fetchBackendRooms();
+        socketService.emit('connection:accepted', { targetUserId });
+        if (res.room?._id || res.room?.id) {
+          const roomId = String(res.room._id || res.room.id);
+          selectChat(roomId);
+        }
+        return res;
+      } catch (err) {
+        console.warn('Failed to accept connection request:', err);
+        throw err;
+      }
+    },
+    [fetchConnections, fetchBackendRooms, selectChat]
+  );
+
+  const rejectConnectionRequest = useCallback(
+    async (targetUserId: string) => {
+      try {
+        const res = await chatApi.rejectConnectionRequest(targetUserId);
+        await fetchConnections();
+        socketService.emit('connection:rejected', { targetUserId });
+        return res;
+      } catch (err) {
+        console.warn('Failed to reject connection request:', err);
+        throw err;
+      }
+    },
+    [fetchConnections]
+  );
+
 
   return {
     chats,
@@ -880,6 +959,8 @@ export function useChat(): UseChatReturn {
     fetchBackendRooms,
     connections,
     fetchConnections,
+    acceptConnectionRequest,
+    rejectConnectionRequest,
   };
 }
 

@@ -156,6 +156,10 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             isUserOnline={isUserOnline}
             onDeleteChat={chat.deleteChat}
+            pendingIncomingCount={chat.connections?.pendingIncoming?.length || 0}
+            pendingIncomingRequests={chat.connections?.pendingIncoming || []}
+            onAcceptRequest={chat.acceptConnectionRequest}
+            onRejectRequest={chat.rejectConnectionRequest}
           />
           <ChatArea
             activeChat={chat.activeChat}
@@ -265,6 +269,10 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
             }}
             isUserOnline={isUserOnline}
             onDeleteChat={chat.deleteChat}
+            pendingIncomingCount={chat.connections?.pendingIncoming?.length || 0}
+            pendingIncomingRequests={chat.connections?.pendingIncoming || []}
+            onAcceptRequest={chat.acceptConnectionRequest}
+            onRejectRequest={chat.rejectConnectionRequest}
           />
 
           <ChatArea
@@ -302,6 +310,7 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           onClose={() => setShowNewChatModal(false)}
           onCreateNewContact={chat.createNewContact}
           onRefreshChats={chat.fetchBackendRooms}
+          pendingIncomingRequests={chat.connections?.pendingIncoming || []}
         />
       )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search,
   Phone,
@@ -207,6 +207,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const addReaction = (msgId: string, emoji: string) => {
     console.log(`Reacted ${emoji} to msg ${msgId}`);
   };
+
+  const renderedMessages = useMemo(() => {
+    const seen = new Set<string>();
+    return messages.filter((m) => {
+      const key = m.id || `${m.sender}-${m.time}-${m.text}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [messages]);
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'media' | 'doc') => {
     const file = e.target.files?.[0];
@@ -426,7 +436,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </button>
           </div>
         )}
-        {messages.length === 0 && (
+        {renderedMessages.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto text-slate-400 select-none">
             <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 shadow-sm">
               <MessageSquare size={22} />
@@ -435,7 +445,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <p className="text-xs text-slate-400 mt-1 max-w-xs">Type a message below and hit send to start the conversation on the server!</p>
           </div>
         )}
-        {messages.map((msg) => {
+        {renderedMessages.map((msg) => {
           if (msg.type === 'date') {
             return (
               <div key={msg.id} className="cs-date-pill-wrap">

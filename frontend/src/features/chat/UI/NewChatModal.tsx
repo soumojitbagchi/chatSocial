@@ -9,17 +9,17 @@ export interface NewChatModalProps {
   onSelectUserProfile?: (user: UserProfileResult) => void;
   onCreateNewContact?: (name: string) => void;
   onRefreshChats?: () => Promise<void>;
+  pendingIncomingRequests?: UserProfileResult[];
 }
-
 export const NewChatModal: React.FC<NewChatModalProps> = ({
   contacts,
   onSelectContact,
   onClose,
   onSelectUserProfile,
   onCreateNewContact,
-  onRefreshChats
+  onRefreshChats,
+  pendingIncomingRequests = [],
 }) => {
-  const [activeTab, setActiveTab] = useState<'discover' | 'custom'>('discover');
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfileResult[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -27,6 +27,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   const [customName, setCustomName] = useState('');
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const searchInputId = useId();
+  const [activeTab, setActiveTab] = useState<'discover' | 'custom'>('discover');
 
   // Search users from backend database (debounced)
   const performSearch = useCallback(async (query: string) => {
@@ -194,6 +195,64 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
 
         {/* User Profiles List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {pendingIncomingRequests && pendingIncomingRequests.length > 0 && (
+            <div className="mb-3 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-rose-500/10 border border-indigo-500/30 dark:border-indigo-500/40 shadow-xs space-y-2.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                <span className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Incoming Requests ({pendingIncomingRequests.length})
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {pendingIncomingRequests.map((reqUser) => {
+                  const isActionLoading = actionLoadingId === reqUser.id;
+                  return (
+                    <div
+                      key={reqUser.id}
+                      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 font-bold text-white text-xs flex items-center justify-center shrink-0">
+                          {reqUser.avatar ? (
+                            <img src={reqUser.avatar} alt={reqUser.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-slate-700 dark:text-slate-200">{reqUser.name.slice(0, 2).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">{reqUser.name}</h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">@{reqUser.username}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={isActionLoading}
+                          onClick={() => handleAcceptRequest(reqUser.id)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check size={13} strokeWidth={2.5} />
+                          <span>Accept</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isActionLoading}
+                          onClick={() => handleRejectRequest(reqUser.id)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
+                          title="Decline"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {searchResults.length === 0 && !isLoadingUsers ? (
             <div className="text-center py-10 space-y-3">
               <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">

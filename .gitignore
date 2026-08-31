@@ -5,6 +5,8 @@ node_modules
 dist
 build
 DEPLOYMENT.md
+ARCHITECTURE.md
+TECH_STACK.md
 
 # Test files & test scripts
 test-*.js

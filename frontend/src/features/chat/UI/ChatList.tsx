@@ -13,8 +13,10 @@ import {
   UserPlus,
   Users,
   Archive,
-  MessageSquare
+  MessageSquare,
+  Check
 } from 'lucide-react';
+import { UserProfileResult } from '../api/chatApi';
 import '../style/components.css';
 
 export interface ChatItem {
@@ -61,8 +63,11 @@ export interface ChatListProps {
   onSelectRecentUser?: (user: RecentChatUser) => void;
   isUserOnline?: (userId?: string) => boolean;
   onDeleteChat?: (chatId: string) => void;
+  pendingIncomingCount?: number;
+  pendingIncomingRequests?: UserProfileResult[];
+  onAcceptRequest?: (targetUserId: string) => Promise<void>;
+  onRejectRequest?: (targetUserId: string) => Promise<void>;
 }
-
 export const ChatList: React.FC<ChatListProps> = ({
   title = 'Chats',
   chats,
@@ -74,7 +79,11 @@ export const ChatList: React.FC<ChatListProps> = ({
   onNewChat,
   onSelectRecentUser,
   isUserOnline,
-  onDeleteChat: _onDeleteChat
+  onDeleteChat: _onDeleteChat,
+  pendingIncomingCount = 0,
+  pendingIncomingRequests = [],
+  onAcceptRequest,
+  onRejectRequest,
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'groups' | 'pinned'>('all');
   const [showMenu, setShowMenu] = useState(false);
@@ -103,14 +112,21 @@ export const ChatList: React.FC<ChatListProps> = ({
           </h2>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onNewChat}
-              className="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 flex items-center justify-center shadow-sm transition-transform active:scale-95 cursor-pointer"
-              title="New Chat"
-              aria-label="New Chat"
-            >
-              <Plus size={18} strokeWidth={2.5} />
-            </button>
+            <div className="relative">
+              <button
+                onClick={onNewChat}
+                className="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 flex items-center justify-center shadow-sm transition-transform active:scale-95 cursor-pointer relative"
+                title={pendingIncomingCount > 0 ? `${pendingIncomingCount} pending connection request(s)` : 'New Chat & Connect'}
+                aria-label="New Chat"
+              >
+                <Plus size={18} strokeWidth={2.5} />
+                {pendingIncomingCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white dark:ring-[#12151b] shadow-sm animate-pulse">
+                    {pendingIncomingCount}
+                  </span>
+                )}
+              </button>
+            </div>
 
             <div className="relative">
               <button
@@ -176,6 +192,77 @@ export const ChatList: React.FC<ChatListProps> = ({
       </div>
 
       <div className="cs-sidebar-scroll">
+        {pendingIncomingRequests && pendingIncomingRequests.length > 0 && (
+          <div className="p-3 mx-2 my-2 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-rose-500/10 border border-indigo-500/30 dark:border-indigo-500/40 shadow-sm space-y-2.5 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                <span className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Connection Requests ({pendingIncomingRequests.length})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onNewChat}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {pendingIncomingRequests.slice(0, 3).map((reqUser) => (
+                <div
+                  key={reqUser.id}
+                  className="p-2.5 rounded-xl bg-white dark:bg-[#161922] border border-slate-200/80 dark:border-[#222734] flex items-center justify-between gap-2.5 shadow-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="relative w-9 h-9 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 font-bold text-white text-xs flex items-center justify-center shrink-0">
+                      {reqUser.avatar ? (
+                        <img src={reqUser.avatar} alt={reqUser.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-slate-700 dark:text-slate-200">{reqUser.name.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate leading-tight">
+                        {reqUser.name}
+                      </h4>
+                      <p className="text-[10.5px] text-slate-500 dark:text-slate-400 truncate">
+                        @{reqUser.username}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onAcceptRequest && (
+                      <button
+                        type="button"
+                        onClick={() => onAcceptRequest(reqUser.id)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center gap-1"
+                        title="Accept Connection"
+                      >
+                        <Check size={12} strokeWidth={3} />
+                        <span>Accept</span>
+                      </button>
+                    )}
+                    {onRejectRequest && (
+                      <button
+                        type="button"
+                        onClick={() => onRejectRequest(reqUser.id)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
+                        title="Decline"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="cs-recent-section">
           <div className="flex items-center justify-between px-4 mb-2.5">
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight">
