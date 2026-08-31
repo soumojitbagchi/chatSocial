@@ -19,7 +19,9 @@ export interface AuthResponse {
   token: string;
 }
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
 
 export const api = axios.create({
   baseURL: API_BASE,

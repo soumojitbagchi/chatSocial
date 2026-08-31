@@ -15,7 +15,16 @@ const startServer = async () => {
         const httpServer = createServer(app);
         const io = new Server(httpServer, {
             cors: {
-                origin: process.env.CLIENT_URL || "http://localhost:5173",
+                origin: function (origin, callback) {
+                    const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+                        .split(",")
+                        .map((s) => s.trim());
+                    if (!origin || allowedOrigins.includes(origin)) {
+                        callback(null, true);
+                    } else {
+                        callback(new Error("Not allowed by CORS"));
+                    }
+                },
                 credentials: true,
             },
         });
