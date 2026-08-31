@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install --omit=optional
     startCommand: npm start
     envVars:
       - key: NODE_ENV

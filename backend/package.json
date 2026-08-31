@@ -25,10 +25,13 @@
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
-    "mediasoup": "^3.26.0",
     "mongoose": "^9.9.3",
     "multer": "^2.3.0",
-    "redis": "^6.2.1",
     "socket.io": "^4.8.3"
+  },
+  "optionalDependencies": {
+    "mediasoup": "^3.26.0",
+    "redis": "^6.2.1"
   }
 }
+

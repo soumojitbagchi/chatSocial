@@ -1,4 +1,10 @@
-import mediasoup from "mediasoup";
+let mediasoup = null;
+try {
+    mediasoup = (await import("mediasoup")).default;
+} catch {
+    console.warn("[mediasoup] Module not available — SFU calling features are disabled. Install mediasoup to enable.");
+}
+
 import { mediasoupConfig } from "../../config/mediasoup.config.js";
 
 /**
@@ -9,10 +15,19 @@ const workers = [];
 let nextWorkerIdx = 0;
 let initPromise = null;
 
+const ensureMediasoup = () => {
+    if (!mediasoup) {
+        const err = new Error("mediasoup is not installed — SFU calling is unavailable in this deployment");
+        err.code = "MEDIASOUP_UNAVAILABLE";
+        throw err;
+    }
+};
+
 /**
  * Initialize all mediasoup workers configured in mediasoupConfig
  */
 export const initMediasoupWorkers = async () => {
+    ensureMediasoup();
     if (workers.length > 0) {
         return workers;
     }
@@ -69,6 +84,7 @@ export const initMediasoupWorkers = async () => {
  * Get next available Worker (round-robin)
  */
 export const getMediasoupWorker = async () => {
+    ensureMediasoup();
     if (workers.length === 0) {
         await initMediasoupWorkers();
     }
@@ -94,6 +110,11 @@ export const createMediasoupRouter = async () => {
 };
 
 /**
+ * Check if mediasoup is available
+ */
+export const isMediasoupAvailable = () => !!mediasoup;
+
+/**
  * Close and clean up all workers (e.g. during server shutdown)
  */
 export const closeMediasoupWorkers = () => {
@@ -115,4 +136,6 @@ export default {
     getMediasoupWorker,
     createMediasoupRouter,
     closeMediasoupWorkers,
+    isMediasoupAvailable,
 };
+
