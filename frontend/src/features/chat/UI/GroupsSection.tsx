@@ -585,7 +585,7 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({
                   onClick={() => groupAvatarInputRef.current?.click()}
                   className="text-xs font-bold text-slate-900 dark:text-white underline hover:opacity-80 cursor-pointer"
                 >
-                  {isUploadingGroupAvatar ? 'Uploading to ImageKit...' : 'Upload Group Avatar'}
+                  {isUploadingGroupAvatar ? 'Uploading...' : 'Upload Group Avatar'}
                 </button>
                 <p className="text-[10.5px] text-slate-400">PNG, JPG, WebP up to 5MB</p>
               </div>

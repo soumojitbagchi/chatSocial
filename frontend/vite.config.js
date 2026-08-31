@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://chatsocial.onrender.com',
         changeOrigin: true,
         secure: false,
         configure: (proxy) => {
@@ -29,7 +29,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'http://localhost:8080',
+        target: 'https://chatsocial.onrender.com',
         ws: true,
         changeOrigin: true,
       },

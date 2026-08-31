@@ -130,7 +130,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [uploadFileName, setUploadFileName] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
@@ -214,7 +213,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (!file) return;
     setShowAttachMenu(false);
     setIsUploadingFile(true);
-    setUploadFileName(file.name);
     setUploadError(null);
 
     try {
@@ -253,7 +251,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       setTimeout(() => setUploadError(null), 4000);
     } finally {
       setIsUploadingFile(false);
-      setUploadFileName('');
       if (e.target) e.target.value = '';
     }
   };
@@ -847,7 +844,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <div className="px-4 py-2 bg-emerald-500/10 border-t border-emerald-500/20 flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
           <div className="flex items-center gap-2 font-medium">
             <Loader2 size={14} className="animate-spin" />
-            <span>Uploading {uploadFileName} to cloud...</span>
+            <span>Uploading...</span>
           </div>
         </div>
       )}

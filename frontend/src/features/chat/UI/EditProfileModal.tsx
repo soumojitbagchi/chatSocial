@@ -187,7 +187,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   {isUploadingAvatar ? (
                     <>
                       <Loader2 size={11} className="animate-spin" />
-                      <span>Uploading ...</span>
+                      <span>Uploading...</span>
                     </>
                   ) : (
                     <>

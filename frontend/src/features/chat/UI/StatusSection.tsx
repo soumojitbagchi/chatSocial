@@ -692,7 +692,7 @@ export const StatusSection: React.FC<StatusSectionProps> = ({
                 {isSubmitting || isUploading ? (
                   <>
                     <Loader2 size={15} className="animate-spin" />
-                    <span>Uploading Status...</span>
+                    <span>Uploading...</span>
                   </>
                 ) : (
                   <>
