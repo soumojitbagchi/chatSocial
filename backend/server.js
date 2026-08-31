@@ -13,17 +13,35 @@ const startServer = async () => {
         await connectDB();
 
         const httpServer = createServer(app);
+        const isAllowedOrigin = (origin) => {
+            if (!origin) return true;
+            const cleanOrigin = origin.replace(/\/+$/, "").toLowerCase();
+
+            if (cleanOrigin.startsWith("http://localhost:") || cleanOrigin.startsWith("http://127.0.0.1:")) {
+                return true;
+            }
+            if (cleanOrigin.endsWith(".vercel.app") || cleanOrigin.includes("vercel.app")) {
+                return true;
+            }
+            if (cleanOrigin.endsWith(".onrender.com") || cleanOrigin.includes("onrender.com")) {
+                return true;
+            }
+
+            const allowedOrigins = (process.env.CLIENT_URL || "")
+                .split(",")
+                .map((s) => s.trim().replace(/\/+$/, "").toLowerCase())
+                .filter(Boolean);
+
+            return allowedOrigins.includes(cleanOrigin);
+        };
+
         const io = new Server(httpServer, {
             cors: {
                 origin: function (origin, callback) {
-                    const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
-                        .split(",")
-                        .map((s) => s.trim());
-                    if (!origin || allowedOrigins.includes(origin)) {
-                        callback(null, true);
-                    } else {
-                        callback(new Error("Not allowed by CORS"));
+                    if (isAllowedOrigin(origin)) {
+                        return callback(null, true);
                     }
+                    return callback(new Error("Not allowed by CORS"));
                 },
                 credentials: true,
             },

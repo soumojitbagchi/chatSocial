@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express"
 import authRoutes from "./routes/auth.routes.js"
 import roomRoutes from "./routes/room.routes.js"
@@ -13,19 +15,44 @@ const app = express()
 
 app.use(express.json());
 app.use(cookieParser())
-app.use(cors({
+const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
+    const cleanOrigin = origin.replace(/\/+$/, "").toLowerCase();
+    if (cleanOrigin.startsWith("http://localhost:") || cleanOrigin.startsWith("http://127.0.0.1:")) {
+        return true;
+    }
+    if (cleanOrigin.endsWith(".vercel.app") || cleanOrigin.includes("vercel.app")) {
+        return true;
+    }
+    if (cleanOrigin.endsWith(".onrender.com") || cleanOrigin.includes("onrender.com")) {
+        return true;
+    }
+    const allowedOrigins = (process.env.CLIENT_URL || "")
+        .split(",")
+        .map((s) => s.trim().replace(/\/+$/, "").toLowerCase())
+        .filter(Boolean);
+
+    if (allowedOrigins.includes(cleanOrigin)) {
+        return true;
+    }
+
+    return false;
+};
+
+const corsOptions = {
     origin: function (origin, callback) {
-        const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
-            .split(",")
-            .map((s) => s.trim());
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
+        if (isAllowedOrigin(origin)) {
+            return callback(null, true);
         }
+        return callback(null, false);
     },
-    credentials: true
-}))
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With", "Accept"],
+    exposedHeaders: ["Set-Cookie"],
+};
+
+app.use(cors(corsOptions));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
