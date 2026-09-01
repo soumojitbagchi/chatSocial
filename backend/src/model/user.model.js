@@ -94,6 +94,27 @@ const userSchema = new mongoose.Schema({
         lowercase: true,
         trim: true,
     },
+    isEmailVerified: {
+        type: Boolean,
+        default: false,
+    },
+    emailVerificationToken: {
+        type: String,
+        default: null,
+        index: true,
+    },
+    emailVerificationExpires: {
+        type: Date,
+        default: null,
+    },
+    emailOtp: {
+        type: String,
+        default: null,
+    },
+    emailOtpExpires: {
+        type: Date,
+        default: null,
+    },
     username: {
         type: String,
         required: true,

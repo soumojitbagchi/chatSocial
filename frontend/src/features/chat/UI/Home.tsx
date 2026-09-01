@@ -90,26 +90,57 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     return [...directChats, ...additionalContacts];
   }, [chat.chats, chat.connections]);
 
-  const handleSelectDirectUser = useCallback((targetUser: { id?: string; name: string; username?: string; avatar?: string; about?: string; roomId?: string | null }) => {
-    const targetUserId = targetUser.id ? String(targetUser.id) : '';
-    const existingChat = chat.chats.find((c) => !c.isGroup && (c.targetUserId === targetUserId || (targetUser.roomId && c.id === targetUser.roomId)));
-    if (existingChat) {
-      chat.selectChat(existingChat.id);
+  const handleSelectDirectUser = useCallback(
+    async (targetUser: { id?: string; name: string; username?: string; avatar?: string; about?: string; roomId?: string | null }) => {
+      const targetUserId = targetUser.id ? String(targetUser.id) : '';
+      const currentUserId = user?.id || user?._id || '';
+
+      const existingChat = chat.chats.find(
+        (c) => !c.isGroup && (c.targetUserId === targetUserId || (targetUser.roomId && c.id === targetUser.roomId))
+      );
+      if (existingChat) {
+        chat.selectChat(existingChat.id);
+        setActiveTab('chats');
+        setMobileChatOpen(true);
+        return;
+      }
+
+      if (targetUser.roomId) {
+        chat.selectChat(targetUser.roomId);
+        setActiveTab('chats');
+        setMobileChatOpen(true);
+        return;
+      }
+
+      if (targetUserId && currentUserId) {
+        try {
+          const directRoomName = `direct_${[currentUserId.toString(), targetUserId].sort().join('_')}`;
+          const room = await chatApi.createRoom({
+            roomname: directRoomName,
+            description: `Direct conversation with ${targetUser.name || 'User'}`,
+            isPrivate: true,
+            members: [currentUserId.toString(), targetUserId],
+            avatar: targetUser.avatar || '',
+          });
+          const validRoomId = room._id || room.id;
+          await chat.fetchBackendRooms();
+          if (validRoomId) {
+            chat.selectChat(validRoomId);
+          }
+        } catch {
+          if (targetUser.name) {
+            await chat.createNewContact(targetUser.name);
+          }
+        }
+      } else if (targetUser.name) {
+        await chat.createNewContact(targetUser.name);
+      }
+
       setActiveTab('chats');
       setMobileChatOpen(true);
-      return;
-    }
-
-    if (targetUser.roomId) {
-      chat.selectChat(targetUser.roomId);
-    } else if (targetUserId) {
-      chat.selectChat(targetUserId);
-    } else {
-      chat.createNewContact(targetUser.name);
-    }
-    setActiveTab('chats');
-    setMobileChatOpen(true);
-  }, [chat, setActiveTab]);
+    },
+    [chat, setActiveTab, user]
+  );
   const handleLogout = () => {
     logout();
     if (onLogout) onLogout();

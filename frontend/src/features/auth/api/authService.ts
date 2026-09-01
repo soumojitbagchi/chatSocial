@@ -223,6 +223,23 @@ export const authService = {
       }
     }
   },
+
+  async sendVerificationEmail(email?: string): Promise<{ success: boolean; message: string }> {
+    const res = await api.post<{ success: boolean; message: string }>('/auth/send-verification', { email });
+    return res.data;
+  },
+
+  async verifyEmail(data: { token?: string; otp?: string; email?: string }): Promise<{ success: boolean; message: string; user?: User }> {
+    const res = await api.post<{ success: boolean; message: string; user?: User }>('/auth/verify-email', data);
+    if (res.data.success && res.data.user) {
+      const userObj: User = {
+        ...res.data.user,
+        id: String(res.data.user.id || res.data.user._id || ''),
+      };
+      localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
+    }
+    return res.data;
+  },
 };
 
 export default authService;

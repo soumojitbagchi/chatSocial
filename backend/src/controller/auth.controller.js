@@ -1,7 +1,8 @@
 import userData from "../model/user.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
+import crypto from "crypto";
+import { sendVerificationEmail, sendWelcomeEmail } from "../service/email.service.js";
 const DUMMY_HASH = "$2b$10$wT8mQ0K6W9U0g6iFq7D0NuF7UaL/4xU0rR2jXj3jM9jI2FvC.XfK2";
 
 export const login = async (req, res) => {
@@ -115,13 +116,28 @@ export const register = async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationToken = crypto.randomBytes(32).toString("hex");
+        const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
         const user = await userData.create({
             email: cleanEmail,
             password: hashedPassword,
             username: cleanUsername,
-            name: cleanName
+            name: cleanName,
+            isEmailVerified: false,
+            emailVerificationToken: verificationToken,
+            emailVerificationExpires,
+            emailOtp,
+            emailOtpExpires: emailVerificationExpires,
         });
 
+        void sendVerificationEmail({
+            to: user.email,
+            name: user.name,
+            verificationToken,
+            otp: emailOtp,
+        });
         if (!process.env.JWT_KEY) {
             throw new Error("JWT_KEY environment variable is not defined");
         }
@@ -148,11 +164,11 @@ export const register = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 username: user.username,
+                isEmailVerified: false,
                 avatar: user.avatar || "",
                 about: user.about || "",
                 phone: user.phone || "",
             },
-            token
         });
     } catch (error) {
         console.error("Register error:", error);
@@ -205,4 +221,111 @@ export const logout = async (req, res) => {
     }
 };
 
-export default { login, register, getMe, logout };
+
+export const sendVerificationEmailController = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+        const targetEmail = req.body?.email ? req.body.email.trim().toLowerCase() : null;
+
+        let user = null;
+        if (userId) {
+            user = await userData.findById(userId);
+        } else if (targetEmail) {
+            user = await userData.findOne({ email: targetEmail });
+        }
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(400).json({ success: false, message: "Email is already verified" });
+        }
+
+        const verificationToken = crypto.randomBytes(32).toString("hex");
+        const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+        user.emailVerificationToken = verificationToken;
+        user.emailVerificationExpires = emailVerificationExpires;
+        user.emailOtp = emailOtp;
+        user.emailOtpExpires = emailVerificationExpires;
+        await user.save();
+
+        void sendVerificationEmail({
+            to: user.email,
+            name: user.name,
+            verificationToken,
+            otp: emailOtp,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Verification code sent to your email",
+        });
+    } catch (error) {
+        console.error("sendVerificationEmailController error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to send verification email" });
+    }
+};
+
+export const verifyEmailController = async (req, res) => {
+    try {
+        const token = req.body?.token || req.query?.token;
+        const otp = req.body?.otp ? req.body.otp.toString().trim() : null;
+        const email = req.body?.email ? req.body.email.trim().toLowerCase() : null;
+        const userId = req.user?.id || req.user?._id;
+
+        let user = null;
+
+        if (token) {
+            user = await userData.findOne({
+                emailVerificationToken: token,
+                emailVerificationExpires: { $gt: new Date() },
+            });
+        } else if (otp) {
+            const query = {
+                emailOtp: otp,
+                emailOtpExpires: { $gt: new Date() },
+            };
+            if (userId) query._id = userId;
+            else if (email) query.email = email;
+            user = await userData.findOne(query);
+        }
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired verification code / link",
+            });
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationToken = null;
+        user.emailVerificationExpires = null;
+        user.emailOtp = null;
+        user.emailOtpExpires = null;
+        await user.save();
+
+        void sendWelcomeEmail({ to: user.email, name: user.name });
+
+        return res.status(200).json({
+            success: true,
+            message: "Email verified successfully!",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                username: user.username,
+                isEmailVerified: true,
+                avatar: user.avatar || "",
+                about: user.about || "",
+            },
+        });
+    } catch (error) {
+        console.error("verifyEmailController error:", error);
+        return res.status(500).json({ success: false, message: error.message || "Failed to verify email" });
+    }
+};
+
+export default { login, register, getMe, logout, sendVerificationEmailController, verifyEmailController };

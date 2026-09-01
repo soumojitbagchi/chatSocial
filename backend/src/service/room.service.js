@@ -4,9 +4,25 @@ export const createRoom = async ({ roomname, description = "", createdBy = null,
     if (!roomname || !roomname.trim()) {
         throw new Error("Room name is required");
     }
-    const isAlreadyExists = await Room.findOne({ roomname: roomname.trim() });
-    if (isAlreadyExists) {
-        return isAlreadyExists;
+    const cleanRoomName = roomname.trim();
+    const isDirectRoom = Boolean(isDirect || cleanRoomName.startsWith("direct_"));
+
+    const existingRoom = await Room.findOne({ roomname: cleanRoomName });
+    if (existingRoom) {
+        if (Array.isArray(members) && members.length > 0) {
+            let updated = false;
+            members.forEach((m) => {
+                const mStr = m?.toString?.();
+                if (mStr && !existingRoom.members.some((em) => em?.toString?.() === mStr)) {
+                    existingRoom.members.push(m);
+                    updated = true;
+                }
+            });
+            if (updated) {
+                await existingRoom.save();
+            }
+        }
+        return existingRoom;
     }
 
     const initialMembers = Array.isArray(members) ? [...members] : [];
@@ -19,10 +35,10 @@ export const createRoom = async ({ roomname, description = "", createdBy = null,
     }
 
     const room = await Room.create({
-        roomname: roomname.trim(),
+        roomname: cleanRoomName,
         description: description || "",
         createdBy,
-        isDirect: Boolean(isDirect),
+        isDirect: isDirectRoom,
         isPrivate: Boolean(isPrivate),
         avatar: avatar || "",
         admins: initialAdmins,
