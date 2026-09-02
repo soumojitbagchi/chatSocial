@@ -15,14 +15,18 @@ const messageHandlers = (io, socket) => {
     const currentUserId = socket.user?.id || socket.user?._id?.toString() || socket.id;
 
     // Send message
-    socket.on("sendMessage", async (data = {}) => {
+    socket.on("sendMessage", async (data = {}, acknowledge) => {
+        const reply = typeof acknowledge === "function" ? acknowledge : null;
         try {
             const payload = parsePayload(data);
             const roomId = payload.roomId?.toString?.() || payload.roomId;
             const content = payload.text ?? payload.message;
 
             if (!roomId || !content) {
-                return socket.emit("message:error", { message: "Room ID and message content are required" });
+                const error = { message: "Room ID and message content are required" };
+                socket.emit("message:error", error);
+                reply?.({ error });
+                return;
             }
 
             // Ensure socket is joined to the room
@@ -37,9 +41,12 @@ const messageHandlers = (io, socket) => {
             });
 
             io.to(roomId).emit("receiveMessage", savedMessage);
+            reply?.(savedMessage);
         } catch (error) {
-            console.error("Error in sendMessage:", error.message);
-            socket.emit("message:error", { message: error.message || "Failed to send message" });
+            const message = error.message || "Failed to send message";
+            console.error("Error in sendMessage:", message);
+            socket.emit("message:error", { message });
+            reply?.({ error: { message } });
         }
     });
 

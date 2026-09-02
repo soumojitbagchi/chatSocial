@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   Phone,
@@ -31,6 +31,10 @@ import {
 } from 'lucide-react';
 import type { ChatItem } from './ChatList';
 import { chatApi } from '../api/chatApi';
+import AttachmentPreviewDialog, {
+  PendingAttachment,
+  PendingAttachmentKind,
+} from './AttachmentPreviewDialog';
 import '../style/components.css';
 
 export interface Reaction {
@@ -80,7 +84,7 @@ export interface ChatMessage {
 export interface ChatAreaProps {
   activeChat: ChatItem | null;
   messages: ChatMessage[];
-  onSendMessage: (text: string, type?: string, meta?: Record<string, unknown>) => void;
+  onSendMessage: (text: string, type?: string, meta?: Record<string, unknown>) => void | Promise<void>;
   onBack?: () => void;
   currentUser?: {
     id: string;
@@ -97,6 +101,13 @@ export interface ChatAreaProps {
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
 }
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'tar', 'gz', 'json',
+]);
+
+const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() || '';
+
 export const ChatArea: React.FC<ChatAreaProps> = ({
   activeChat,
   messages = [],
@@ -129,14 +140,56 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [audioProgress, setAudioProgress] = useState<number>(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isSendingAttachment, setIsSendingAttachment] = useState(false);
+  const [isSendingText, setIsSendingText] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const attachmentButtonRef = useRef<HTMLButtonElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const isSendingAttachmentRef = useRef(false);
+  const hasPendingAttachmentRef = useRef(false);
+  const isSendingTextRef = useRef(false);
+  const activeChatIdRef = useRef<string | undefined>(activeChat?.id);
+
+  const revokePreviewUrl = useCallback(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+  }, []);
+
+  const clearPendingAttachment = useCallback(() => {
+    revokePreviewUrl();
+    setPendingAttachment(null);
+    setUploadError(null);
+    setIsSendingAttachment(false);
+    isSendingAttachmentRef.current = false;
+    hasPendingAttachmentRef.current = false;
+    window.requestAnimationFrame(() => {
+      const returnTarget = attachmentButtonRef.current || inputRef.current;
+      returnTarget?.focus();
+    });
+  }, [revokePreviewUrl]);
+
+  useEffect(() => {
+    const nextChatId = activeChat?.id;
+    const previousChatId = activeChatIdRef.current;
+    activeChatIdRef.current = nextChatId;
+    if (previousChatId === nextChatId || !hasPendingAttachmentRef.current) return;
+
+    const clearTimer = window.setTimeout(clearPendingAttachment, 0);
+    return () => window.clearTimeout(clearTimer);
+  }, [activeChat?.id, clearPendingAttachment]);
+
+  useEffect(() => () => {
+    revokePreviewUrl();
+  }, [revokePreviewUrl]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -169,19 +222,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, [isRecording]);
 
-  const handleSend = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!inputText.trim()) return;
-    onSendMessage(inputText.trim(), 'text');
-    setInputText('');
-    setShowEmojiPicker(false);
-    setShowAttachMenu(false);
+  const handleSend = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    const messageText = inputText.trim();
+    if (!messageText || isSendingTextRef.current) return;
+
+    isSendingTextRef.current = true;
+    setIsSendingText(true);
+    setUploadError(null);
+    try {
+      await onSendMessage(messageText, 'text');
+      setInputText((current) => current.trim() === messageText ? '' : current);
+      setShowEmojiPicker(false);
+      setShowAttachMenu(false);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to send message.');
+    } finally {
+      isSendingTextRef.current = false;
+      setIsSendingText(false);
+    }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
     }
   };
 
@@ -218,52 +283,106 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     });
   }, [messages]);
 
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'media' | 'doc') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const validateAttachment = useCallback((file: File, kind: PendingAttachmentKind) => {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      return 'Attachments must be 25 MB or smaller.';
+    }
+
+    if (kind === 'media') {
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        return 'Choose a supported image or video file.';
+      }
+      return null;
+    }
+
+    if (!ALLOWED_DOCUMENT_EXTENSIONS.has(getFileExtension(file.name))) {
+      return 'Choose a PDF, Office document, text, JSON, ZIP, TAR, or GZ file.';
+    }
+
+    return null;
+  }, []);
+
+  const stageAttachment = useCallback((file: File, kind: PendingAttachmentKind) => {
+    const validationError = validateAttachment(file, kind);
     setShowAttachMenu(false);
-    setIsUploadingFile(true);
+
+    if (validationError) {
+      setUploadError(validationError);
+      return;
+    }
+
+    revokePreviewUrl();
+    const messageType: PendingAttachment['messageType'] = kind === 'document'
+      ? 'document'
+      : file.type.startsWith('video/')
+        ? 'video'
+        : 'photo';
+    const previewUrl = kind === 'media' ? URL.createObjectURL(file) : null;
+    previewUrlRef.current = previewUrl;
+
+    setUploadError(null);
+    hasPendingAttachmentRef.current = true;
+    setPendingAttachment({ file, kind, messageType, previewUrl });
+  }, [revokePreviewUrl, validateAttachment]);
+
+  const handleFileSelection = useCallback((event: React.ChangeEvent<HTMLInputElement>, kind: PendingAttachmentKind) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) stageAttachment(file, kind);
+  }, [stageAttachment]);
+
+  const handleReplaceAttachment = useCallback(() => {
+    if (!pendingAttachment || isSendingAttachmentRef.current) return;
+    setUploadError(null);
+    if (pendingAttachment.kind === 'media') mediaInputRef.current?.click();
+    else docInputRef.current?.click();
+  }, [pendingAttachment]);
+
+  const handleSendAttachment = useCallback(async () => {
+    if (!pendingAttachment || isSendingAttachmentRef.current) return;
+
+    const attachment = pendingAttachment;
+    const destinationId = activeChat?.id;
+    const userCaption = inputText.trim();
+    isSendingAttachmentRef.current = true;
+    setIsSendingAttachment(true);
     setUploadError(null);
 
     try {
-      const uploaded = await chatApi.uploadAttachment(file);
-      const userCaption = inputText.trim();
+      const uploaded = await chatApi.uploadAttachment(attachment.file);
+      const isDocument = attachment.messageType === 'document';
+      const fallbackText = attachment.messageType === 'video' ? 'Video' : 'Photo';
+      const messageText = isDocument
+        ? (uploaded.fileName || attachment.file.name || 'Document')
+        : (userCaption || fallbackText);
 
-      if (kind === 'media') {
-        const isVideo = file.type.startsWith('video/');
-        onSendMessage(userCaption || (isVideo ? 'Video' : 'Photo'), isVideo ? 'video' : 'photo', {
-          url: uploaded.url,
-          imageUrl: uploaded.url,
-          photoUrl: uploaded.url,
-          mediaUrl: uploaded.url,
-          fileName: file.name,
-          fileSize: uploaded.fileSize,
-          fileType: uploaded.fileType,
-          caption: userCaption || undefined,
-        });
-        setInputText('');
-      } else {
-        onSendMessage(file.name || 'Document', 'document', {
-          url: uploaded.url,
-          imageUrl: uploaded.url,
-          audioUrl: uploaded.url,
-          mediaUrl: uploaded.url,
-          fileName: file.name || 'Document',
-          fileSize: uploaded.fileSize,
-          fileType: uploaded.fileType,
-          caption: userCaption || undefined,
-        });
+      await onSendMessage(messageText, attachment.messageType, {
+        url: uploaded.url,
+        imageUrl: uploaded.url,
+        photoUrl: uploaded.url,
+        mediaUrl: uploaded.url,
+        audioUrl: isDocument ? uploaded.url : undefined,
+        fileName: uploaded.fileName || attachment.file.name,
+        fileSize: uploaded.fileSize,
+        fileType: uploaded.fileType || attachment.file.type,
+        caption: userCaption || undefined,
+      });
+
+      if (activeChatIdRef.current === destinationId) {
+        clearPendingAttachment();
         setInputText('');
       }
     } catch (err) {
-      console.error('File upload failed:', err);
-      setUploadError(err instanceof Error ? err.message : 'Failed to upload attachment');
-      setTimeout(() => setUploadError(null), 4000);
+      if (activeChatIdRef.current === destinationId) {
+        setUploadError(err instanceof Error ? err.message : 'Failed to send attachment.');
+      }
     } finally {
-      setIsUploadingFile(false);
-      if (e.target) e.target.value = '';
+      isSendingAttachmentRef.current = false;
+      if (activeChatIdRef.current === destinationId) {
+        setIsSendingAttachment(false);
+      }
     }
-  };
+  }, [activeChat?.id, clearPendingAttachment, inputText, onSendMessage, pendingAttachment]);
 
   if (!activeChat) {
     return (
@@ -566,30 +685,35 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         <Volume2 size={15} className="cs-audio-speaker-icon" />
                       </div>
                     ) : msg.type === 'document' ? (
-                      <div className="cs-doc-card">
-                        <div className={`cs-doc-badge ${isMe ? 'bg-white/10 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}`}>
-                          <FileText size={18} className={isMe ? 'text-white' : 'text-slate-700 dark:text-slate-200'} />
+                      <div>
+                        <div className="cs-doc-card">
+                          <div className={`cs-doc-badge ${isMe ? 'bg-white/10 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}`}>
+                            <FileText size={18} className={isMe ? 'text-white' : 'text-slate-700 dark:text-slate-200'} />
+                          </div>
+                          <div className="flex flex-col min-w-0 pr-2">
+                            <span className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                              {msg.fileName || msg.text || 'Document.pdf'}
+                            </span>
+                            <span className={`text-[10px] font-medium ${isMe ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
+                              {msg.fileSize || 'Attachment'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const targetUrl = msg.imageUrl || msg.photoUrl || msg.audioUrl || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string) || (msg.meta?.fileUrl as string);
+                              if (targetUrl) window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                            }}
+                            className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'} cursor-pointer`}
+                            title="Download / View attachment"
+                            aria-label={`Open ${msg.fileName || 'attachment'}`}
+                          >
+                            <Download size={14} />
+                          </button>
                         </div>
-                        <div className="flex flex-col min-w-0 pr-2">
-                          <span className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
-                            {msg.fileName || msg.text || 'Document.pdf'}
-                          </span>
-                          <span className={`text-[10px] font-medium ${isMe ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
-                            {msg.fileSize || 'Attachment'}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const targetUrl = msg.imageUrl || msg.photoUrl || msg.audioUrl || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string) || (msg.meta?.fileUrl as string);
-                            if (targetUrl) window.open(targetUrl, '_blank');
-                          }}
-                          className={`cs-doc-download-btn ${isMe ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-white'} cursor-pointer`}
-                          title="Download / View attachment"
-                          aria-label="Download attachment"
-                        >
-                          <Download size={14} />
-                        </button>
+                        {msg.caption && msg.caption !== msg.fileName && (
+                          <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
+                        )}
                       </div>
                     ) : msg.type === 'video' ? (
                       <div className="cs-photo-card">
@@ -840,34 +964,48 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         type="file"
         accept="image/*,video/*"
         className="hidden"
-        onChange={(e) => handleUploadFile(e, 'media')}
+        onChange={(event) => handleFileSelection(event, 'media')}
       />
       <input
         ref={docInputRef}
         type="file"
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.tar,.gz,.json"
         className="hidden"
-        onChange={(e) => handleUploadFile(e, 'doc')}
+        onChange={(event) => handleFileSelection(event, 'document')}
       />
 
-      {isUploadingFile && (
-        <div className="px-4 py-2 bg-emerald-500/10 border-t border-emerald-500/20 flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
-          <div className="flex items-center gap-2 font-medium">
-            <Loader2 size={14} className="animate-spin" />
-            <span>Uploading...</span>
-          </div>
-        </div>
+      {pendingAttachment && (
+        <AttachmentPreviewDialog
+          attachment={pendingAttachment}
+          destinationName={activeChat.name}
+          caption={inputText}
+          isSending={isSendingAttachment}
+          error={uploadError}
+          onCaptionChange={setInputText}
+          onReplace={handleReplaceAttachment}
+          onCancel={clearPendingAttachment}
+          onSend={handleSendAttachment}
+        />
       )}
-      {uploadError && (
-        <div className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/20 flex items-center justify-between text-xs text-rose-600 dark:text-rose-400">
+
+      {uploadError && !pendingAttachment && (
+        <div role="alert" className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/20 flex items-center justify-between gap-3 text-xs text-rose-600 dark:text-rose-400">
           <span>{uploadError}</span>
-          <button onClick={() => setUploadError(null)} className="p-0.5"><X size={13} /></button>
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full cursor-pointer hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+            aria-label="Dismiss attachment error"
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
         </div>
       )}
 
       <footer className="cs-composer-container">
         <form onSubmit={handleSend} className="cs-composer-bar">
           <button
+            ref={attachmentButtonRef}
             type="button"
             onClick={() => setShowAttachMenu((prev) => !prev)}
             className={`cs-composer-icon-btn ${showAttachMenu ? 'active' : ''}`}
@@ -903,11 +1041,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           {inputText.trim() ? (
             <button
               type="submit"
-              className="cs-send-btn"
-              title="Send Message"
-              aria-label="Send Message"
+              disabled={isSendingText}
+              className="cs-send-btn disabled:cursor-not-allowed disabled:opacity-60"
+              title={isSendingText ? 'Sending message' : 'Send Message'}
+              aria-label={isSendingText ? 'Sending message' : 'Send Message'}
             >
-              <Send size={16} strokeWidth={2.5} />
+              {isSendingText ? (
+                <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              ) : (
+                <Send size={16} strokeWidth={2.5} aria-hidden="true" />
+              )}
             </button>
           ) : (
             <button
@@ -915,8 +1058,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               onClick={() => {
                 if (isRecording) {
                   setIsRecording(false);
-                  onSendMessage(`🎙️ Voice note (${recordingSeconds}s)`, 'audio', {
+                  void Promise.resolve(onSendMessage(`🎙️ Voice note (${recordingSeconds}s)`, 'audio', {
                     audioDuration: `0:${recordingSeconds.toString().padStart(2, '0')}`
+                  })).catch((error) => {
+                    setUploadError(error instanceof Error ? error.message : 'Failed to send voice note.');
                   });
                 } else {
                   setRecordingSeconds(0);

@@ -168,6 +168,10 @@ class SocketService {
     this.emit('sendMessage', { roomId, text, type, meta });
   }
 
+  public sendMessageWithAck<T>(roomId: string, text: string, type: string = 'text', meta: Record<string, unknown> = {}) {
+    return this.request<T>('sendMessage', { roomId, text, type, meta });
+  }
+
   public editMessage(messageId: string, newMessage: string) {
     this.emit('editMessage', { messageId, newMessage });
   }
