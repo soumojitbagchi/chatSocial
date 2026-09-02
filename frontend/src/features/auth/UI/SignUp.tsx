@@ -6,6 +6,7 @@ import { ChatSocialLogo } from "@/components/ui/logo";
 import { Loader } from "@/components/ui/loader";
 import { useAuthContext } from "../hooks/useAuthContext";
 import signUpImage from "@/assets/auth-signup.jpg";
+import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 
 export interface SignUpProps {
   onLoginSuccess?: () => void;
@@ -15,7 +16,7 @@ export interface SignUpProps {
 
 export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignUpProps) {
   const navigate = useNavigate();
-  const { register } = useAuthContext();
+  const { register, googleLogin } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -60,22 +61,22 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (response: CredentialResponse) => {
+    if (!response.credential) {
+      setErrorMessage("Google did not return a valid credential.");
+      return;
+    }
+
     setErrorMessage("");
     setIsLoading(true);
     try {
-      await register({
-        name: "Google User",
-        email: "google.user@chatsocial.com",
-        username: "google_user",
-        password: "google_oauth_pass",
-      });
-      setIsLoading(false);
+      await googleLogin(response.credential);
       handleSuccessRedirect();
     } catch (err: unknown) {
-      setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Failed to sign up with Google.";
       setErrorMessage(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -257,18 +258,17 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-lg border border-border/80 bg-background hover:bg-accent/60 text-sm font-medium text-foreground transition-colors focus-visible:outline-none cursor-pointer"
-          >
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google icon"
-              className="h-4 w-4"
+          <div className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-lg">
+            <GoogleLogin
+              onSuccess={handleGoogleLogin}
+              onError={() => setErrorMessage("Google sign-up was cancelled or could not be completed.")}
+              theme="outline"
+              size="large"
+              shape="rectangular"
+              text="signup_with"
+              width="332"
             />
-            Continue with Google
-          </button>
+          </div>
         </div>
       </div>
       <div className="hidden md:block relative w-full h-full min-h-screen overflow-hidden bg-muted/20">

@@ -3,6 +3,34 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendVerificationEmail, sendWelcomeEmail } from "../service/email.service.js";
+import { OAuth2Client } from "google-auth-library";
+
+const getGoogleClientId = () =>
+    process.env.GOOGLE_AUTH_CLIENT_ID || "376321319198-q3d6qiqphar9vdcosecul7f6taqpr9nb.apps.googleusercontent.com";
+
+const getGoogleClient = () => new OAuth2Client(getGoogleClientId());
+
+const issueSession = (res, user) => {
+    if (!process.env.JWT_KEY) {
+        throw new Error("JWT_KEY environment variable is not defined");
+    }
+
+    const token = jwt.sign(
+        { id: user._id, email: user.email, username: user.username },
+        process.env.JWT_KEY,
+        { expiresIn: "24h" }
+    );
+
+    const isProd = process.env.NODE_ENV === "production";
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    return token;
+};
 const DUMMY_HASH = "$2b$10$wT8mQ0K6W9U0g6iFq7D0NuF7UaL/4xU0rR2jXj3jM9jI2FvC.XfK2";
 
 export const login = async (req, res) => {
@@ -62,6 +90,7 @@ export const login = async (req, res) => {
                 name: isUserExists.name,
                 email: isUserExists.email,
                 username: isUserExists.username,
+                isEmailVerified: Boolean(isUserExists.isEmailVerified),
                 avatar: isUserExists.avatar || "",
                 about: isUserExists.about || "",
                 phone: isUserExists.phone || "",
@@ -172,9 +201,105 @@ export const register = async (req, res) => {
         });
     } catch (error) {
         console.error("Register error:", error);
+
         return res.status(500).json({
             message: error.message || "Internal server error",
             success: false
+        });
+    }
+};
+export const googleAuth = async (req, res) => {
+    try {
+        const credential = req.body?.credential;
+        if (!credential || typeof credential !== "string") {
+            return res.status(400).json({
+                success: false,
+                message: "Google credential is required",
+            });
+        }
+
+        const clientId = getGoogleClientId();
+        const ticket = await getGoogleClient().verifyIdToken({
+            idToken: credential,
+            audience: clientId,
+        });
+        const payload = ticket.getPayload();
+
+        if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+            return res.status(401).json({
+                success: false,
+                message: "Google account email is not verified",
+            });
+        }
+
+        const email = payload.email.trim().toLowerCase();
+        let user = await userData.findOne({
+            $or: [{ googleId: payload.sub }, { email }],
+        });
+
+        if (!user) {
+            const localPart = email.split("@")[0] || "google_user";
+            const baseUsername = localPart
+                .toLowerCase()
+                .replace(/[^a-z0-9_.]/g, "_")
+                .slice(0, 24) || "google_user";
+            let username = baseUsername;
+            let suffix = 1;
+
+            while (await userData.exists({ username })) {
+                username = `${baseUsername.slice(0, 20)}_${suffix}`;
+                suffix += 1;
+            }
+
+            const randomPassword = crypto.randomBytes(32).toString("hex");
+            const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+            user = await userData.create({
+                name: payload.name?.trim() || username,
+                email,
+                username,
+                password: hashedPassword,
+                avatar: payload.picture || "",
+                googleId: payload.sub,
+                authProvider: "google",
+                isEmailVerified: true,
+            });
+        } else {
+            user.googleId = payload.sub;
+            user.authProvider = "google";
+            user.isEmailVerified = true;
+            user.emailVerificationToken = null;
+            user.emailVerificationExpires = null;
+            user.emailOtp = null;
+            user.emailOtpExpires = null;
+            if (!user.avatar && payload.picture) {
+                user.avatar = payload.picture;
+            }
+            await user.save();
+        }
+
+        const token = issueSession(res, user);
+
+        return res.status(200).json({
+            success: true,
+            message: "Google sign-in successful",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                username: user.username,
+                isEmailVerified: true,
+                avatar: user.avatar || "",
+                about: user.about || "",
+                phone: user.phone || "",
+            },
+            token,
+        });
+    } catch (error) {
+        console.error("Google authentication error:", error);
+        return res.status(401).json({
+            success: false,
+            message: "Google authentication failed. Please try again.",
         });
     }
 };
@@ -192,6 +317,7 @@ export const getMe = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 username: user.username,
+                isEmailVerified: Boolean(user.isEmailVerified),
                 avatar: user.avatar || "",
                 about: user.about || "",
                 phone: user.phone || "",
@@ -328,4 +454,4 @@ export const verifyEmailController = async (req, res) => {
     }
 };
 
-export default { login, register, getMe, logout, sendVerificationEmailController, verifyEmailController };
+export default { login, register, googleAuth, getMe, logout, sendVerificationEmailController, verifyEmailController };

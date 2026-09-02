@@ -6,6 +6,7 @@ import { ChatSocialLogo } from "@/components/ui/logo";
 import { Loader } from "@/components/ui/loader";
 import { useAuthContext } from "../hooks/useAuthContext";
 import signInImage from "@/assets/auth-signin.jpg";
+import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 
 export interface SignInProps {
   onLoginSuccess?: () => void;
@@ -15,7 +16,7 @@ export interface SignInProps {
 
 export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignInProps) {
   const navigate = useNavigate();
-  const { login } = useAuthContext();
+  const { login, googleLogin } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,17 +49,22 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (response: CredentialResponse) => {
+    if (!response.credential) {
+      setErrorMessage("Google did not return a valid credential.");
+      return;
+    }
+
     setErrorMessage("");
     setIsLoading(true);
     try {
-      await login({ email: "google.user@chatsocial.com", password: "google_oauth_pass" });
-      setIsLoading(false);
+      await googleLogin(response.credential);
       handleSuccessRedirect();
     } catch (err: unknown) {
-      setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Failed to sign in with Google.";
       setErrorMessage(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -192,18 +198,17 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-lg border border-border/80 bg-background hover:bg-accent/60 text-sm font-medium text-foreground transition-colors focus-visible:outline-none cursor-pointer"
-          >
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google icon"
-              className="h-4 w-4"
+          <div className="flex min-h-11 w-full items-center justify-center overflow-hidden rounded-lg">
+            <GoogleLogin
+              onSuccess={handleGoogleLogin}
+              onError={() => setErrorMessage("Google sign-in was cancelled or could not be completed.")}
+              theme="outline"
+              size="large"
+              shape="rectangular"
+              text="signin_with"
+              width="332"
             />
-            Continue with Google
-          </button>
+          </div>
         </div>
       </div>
       <div className="hidden md:block relative w-full h-full min-h-screen overflow-hidden bg-muted/20">

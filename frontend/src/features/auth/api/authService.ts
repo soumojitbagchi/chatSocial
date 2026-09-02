@@ -10,6 +10,7 @@ export interface User {
   avatar?: string;
   phone?: string;
   about?: string;
+  isEmailVerified?: boolean;
 }
 
 export interface AuthResponse {
@@ -173,6 +174,28 @@ export const authService = {
       throw new Error('Invalid credentials');
     }
   },
+  async googleLogin(credential: string): Promise<AuthResponse> {
+    try {
+      const res = await api.post<AuthResponse>('/auth/google', { credential });
+      if (!res.data.success || !res.data.user || !res.data.token) {
+        throw new Error(res.data.message || 'Google authentication failed');
+      }
+
+      const userObj: User = {
+        ...res.data.user,
+        id: String(res.data.user.id || res.data.user._id || ''),
+      };
+      localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
+      localStorage.setItem('chatSocial_token', res.data.token);
+      return { ...res.data, user: userObj };
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        throw new Error(err.response?.data?.message || 'Google authentication failed');
+      }
+      throw err instanceof Error ? err : new Error('Google authentication failed');
+    }
+  },
+
 
   async getMe(): Promise<User | null> {
     try {

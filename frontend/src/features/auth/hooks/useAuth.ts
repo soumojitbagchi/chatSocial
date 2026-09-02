@@ -11,6 +11,7 @@ export interface UseAuthReturn {
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<User>;
   register: (credentials: RegisterCredentials) => Promise<User>;
+  googleLogin: (credential: string) => Promise<User>;
   logout: () => void;
   updateProfile: (updated: Partial<User>) => void;
   clearError: () => void;
@@ -92,6 +93,24 @@ export function useAuth(): UseAuthReturn {
       throw err;
     }
   }, []);
+  const googleLogin = useCallback(async (credential: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await authService.googleLogin(credential);
+      setUser(res.user);
+      setToken(res.token);
+      setIsVerifying(false);
+      return res.user;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Google authentication failed';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
 
   const logout = useCallback(() => {
     authService.logout();
@@ -151,6 +170,7 @@ export function useAuth(): UseAuthReturn {
     error,
     login,
     register,
+    googleLogin,
     logout,
     updateProfile,
     clearError,

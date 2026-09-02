@@ -1,5 +1,5 @@
 import express from "express";
-import { register, login, getMe, logout, sendVerificationEmailController, verifyEmailController } from "../controller/auth.controller.js";
+import { register, login, googleAuth, getMe, logout, sendVerificationEmailController, verifyEmailController } from "../controller/auth.controller.js";
 import { signInValidator, signUpValidator } from "../validator/auth.validator.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 
@@ -9,6 +9,7 @@ router.post("/signup", signUpValidator, register);
 router.post("/register", signUpValidator, register);
 router.post("/signin", signInValidator, login);
 router.post("/login", signInValidator, login);
+router.post("/google", googleAuth);
 router.get("/me", authMiddleware, getMe);
 router.post("/logout", logout);
 router.post("/send-verification", sendVerificationEmailController);

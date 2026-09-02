@@ -115,6 +115,16 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    googleId: {
+        type: String,
+        sparse: true,
+        unique: true,
+    },
+    authProvider: {
+        type: String,
+        enum: ["local", "google"],
+        default: "local",
+    },
     username: {
         type: String,
         required: true,
