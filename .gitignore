@@ -24,3 +24,10 @@ backend/tests/
 frontend/test/
 frontend/tests/
 frontend/__tests__/
+
+# Keep isolated backend unit tests in version control
+!backend/test/
+backend/test/*
+!backend/test/unit/
+backend/test/unit/*
+!backend/test/unit/*.test.js

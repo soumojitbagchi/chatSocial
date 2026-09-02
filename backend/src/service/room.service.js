@@ -1,4 +1,20 @@
 import Room from "../model/room.model.js";
+import userCache from "./userCache.service.js";
+
+const getDirectParticipantIds = (roomname, members = []) => {
+    const ids = new Set(
+        members
+            .map((member) => member?._id ?? member)
+            .filter(Boolean)
+            .map((member) => member.toString())
+    );
+    const match = roomname?.match(/^direct_([a-f0-9]{24})_([a-f0-9]{24})$/i);
+    if (match) {
+        ids.add(match[1]);
+        ids.add(match[2]);
+    }
+    return [...ids];
+};
 
 export const createRoom = async ({ roomname, description = "", createdBy = null, isDirect = false, isPrivate = true, members = [], avatar = "" } = {}) => {
     if (!roomname || !roomname.trim()) {
@@ -19,7 +35,15 @@ export const createRoom = async ({ roomname, description = "", createdBy = null,
                 }
             });
             if (updated) {
-                await existingRoom.save();
+                if (isDirectRoom) {
+                    const participantIds = getDirectParticipantIds(cleanRoomName, existingRoom.members);
+                    await userCache.runCoherentMutation({
+                        invalidate: () => userCache.invalidateRelationships(participantIds),
+                        mutate: () => existingRoom.save(),
+                    });
+                } else {
+                    await existingRoom.save();
+                }
             }
         }
         return existingRoom;
@@ -34,7 +58,7 @@ export const createRoom = async ({ roomname, description = "", createdBy = null,
         initialAdmins.push(createdBy);
     }
 
-    const room = await Room.create({
+    const createRoomDocument = () => Room.create({
         roomname: cleanRoomName,
         description: description || "",
         createdBy,
@@ -44,7 +68,14 @@ export const createRoom = async ({ roomname, description = "", createdBy = null,
         admins: initialAdmins,
         members: initialMembers,
     });
-    return room;
+
+    if (!isDirectRoom) return createRoomDocument();
+
+    const participantIds = getDirectParticipantIds(cleanRoomName, initialMembers);
+    return userCache.runCoherentMutation({
+        invalidate: () => userCache.invalidateRelationships(participantIds),
+        mutate: createRoomDocument,
+    });
 };
 export const getRoom = async (roomId, currentUserId = null) => {
     if (!roomId) {
@@ -180,7 +211,11 @@ export const updateRoom = async (roomId, updateData = {}, userId = null) => {
         }
     }
     if (updateData.roomname && typeof updateData.roomname === "string" && updateData.roomname.trim()) {
-        room.roomname = updateData.roomname.trim();
+        const nextRoomName = updateData.roomname.trim();
+        if (room.isDirect && nextRoomName !== room.roomname) {
+            throw new Error("Direct room names cannot be changed");
+        }
+        room.roomname = nextRoomName;
     }
     if (updateData.description !== undefined) {
         room.description = typeof updateData.description === "string" ? updateData.description.trim() : "";
@@ -204,7 +239,15 @@ export const deleteRoom = async (roomId, userId = null) => {
     if (userId && room.createdBy && room.createdBy.toString() !== userId.toString() && !room.isDirect) {
         throw new Error("Unauthorized: Only room creator can delete this room");
     }
-    await Room.findByIdAndDelete(roomId);
+    if (room.isDirect) {
+        const participantIds = getDirectParticipantIds(room.roomname, room.members || []);
+        await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateRelationships(participantIds),
+            mutate: () => Room.findByIdAndDelete(roomId),
+        });
+    } else {
+        await Room.findByIdAndDelete(roomId);
+    }
     return room;
 };
 /**

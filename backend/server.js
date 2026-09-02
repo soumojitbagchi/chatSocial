@@ -1,18 +1,63 @@
 import dotenv from "dotenv";
 dotenv.config();
+import mongoose from "mongoose";
 import connectDB from "./src/config/connectDB.js";
+import { closeRedis, connectRedis } from "./src/config/redis.js";
 import { createServer } from "http";
 import app from "./src/app.js";
 import { Server } from "socket.io";
 import registerSocketHandler from "./src/sockets/index.js";
 
 const PORT = process.env.PORT || 8080;
+const SHUTDOWN_TIMEOUT_MS = 10000;
+
+let httpServer = null;
+let io = null;
+let isShuttingDown = false;
+
+const closeHttpServer = () => new Promise((resolve) => {
+    if (!httpServer?.listening) return resolve();
+    httpServer.close(() => resolve());
+});
+
+const closeSocketServer = () => new Promise((resolve) => {
+    if (!io) return resolve();
+    io.close(() => resolve());
+});
+
+const shutdown = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`${signal} received; shutting down`);
+
+    const forceExitTimer = setTimeout(() => {
+        console.error("Graceful shutdown timed out");
+        process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExitTimer.unref();
+
+    try {
+        await closeSocketServer();
+        await closeHttpServer();
+        await Promise.allSettled([
+            closeRedis(),
+            mongoose.disconnect(),
+        ]);
+        clearTimeout(forceExitTimer);
+        process.exit(0);
+    } catch (error) {
+        clearTimeout(forceExitTimer);
+        console.error("Graceful shutdown failed:", error);
+        process.exit(1);
+    }
+};
 
 const startServer = async () => {
     try {
         await connectDB();
+        await connectRedis();
 
-        const httpServer = createServer(app);
+        httpServer = createServer(app);
         const isAllowedOrigin = (origin) => {
             if (!origin) return true;
             const cleanOrigin = origin.replace(/\/+$/, "").toLowerCase();
@@ -35,7 +80,7 @@ const startServer = async () => {
             return allowedOrigins.includes(cleanOrigin);
         };
 
-        const io = new Server(httpServer, {
+        io = new Server(httpServer, {
             cors: {
                 origin: function (origin, callback) {
                     if (isAllowedOrigin(origin)) {
@@ -49,13 +94,25 @@ const startServer = async () => {
 
         registerSocketHandler(io);
 
-        httpServer.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+        await new Promise((resolve, reject) => {
+            httpServer.once("error", reject);
+            httpServer.listen(PORT, () => {
+                httpServer.off("error", reject);
+                console.log(`Server is running on port ${PORT}`);
+                resolve();
+            });
         });
     } catch (error) {
         console.error("Failed to start server:", error);
+        await Promise.allSettled([
+            closeRedis(),
+            mongoose.disconnect(),
+        ]);
         process.exit(1);
     }
 };
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 startServer();

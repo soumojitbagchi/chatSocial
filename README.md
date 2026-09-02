@@ -148,7 +148,7 @@ That separation gives the application a clean division of responsibility:
 
 | Technology | Version | Responsibility |
 |---|---:|---|
-| Node.js | `>=18.0.0` | Server runtime |
+| Node.js | `>=22.0.0` | Server runtime |
 | Express.js | `5.2.1` | REST API framework |
 | Axios | `1.19.0` | HTTP client and API interceptors |
 
@@ -158,7 +158,7 @@ That separation gives the application a clean division of responsibility:
 |---|---:|---|
 | MongoDB Atlas | Cloud | Primary application database |
 | Mongoose | `9.9.3` | ODM, schemas, validation, indexes |
-| Redis | `6.2.1` | Optional in-memory store for caching/scaling |
+| Redis | `6.2.1` | Required read-through cache for user profiles, discovery, and connections |
 | ImageKit Node SDK | `7.11.0` | Media upload and CDN integration |
 | Multer | `2.3.0` | Multipart/in-memory upload parsing |
 
@@ -217,7 +217,7 @@ graph TD
     subgraph Storage["Persistence & Media"]
         DB[("MongoDB Atlas")]
         CDN["ImageKit CDN"]
-        REDIS["Redis — Optional"]
+        REDIS["Redis — Required User Cache"]
     end
 
     Services -->|Axios| REST
@@ -231,8 +231,8 @@ graph TD
 
     EXPRESS --> DB
     EXPRESS --> CDN
+    EXPRESS --> REDIS
     SOCKETSERVER --> DB
-    SOCKETSERVER --> REDIS
 ```
 
 ### Architectural Responsibilities
@@ -249,7 +249,7 @@ graph TD
 | MongoDB | Durable application state |
 | ImageKit | Media storage and CDN delivery |
 | mediasoup | WebRTC SFU routing |
-| Redis | Optional caching/distributed state support |
+| Redis | Required, short-lived read cache for sanitized user profiles, search candidates and connection snapshots |
 
 ---
 
@@ -266,6 +266,7 @@ chatSocial/
 │       │
 │       ├── config/
 │       │   ├── connectDB.js
+│       │   ├── redis.js
 │       │   └── mediasoup.config.js
 │       │
 │       ├── controller/
@@ -1008,7 +1009,7 @@ At minimum, verify that `.env` is ignored by Git:
 !.env.example
 ```
 
-Never place production MongoDB credentials, JWT secrets, private ImageKit keys, mail credentials, OAuth secrets or API keys directly into the repository.
+Never place production MongoDB credentials, Redis URLs/passwords, JWT secrets, private ImageKit keys, mail credentials, OAuth secrets or API keys directly into the repository.
 
 ---
 
@@ -1030,7 +1031,7 @@ The documented deployment topology is:
           ┌─────────┼─────────────┐
           ▼         ▼             ▼
       MongoDB    ImageKit       Redis
-       Atlas       CDN         Optional
+       Atlas       CDN       Required Cache
 ```
 
 ## Frontend — Vercel
@@ -1061,9 +1062,10 @@ Expected configuration:
 
 ```text
 Root Directory: backend
-Build Command: npm install
+Build Command: npm install --omit=optional
 Start Command: npm start
-Runtime: Node
+Runtime: Node 22
+Health Check: /health/ready
 ```
 
 The backend requires its production environment variables to be configured in the Render dashboard.
@@ -1086,6 +1088,15 @@ PORT=10000
 
 MONGO_URI=<your-mongodb-atlas-uri>
 JWT_KEY=<your-jwt-secret>
+
+# Prefer REDIS_URL, or provide REDIS_HOST + REDIS_PORT + REDIS_PASSWORD.
+REDIS_URL=
+REDIS_HOST=<your-redis-host>
+REDIS_PORT=<your-redis-port>
+REDIS_PASSWORD=<your-redis-password>
+REDIS_USERNAME=
+REDIS_TLS=false
+REDIS_KEY_PREFIX=chatsocial:production:user-cache:v1
 
 CLIENT_URL=https://your-frontend.vercel.app
 
@@ -1148,6 +1159,14 @@ The deployment guide therefore documents configuring MongoDB Atlas network acces
 
 Use the narrowest practical network policy for the actual production setup.
 
+## Redis User Cache
+
+Redis is a required read-through cache for `/api/auth/me`, reusable user-search candidates, and static connection snapshots. MongoDB remains authoritative, JWT verification remains stateless, and live presence is overlaid from the in-process presence service instead of being cached.
+
+Search entries expire within 45–60 seconds, connection snapshots within 30–45 seconds, and authenticated profiles within 60–90 seconds. Versioned cache keys invalidate relationship and profile changes without production key scans. Redis outages prevent startup and make readiness/cache-backed requests return `503`; they do not trigger an unbounded MongoDB fallback.
+
+Use TLS and ACL-scoped credentials when supported by the provider. Redis is not used here for sessions, logout revocation, rate limiting, Socket.IO fan-out, or distributed presence.
+
 ## mediasoup Build Requirements
 
 mediasoup includes native components and may require compilation support in the deployment environment.
@@ -1160,10 +1179,10 @@ The documented Render troubleshooting flow highlights native build tooling and P
 
 | Feature | Frontend | Transport | Backend | Persistence / External |
 |---|---|---|---|---|
-| Authentication | React + hooks | REST | Express + JWT + Bcrypt | MongoDB |
+| Authentication | React + hooks | REST | Express + JWT + Bcrypt | MongoDB + Redis profile cache |
 | Messaging | `useChat` + `ChatArea` | Socket.IO / REST fallback | Message handlers + service | MongoDB |
 | Presence | `socketService` | Socket.IO | Presence handler/service | In-memory state |
-| Connections | New Chat UI | REST + Socket.IO | User controller/service | MongoDB |
+| Connections | New Chat UI | REST + Socket.IO | User controller/service | MongoDB + Redis read cache |
 | Groups | Group UI | REST + Socket.IO | Room controller/handlers | MongoDB |
 | Stories | Status UI | REST | Status controller/service | MongoDB + ImageKit |
 | Story Replies | Story viewer | Socket.IO / REST | Message service | MongoDB |
@@ -1249,7 +1268,7 @@ The documented architecture currently covers:
 - ImageKit media delivery
 - Vercel frontend deployment
 - Render backend deployment
-- Optional Redis infrastructure
+- Required Redis user read cache with readiness checks
 
 ---
 

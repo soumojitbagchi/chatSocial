@@ -3,6 +3,7 @@ import User from "../model/user.model.js";
 import Room from "../model/room.model.js";
 import { uploadImage, deleteImage } from "./imagekit.service.js";
 import * as messageService from "./message.service.js";
+import userCache from "./userCache.service.js";
 import mongoose from "mongoose";
 
 /**
@@ -276,18 +277,32 @@ export const replyToStatus = async ({ statusId, currentUserId, replyText }) => {
     const directRoomName = `direct_${[strCurrentUserId, storyOwnerId].sort().join("_")}`;
     let room = await Room.findOne({ roomname: directRoomName });
 
+    const invalidateParticipants = () => userCache.invalidateRelationships([
+        strCurrentUserId,
+        storyOwnerId,
+    ]);
+
     if (!room) {
-        room = await Room.create({
-            roomname: directRoomName,
-            description: `Direct conversation between ${storyOwner.name || "User"} and Contact`,
-            isDirect: true,
-            createdBy: currentUserId,
-            members: [currentUserId, storyOwnerId],
+        room = await userCache.runCoherentMutation({
+            invalidate: invalidateParticipants,
+            mutate: () => Room.create({
+                roomname: directRoomName,
+                description: `Direct conversation between ${storyOwner.name || "User"} and Contact`,
+                isDirect: true,
+                createdBy: currentUserId,
+                members: [currentUserId, storyOwnerId],
+            }),
         });
     } else if (!room.members || room.members.length < 2) {
-        room.members = [currentUserId, storyOwnerId];
-        room.isDirect = true;
-        await room.save();
+        room = await userCache.runCoherentMutation({
+            invalidate: invalidateParticipants,
+            mutate: async () => {
+                room.members = [currentUserId, storyOwnerId];
+                room.isDirect = true;
+                await room.save();
+                return room;
+            },
+        });
     }
 
     const roomId = room._id.toString();

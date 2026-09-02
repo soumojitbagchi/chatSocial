@@ -8,6 +8,15 @@ import {
     removeMemberFromRoom,
 } from "../service/room.service.js";
 
+const respondIfCacheUnavailable = (res, error) => {
+    if (error?.code !== "REDIS_UNAVAILABLE") return false;
+    res.status(503).json({
+        success: false,
+        message: "User data cache is temporarily unavailable",
+    });
+    return true;
+};
+
 export const createRoomController = async (req, res) => {
     try {
         const { roomname, description, isPrivate, members, avatar } = req.body;
@@ -15,6 +24,7 @@ export const createRoomController = async (req, res) => {
         const room = await createRoom({ roomname, description, createdBy, isPrivate, members, avatar });
         res.status(201).json({ success: true, data: room });
     } catch (error) {
+        if (respondIfCacheUnavailable(res, error)) return;
         const statusCode = error.message.includes("required") || error.message.includes("exists") ? 400 : 500;
         res.status(statusCode).json({ success: false, message: error.message });
     }
@@ -71,6 +81,7 @@ export const deleteRoomController = async (req, res) => {
         const room = await deleteRoom(roomId, currentUserId);
         res.status(200).json({ success: true, message: "Room deleted successfully", data: room });
     } catch (error) {
+        if (respondIfCacheUnavailable(res, error)) return;
         let statusCode = 400;
         if (error.message === "Room not found") {
             statusCode = 404;

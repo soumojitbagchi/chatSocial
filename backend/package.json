@@ -5,13 +5,13 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/unit/*.test.js",
     "dev": "npx nodemon server.js",
     "start": "node server.js",
     "build": "echo 'No build step required'"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "keywords": [],
   "author": "",
@@ -29,10 +29,10 @@
     "mongoose": "^9.9.3",
     "multer": "^2.3.0",
     "nodemailer": "^9.1.0",
+    "redis": "^6.2.1",
     "socket.io": "^4.8.3"
   },
   "optionalDependencies": {
-    "mediasoup": "^3.26.0",
-    "redis": "^6.2.1"
+    "mediasoup": "^3.26.0"
   }
 }

@@ -3,127 +3,122 @@ import Room from "../model/room.model.js";
 import mongoose from "mongoose";
 import * as presenceService from "../sockets/service/presence.service.js";
 import { uploadImage, deleteImage } from "../service/imagekit.service.js";
+import userCache, {
+    overlayConnectionPresence,
+    personalizeSearchCandidates,
+} from "../service/userCache.service.js";
+
+const respondWithControllerError = (res, error, fallbackMessage) => {
+    if (error?.code === "REDIS_UNAVAILABLE") {
+        return res.status(503).json({
+            success: false,
+            message: "User data cache is temporarily unavailable",
+        });
+    }
+    return res.status(500).json({
+        success: false,
+        message: error.message || fallbackMessage,
+    });
+};
+
+const loadSearchCandidateDtos = async (query) => {
+    const filter = {};
+    if (query) {
+        const regex = new RegExp(query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), "i");
+        filter.$or = [
+            { username: regex },
+            { name: regex },
+            { email: regex },
+        ];
+    }
+
+    return User.find(filter)
+        .select("name username email avatar about")
+        .limit(query ? 21 : 16)
+        .lean();
+};
+
+const loadConnectionSnapshot = async (currentUserId) => {
+    const currentUser = await User.findById(currentUserId)
+        .populate("contacts", "name username email avatar about lastSeen")
+        .populate("connectionRequests.from", "name username email avatar about")
+        .populate("sentRequests.to", "name username email avatar about")
+        .lean();
+
+    if (!currentUser) return null;
+
+    const directRoomNames = (currentUser.contacts || []).map((contact) => (
+        `direct_${[currentUserId.toString(), contact._id.toString()].sort().join("_")}`
+    ));
+    const rooms = directRoomNames.length > 0
+        ? await Room.find({ roomname: { $in: directRoomNames } }).select("_id roomname").lean()
+        : [];
+    const roomMap = new Map(rooms.map((room) => [room.roomname, room._id.toString()]));
+
+    const contacts = (currentUser.contacts || []).map((contact) => {
+        const contactId = contact._id.toString();
+        const directName = `direct_${[currentUserId.toString(), contactId].sort().join("_")}`;
+        return {
+            id: contactId,
+            name: contact.name,
+            username: contact.username,
+            email: contact.email,
+            avatar: contact.avatar || "",
+            about: contact.about || "",
+            roomId: roomMap.get(directName) || null,
+        };
+    });
+
+    const pendingIncoming = (currentUser.connectionRequests || [])
+        .filter((request) => request.status === "pending" && request.from)
+        .map((request) => ({
+            id: request.from._id.toString(),
+            name: request.from.name,
+            username: request.from.username,
+            email: request.from.email,
+            avatar: request.from.avatar || "",
+            about: request.from.about || "",
+            requestedAt: request.createdAt,
+        }));
+
+    const pendingOutgoing = (currentUser.sentRequests || [])
+        .filter((request) => request.status === "pending" && request.to)
+        .map((request) => ({
+            id: request.to._id.toString(),
+            name: request.to.name,
+            username: request.to.username,
+            email: request.to.email,
+            avatar: request.to.avatar || "",
+            about: request.to.about || "",
+            requestedAt: request.createdAt,
+        }));
+
+    return { contacts, pendingIncoming, pendingOutgoing };
+};
 export const searchUsersController = async (req, res) => {
     try {
         const currentUserId = req.user?.id || req.user?._id;
-        const query = (req.query.q || req.query.query || "").toString().trim();
-
-        if (!query) {
-            // Return top 15 registered users excluding current user
-            const recentUsers = await User.find({ _id: { $ne: currentUserId } })
-                .select("name username email avatar about contacts connectionRequests sentRequests")
-                .limit(15)
-                .lean();
-
-            const currentUser = await User.findById(currentUserId).lean();
-            const contactSet = new Set((currentUser?.contacts || []).map((id) => id.toString()));
-            const sentPendingSet = new Set(
-                (currentUser?.sentRequests || [])
-                    .filter((r) => r.status === "pending")
-                    .map((r) => r.to.toString())
-            );
-            const receivedPendingSet = new Set(
-                (currentUser?.connectionRequests || [])
-                    .filter((r) => r.status === "pending")
-                    .map((r) => r.from.toString())
-            );
-            const directRoomNames = recentUsers.map((u) => `direct_${[currentUserId, u._id.toString()].sort().join("_")}`);
-            const existingRooms = await Room.find({ roomname: { $in: directRoomNames } }).select("_id roomname").lean();
-            const roomMap = new Map(existingRooms.map((r) => [r.roomname, r._id.toString()]));
-
-            const mapped = recentUsers.map((u) => {
-                const uIdStr = u._id.toString();
-                let connectionStatus = "none";
-                let roomId = null;
-                const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
-
-                if (contactSet.has(uIdStr)) {
-                    connectionStatus = "connected";
-                    roomId = roomMap.get(directName) || null;
-                } else if (sentPendingSet.has(uIdStr)) {
-                    connectionStatus = "pending_sent";
-                } else if (receivedPendingSet.has(uIdStr)) {
-                    connectionStatus = "pending_received";
-                }
-
-                return {
-                    id: u._id.toString(),
-                    name: u.name,
-                    username: u.username,
-                    email: u.email,
-                    avatar: u.avatar || "",
-                    about: u.about || "Hey there! I am using chatSocial.",
-                    connectionStatus,
-                    roomId,
-                    online: presenceService.isUserOnline(u._id.toString()),
-                };
-            });
-
-            return res.status(200).json({ success: true, data: mapped });
-        }
-
-        const regex = new RegExp(query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), "i");
-
-        const matchingUsers = await User.find({
-            _id: { $ne: currentUserId },
-            $or: [
-                { username: regex },
-                { name: regex },
-                { email: regex },
-            ],
-        })
-            .select("name username email avatar about contacts connectionRequests sentRequests")
-            .limit(20)
-            .lean();
-
-        const currentUser = await User.findById(currentUserId).lean();
-        const contactSet = new Set((currentUser?.contacts || []).map((id) => id.toString()));
-        const sentPendingSet = new Set(
-            (currentUser?.sentRequests || [])
-                .filter((r) => r.status === "pending")
-                .map((r) => r.to.toString())
+        const requestedQuery = req.query.q || req.query.query || "";
+        const { normalizedQuery, candidates } = await userCache.getSearchCandidates(
+            requestedQuery,
+            loadSearchCandidateDtos
         );
-        const receivedPendingSet = new Set(
-            (currentUser?.connectionRequests || [])
-                .filter((r) => r.status === "pending")
-                .map((r) => r.from.toString())
+        const snapshot = await userCache.getConnectionSnapshot(
+            currentUserId,
+            () => loadConnectionSnapshot(currentUserId)
         );
-        const directRoomNames = matchingUsers.map((u) => `direct_${[currentUserId, u._id.toString()].sort().join("_")}`);
-        const existingRooms = await Room.find({ roomname: { $in: directRoomNames } }).select("_id roomname").lean();
-        const roomMap = new Map(existingRooms.map((r) => [r.roomname, r._id.toString()]));
-
-        const mapped = matchingUsers.map((u) => {
-            const uIdStr = u._id.toString();
-            let connectionStatus = "none";
-            let roomId = null;
-            const directName = `direct_${[currentUserId, uIdStr].sort().join("_")}`;
-
-            if (contactSet.has(uIdStr)) {
-                connectionStatus = "connected";
-                roomId = roomMap.get(directName) || null;
-            } else if (sentPendingSet.has(uIdStr)) {
-                connectionStatus = "pending_sent";
-            } else if (receivedPendingSet.has(uIdStr)) {
-                connectionStatus = "pending_received";
-            }
-
-            return {
-                id: u._id.toString(),
-                name: u.name,
-                username: u.username,
-                email: u.email,
-                avatar: u.avatar || "",
-                about: u.about || "Hey there! I am using chatSocial.",
-                connectionStatus,
-                roomId,
-                online: presenceService.isUserOnline(u._id.toString()),
-            };
+        const mapped = personalizeSearchCandidates({
+            candidates,
+            snapshot,
+            currentUserId,
+            isOnline: presenceService.isUserOnline,
+            limit: normalizedQuery ? 20 : 15,
         });
 
         return res.status(200).json({ success: true, data: mapped });
     } catch (error) {
         console.error("searchUsers error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to search users" });
+        return respondWithControllerError(res, error, "Failed to search users");
     }
 };
 
@@ -188,7 +183,10 @@ export const sendConnectionRequestController = async (req, res) => {
             status: "pending",
         });
 
-        await Promise.all([currentUser.save(), targetUser.save()]);
+        await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateRelationships([currentUserId, targetUserId]),
+            mutate: () => Promise.all([currentUser.save(), targetUser.save()]),
+        });
 
         return res.status(200).json({
             success: true,
@@ -198,7 +196,7 @@ export const sendConnectionRequestController = async (req, res) => {
         });
     } catch (error) {
         console.error("sendConnectionRequest error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to send connection request" });
+        return respondWithControllerError(res, error, "Failed to send connection request");
     }
 };
 
@@ -224,50 +222,55 @@ export const acceptConnectionRequestController = async (req, res) => {
             return res.status(404).json({ success: false, message: "Target user not found" });
         }
 
-        await Promise.all([
-            User.findByIdAndUpdate(currentUserId, {
-                $addToSet: { contacts: targetUserId },
-                $pull: {
-                    connectionRequests: { from: targetUserId },
-                    sentRequests: { to: targetUserId },
-                },
-            }),
-            User.findByIdAndUpdate(targetUserId, {
-                $addToSet: { contacts: currentUserId },
-                $pull: {
-                    connectionRequests: { from: currentUserId },
-                    sentRequests: { to: currentUserId },
-                },
-            }),
-        ]);
+        const room = await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateRelationships([currentUserId, targetUserId]),
+            mutate: async () => {
+                await Promise.all([
+                    User.findByIdAndUpdate(currentUserId, {
+                        $addToSet: { contacts: targetUserId },
+                        $pull: {
+                            connectionRequests: { from: targetUserId },
+                            sentRequests: { to: targetUserId },
+                        },
+                    }),
+                    User.findByIdAndUpdate(targetUserId, {
+                        $addToSet: { contacts: currentUserId },
+                        $pull: {
+                            connectionRequests: { from: currentUserId },
+                            sentRequests: { to: currentUserId },
+                        },
+                    }),
+                ]);
 
-        // Find or create direct 1-to-1 room in MongoDB
-        const directRoomName = `direct_${[currentUserId, targetUserId].sort().join("_")}`;
-        let room = await Room.findOne({ roomname: directRoomName });
+                const directRoomName = `direct_${[currentUserId, targetUserId].sort().join("_")}`;
+                let directRoom = await Room.findOne({ roomname: directRoomName });
 
-        if (!room) {
-            room = await Room.create({
-                roomname: directRoomName,
-                description: `Direct chat between ${currentUser.name} and ${targetUser.name}`,
-                isDirect: true,
-                createdBy: currentUserId,
-                members: [currentUserId, targetUserId],
-            });
-        } else {
-            // Backfill members if the room was created without them
-            let needsSave = false;
-            if (!room.isDirect) {
-                room.isDirect = true;
-                needsSave = true;
-            }
-            if (!room.members || room.members.length === 0) {
-                room.members = [currentUserId, targetUserId];
-                needsSave = true;
-            }
-            if (needsSave) {
-                await room.save();
-            }
-        }
+                if (!directRoom) {
+                    directRoom = await Room.create({
+                        roomname: directRoomName,
+                        description: `Direct chat between ${currentUser.name} and ${targetUser.name}`,
+                        isDirect: true,
+                        createdBy: currentUserId,
+                        members: [currentUserId, targetUserId],
+                    });
+                } else {
+                    let needsSave = false;
+                    if (!directRoom.isDirect) {
+                        directRoom.isDirect = true;
+                        needsSave = true;
+                    }
+                    if (!directRoom.members || directRoom.members.length === 0) {
+                        directRoom.members = [currentUserId, targetUserId];
+                        needsSave = true;
+                    }
+                    if (needsSave) {
+                        await directRoom.save();
+                    }
+                }
+
+                return directRoom;
+            },
+        });
         return res.status(200).json({
             success: true,
             message: `Connected with ${targetUser.name}`,
@@ -289,7 +292,7 @@ export const acceptConnectionRequestController = async (req, res) => {
         });
     } catch (error) {
         console.error("acceptConnectionRequest error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to accept connection request" });
+        return respondWithControllerError(res, error, "Failed to accept connection request");
     }
 };
 
@@ -311,25 +314,30 @@ export const rejectConnectionRequestController = async (req, res) => {
             User.findById(targetUserId),
         ]);
 
-        if (currentUser) {
-            currentUser.connectionRequests = currentUser.connectionRequests.filter(
-                (r) => r.from.toString() !== targetUserId
-            );
-            currentUser.sentRequests = currentUser.sentRequests.filter(
-                (r) => r.to.toString() !== targetUserId
-            );
-            await currentUser.save();
-        }
+        await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateRelationships([currentUserId, targetUserId]),
+            mutate: async () => {
+                if (currentUser) {
+                    currentUser.connectionRequests = currentUser.connectionRequests.filter(
+                        (request) => request.from.toString() !== targetUserId
+                    );
+                    currentUser.sentRequests = currentUser.sentRequests.filter(
+                        (request) => request.to.toString() !== targetUserId
+                    );
+                    await currentUser.save();
+                }
 
-        if (targetUser) {
-            targetUser.connectionRequests = targetUser.connectionRequests.filter(
-                (r) => r.from.toString() !== currentUserId
-            );
-            targetUser.sentRequests = targetUser.sentRequests.filter(
-                (r) => r.to.toString() !== currentUserId
-            );
-            await targetUser.save();
-        }
+                if (targetUser) {
+                    targetUser.connectionRequests = targetUser.connectionRequests.filter(
+                        (request) => request.from.toString() !== currentUserId
+                    );
+                    targetUser.sentRequests = targetUser.sentRequests.filter(
+                        (request) => request.to.toString() !== currentUserId
+                    );
+                    await targetUser.save();
+                }
+            },
+        });
 
         return res.status(200).json({
             success: true,
@@ -339,7 +347,7 @@ export const rejectConnectionRequestController = async (req, res) => {
         });
     } catch (error) {
         console.error("rejectConnectionRequest error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to reject connection request" });
+        return respondWithControllerError(res, error, "Failed to reject connection request");
     }
 };
 
@@ -349,69 +357,22 @@ export const rejectConnectionRequestController = async (req, res) => {
 export const getConnectionsController = async (req, res) => {
     try {
         const currentUserId = req.user?.id || req.user?._id;
-        const currentUser = await User.findById(currentUserId)
-            .populate("contacts", "name username email avatar about lastSeen")
-            .populate("connectionRequests.from", "name username email avatar about")
-            .populate("sentRequests.to", "name username email avatar about")
-            .lean();
+        const snapshot = await userCache.getConnectionSnapshot(
+            currentUserId,
+            () => loadConnectionSnapshot(currentUserId)
+        );
 
-        if (!currentUser) {
+        if (!snapshot) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        const contactsWithRooms = await Promise.all(
-            (currentUser.contacts || []).map(async (c) => {
-                const cIdStr = c._id.toString();
-                const directName = `direct_${[currentUserId, cIdStr].sort().join("_")}`;
-                const directRoom = await Room.findOne({ roomname: directName }).select("_id").lean();
-                return {
-                    id: c._id.toString(),
-                    name: c.name,
-                    username: c.username,
-                    email: c.email,
-                    avatar: c.avatar || "",
-                    about: c.about || "",
-                    online: presenceService.isUserOnline(cIdStr),
-                    roomId: directRoom ? directRoom._id.toString() : null,
-                };
-            })
-        );
-
-        const pendingIncoming = (currentUser.connectionRequests || [])
-            .filter((r) => r.status === "pending" && r.from)
-            .map((r) => ({
-                id: r.from._id.toString(),
-                name: r.from.name,
-                username: r.from.username,
-                email: r.from.email,
-                avatar: r.from.avatar || "",
-                about: r.from.about || "",
-                requestedAt: r.createdAt,
-            }));
-
-        const pendingOutgoing = (currentUser.sentRequests || [])
-            .filter((r) => r.status === "pending" && r.to)
-            .map((r) => ({
-                id: r.to._id.toString(),
-                name: r.to.name,
-                username: r.to.username,
-                email: r.to.email,
-                avatar: r.to.avatar || "",
-                about: r.to.about || "",
-                requestedAt: r.createdAt,
-            }));
-
         return res.status(200).json({
             success: true,
-            data: {
-                contacts: contactsWithRooms,
-                pendingIncoming,
-                pendingOutgoing,
-            },
+            data: overlayConnectionPresence(snapshot, presenceService.isUserOnline),
         });
     } catch (error) {
         console.error("getConnections error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to fetch connections" });
+        return respondWithControllerError(res, error, "Failed to fetch connections");
     }
 };
 /**
@@ -459,18 +420,6 @@ export const updateProfileController = async (req, res) => {
         const { name, username, about, avatar, phone, profile } = req.body;
         const updateFields = {};
 
-        // Handle optional direct image upload via multipart in updateProfile
-        if (req.file && req.file.buffer) {
-            const ext = (req.file.mimetype ? req.file.mimetype.split("/")[1] : "png").replace(/jpeg/, "jpg");
-            const fileName = `avatar_${currentUserId}_${Date.now()}.${ext}`;
-            const uploadResult = await uploadImage({
-                fileBuffer: req.file.buffer,
-                fileName,
-                folder: "/chatSocial/avatars",
-                tags: ["avatar", String(currentUserId)],
-            });
-            updateFields.avatar = uploadResult.url;
-        }
         if (name && typeof name === "string" && name.trim()) {
             updateFields.name = name.trim();
         }
@@ -501,11 +450,33 @@ export const updateProfileController = async (req, res) => {
             if (profile.phone) updateFields.phone = profile.phone.trim();
         }
 
-        const updatedUser = await User.findByIdAndUpdate(
-            currentUserId,
-            { $set: updateFields },
-            { new: true, runValidators: true }
-        ).select("-password").lean();
+        const updatedUser = await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateDirectoryAndAuth([currentUserId]),
+            mutate: async () => {
+                const mutationFields = {};
+                if (req.file?.buffer) {
+                    const ext = (req.file.mimetype ? req.file.mimetype.split("/")[1] : "png").replace(/jpeg/, "jpg");
+                    const fileName = `avatar_${currentUserId}_${Date.now()}.${ext}`;
+                    const uploadResult = await uploadImage({
+                        fileBuffer: req.file.buffer,
+                        fileName,
+                        folder: "/chatSocial/avatars",
+                        tags: ["avatar", String(currentUserId)],
+                    });
+                    mutationFields.avatar = uploadResult.url;
+                }
+                Object.assign(mutationFields, updateFields);
+
+                return User.findByIdAndUpdate(
+                    currentUserId,
+                    { $set: mutationFields },
+                    { new: true, runValidators: true }
+                ).select("-password").lean();
+            },
+            prime: async (user) => {
+                if (user) await userCache.primeAuthProfile(user);
+            },
+        });
 
         if (!updatedUser) {
             return res.status(404).json({ success: false, message: "User not found" });
@@ -528,7 +499,7 @@ export const updateProfileController = async (req, res) => {
         });
     } catch (error) {
         console.error("updateProfile error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to update profile" });
+        return respondWithControllerError(res, error, "Failed to update profile");
     }
 };
 
@@ -553,18 +524,26 @@ export const uploadAvatarController = async (req, res) => {
         const ext = (req.file.mimetype ? req.file.mimetype.split("/")[1] : "png").replace(/jpeg/, "jpg");
         const fileName = `avatar_${currentUserId}_${Date.now()}.${ext}`;
 
-        const uploadResult = await uploadImage({
-            fileBuffer: req.file.buffer,
-            fileName,
-            folder: "/chatSocial/avatars",
-            tags: ["avatar", String(currentUserId)],
-        });
+        const updatedUser = await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateDirectoryAndAuth([currentUserId]),
+            mutate: async () => {
+                const uploadResult = await uploadImage({
+                    fileBuffer: req.file.buffer,
+                    fileName,
+                    folder: "/chatSocial/avatars",
+                    tags: ["avatar", String(currentUserId)],
+                });
 
-        const updatedUser = await User.findByIdAndUpdate(
-            currentUserId,
-            { $set: { avatar: uploadResult.url } },
-            { new: true, runValidators: true }
-        ).select("-password").lean();
+                return User.findByIdAndUpdate(
+                    currentUserId,
+                    { $set: { avatar: uploadResult.url } },
+                    { new: true, runValidators: true }
+                ).select("-password").lean();
+            },
+            prime: async (user) => {
+                if (user) await userCache.primeAuthProfile(user);
+            },
+        });
 
         if (!updatedUser) {
             return res.status(404).json({ success: false, message: "User not found" });
@@ -573,7 +552,7 @@ export const uploadAvatarController = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Profile avatar uploaded successfully",
-            avatar: uploadResult.url,
+            avatar: updatedUser.avatar,
             data: {
                 id: updatedUser._id.toString(),
                 name: updatedUser.name,
@@ -587,10 +566,7 @@ export const uploadAvatarController = async (req, res) => {
         });
     } catch (error) {
         console.error("uploadAvatar error:", error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || "Failed to upload avatar to ImageKit",
-        });
+        return respondWithControllerError(res, error, "Failed to upload avatar to ImageKit");
     }
 };
 

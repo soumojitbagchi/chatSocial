@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
+import mongoose from "mongoose";
 import express from "express"
 import authRoutes from "./routes/auth.routes.js"
 import roomRoutes from "./routes/room.routes.js"
@@ -10,6 +11,7 @@ import callRoutes from "./routes/call.routes.js"
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import errorHandler from "./middleware/error.middleware.js"
+import { isRedisReady } from "./config/redis.js";
 
 const app = express()
 
@@ -53,6 +55,21 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+app.get("/health/ready", (req, res) => {
+    const mongoReady = mongoose.connection.readyState === 1;
+    const redisReady = isRedisReady();
+    const ready = mongoReady && redisReady;
+
+    return res.status(ready ? 200 : 503).json({
+        success: ready,
+        status: ready ? "ready" : "unavailable",
+        dependencies: {
+            mongodb: mongoReady ? "ready" : "unavailable",
+            redis: redisReady ? "ready" : "unavailable",
+        },
+    });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);

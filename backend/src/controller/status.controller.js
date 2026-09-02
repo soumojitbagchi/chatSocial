@@ -158,10 +158,11 @@ export const replyToStatusController = async (req, res) => {
         });
     } catch (error) {
         console.error("replyToStatus error:", error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || "Failed to reply to status",
-        });
+        const statusCode = error?.code === "REDIS_UNAVAILABLE" ? 503 : 500;
+        const message = error?.code === "REDIS_UNAVAILABLE"
+            ? "User data cache is temporarily unavailable"
+            : (error.message || "Failed to reply to status");
+        return res.status(statusCode).json({ success: false, message });
     }
 };
 

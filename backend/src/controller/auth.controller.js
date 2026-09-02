@@ -4,6 +4,29 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendVerificationEmail, sendWelcomeEmail } from "../service/email.service.js";
 import { OAuth2Client } from "google-auth-library";
+import userCache from "../service/userCache.service.js";
+
+const respondWithAuthError = (
+    res,
+    error,
+    fallbackMessage,
+    defaultStatus = 500,
+    exposure = "development"
+) => {
+    if (error?.code === "REDIS_UNAVAILABLE") {
+        return res.status(503).json({
+            success: false,
+            message: "User data cache is temporarily unavailable",
+        });
+    }
+
+    const exposeError = exposure === "always"
+        || (exposure === "development" && process.env.NODE_ENV !== "production");
+    return res.status(defaultStatus).json({
+        success: false,
+        message: exposeError ? (error.message || fallbackMessage) : fallbackMessage,
+    });
+};
 
 const getGoogleClientId = () =>
     process.env.GOOGLE_AUTH_CLIENT_ID || "376321319198-q3d6qiqphar9vdcosecul7f6taqpr9nb.apps.googleusercontent.com";
@@ -64,45 +87,18 @@ export const login = async (req, res) => {
             });
         }
 
-        if (!process.env.JWT_KEY) {
-            throw new Error("JWT_KEY environment variable is not defined");
-        }
-
-        const token = jwt.sign(
-            { id: isUserExists._id, email: isUserExists.email, username: isUserExists.username },
-            process.env.JWT_KEY,
-            { expiresIn: "24h" }
-        );
-
-        const isProd = process.env.NODE_ENV === "production";
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: isProd,
-            sameSite: isProd ? "none" : "lax",
-            maxAge: 24 * 60 * 60 * 1000
-        });
+        const cachedUser = await userCache.primeAuthProfile(isUserExists);
+        const token = issueSession(res, isUserExists);
 
         return res.status(200).json({
             message: "Login successful",
             success: true,
-            user: {
-                id: isUserExists._id,
-                name: isUserExists.name,
-                email: isUserExists.email,
-                username: isUserExists.username,
-                isEmailVerified: Boolean(isUserExists.isEmailVerified),
-                avatar: isUserExists.avatar || "",
-                about: isUserExists.about || "",
-                phone: isUserExists.phone || "",
-            },
+            user: cachedUser,
             token
         });
     } catch (error) {
         console.error("Login error:", error);
-        return res.status(500).json({
-            message: process.env.NODE_ENV === "production" ? "Internal server error" : (error.message || "Internal server error"),
-            success: false
-        });
+        return respondWithAuthError(res, error, "Internal server error");
     }
 };
 
@@ -149,16 +145,27 @@ export const register = async (req, res) => {
         const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
         const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-        const user = await userData.create({
-            email: cleanEmail,
-            password: hashedPassword,
-            username: cleanUsername,
-            name: cleanName,
-            isEmailVerified: false,
-            emailVerificationToken: verificationToken,
-            emailVerificationExpires,
-            emailOtp,
-            emailOtpExpires: emailVerificationExpires,
+        let createdUserId = null;
+        const user = await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateDirectoryAndAuth(
+                createdUserId ? [createdUserId] : []
+            ),
+            mutate: async () => {
+                const createdUser = await userData.create({
+                    email: cleanEmail,
+                    password: hashedPassword,
+                    username: cleanUsername,
+                    name: cleanName,
+                    isEmailVerified: false,
+                    emailVerificationToken: verificationToken,
+                    emailVerificationExpires,
+                    emailOtp,
+                    emailOtpExpires: emailVerificationExpires,
+                });
+                createdUserId = createdUser._id.toString();
+                return createdUser;
+            },
+            prime: (createdUser) => userCache.primeAuthProfile(createdUser),
         });
 
         void sendVerificationEmail({
@@ -201,11 +208,7 @@ export const register = async (req, res) => {
         });
     } catch (error) {
         console.error("Register error:", error);
-
-        return res.status(500).json({
-            message: error.message || "Internal server error",
-            success: false
-        });
+        return respondWithAuthError(res, error, "Internal server error", 500, "always");
     }
 };
 export const googleAuth = async (req, res) => {
@@ -254,28 +257,47 @@ export const googleAuth = async (req, res) => {
             const randomPassword = crypto.randomBytes(32).toString("hex");
             const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-            user = await userData.create({
-                name: payload.name?.trim() || username,
-                email,
-                username,
-                password: hashedPassword,
-                avatar: payload.picture || "",
-                googleId: payload.sub,
-                authProvider: "google",
-                isEmailVerified: true,
+            let createdUserId = null;
+            user = await userCache.runCoherentMutation({
+                invalidate: () => userCache.invalidateDirectoryAndAuth(
+                    createdUserId ? [createdUserId] : []
+                ),
+                mutate: async () => {
+                    const createdUser = await userData.create({
+                        name: payload.name?.trim() || username,
+                        email,
+                        username,
+                        password: hashedPassword,
+                        avatar: payload.picture || "",
+                        googleId: payload.sub,
+                        authProvider: "google",
+                        isEmailVerified: true,
+                    });
+                    createdUserId = createdUser._id.toString();
+                    return createdUser;
+                },
+                prime: (createdUser) => userCache.primeAuthProfile(createdUser),
             });
         } else {
-            user.googleId = payload.sub;
-            user.authProvider = "google";
-            user.isEmailVerified = true;
-            user.emailVerificationToken = null;
-            user.emailVerificationExpires = null;
-            user.emailOtp = null;
-            user.emailOtpExpires = null;
-            if (!user.avatar && payload.picture) {
-                user.avatar = payload.picture;
-            }
-            await user.save();
+            const existingUser = user;
+            user = await userCache.runCoherentMutation({
+                invalidate: () => userCache.invalidateDirectoryAndAuth([existingUser._id]),
+                mutate: async () => {
+                    existingUser.googleId = payload.sub;
+                    existingUser.authProvider = "google";
+                    existingUser.isEmailVerified = true;
+                    existingUser.emailVerificationToken = null;
+                    existingUser.emailVerificationExpires = null;
+                    existingUser.emailOtp = null;
+                    existingUser.emailOtpExpires = null;
+                    if (!existingUser.avatar && payload.picture) {
+                        existingUser.avatar = payload.picture;
+                    }
+                    await existingUser.save();
+                    return existingUser;
+                },
+                prime: (updatedUser) => userCache.primeAuthProfile(updatedUser),
+            });
         }
 
         const token = issueSession(res, user);
@@ -297,35 +319,30 @@ export const googleAuth = async (req, res) => {
         });
     } catch (error) {
         console.error("Google authentication error:", error);
-        return res.status(401).json({
-            success: false,
-            message: "Google authentication failed. Please try again.",
-        });
+        return respondWithAuthError(
+            res,
+            error,
+            "Google authentication failed. Please try again.",
+            401,
+            "never"
+        );
     }
 };
 
 export const getMe = async (req, res) => {
     try {
-        const user = await userData.findById(req.user.id);
+        const user = await userCache.getAuthProfile(req.user.id, () => (
+            userData.findById(req.user.id)
+                .select("name email username isEmailVerified avatar about phone")
+                .lean()
+        ));
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
-        return res.status(200).json({
-            success: true,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                username: user.username,
-                isEmailVerified: Boolean(user.isEmailVerified),
-                avatar: user.avatar || "",
-                about: user.about || "",
-                phone: user.phone || "",
-            }
-        });
+        return res.status(200).json({ success: true, user });
     } catch (error) {
         console.error("getMe error:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch user session" });
+        return respondWithAuthError(res, error, "Failed to fetch user session", 500, "never");
     }
 };
 
@@ -426,12 +443,20 @@ export const verifyEmailController = async (req, res) => {
             });
         }
 
-        user.isEmailVerified = true;
-        user.emailVerificationToken = null;
-        user.emailVerificationExpires = null;
-        user.emailOtp = null;
-        user.emailOtpExpires = null;
-        await user.save();
+        const userToVerify = user;
+        user = await userCache.runCoherentMutation({
+            invalidate: () => userCache.invalidateAuthProfiles([userToVerify._id]),
+            mutate: async () => {
+                userToVerify.isEmailVerified = true;
+                userToVerify.emailVerificationToken = null;
+                userToVerify.emailVerificationExpires = null;
+                userToVerify.emailOtp = null;
+                userToVerify.emailOtpExpires = null;
+                await userToVerify.save();
+                return userToVerify;
+            },
+            prime: (verifiedUser) => userCache.primeAuthProfile(verifiedUser),
+        });
 
         void sendWelcomeEmail({ to: user.email, name: user.name });
 
@@ -450,7 +475,7 @@ export const verifyEmailController = async (req, res) => {
         });
     } catch (error) {
         console.error("verifyEmailController error:", error);
-        return res.status(500).json({ success: false, message: error.message || "Failed to verify email" });
+        return respondWithAuthError(res, error, "Failed to verify email", 500, "always");
     }
 };
 

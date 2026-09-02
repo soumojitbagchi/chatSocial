@@ -8,7 +8,10 @@ services:
     rootDir: backend
     buildCommand: npm install --omit=optional
     startCommand: npm start
+    healthCheckPath: /health/ready
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -17,6 +20,20 @@ services:
         sync: false  
       - key: JWT_KEY
         sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: REDIS_USERNAME
+        sync: false
+      - key: REDIS_TLS
+        sync: false
+      - key: REDIS_KEY_PREFIX
+        value: chatsocial:production:user-cache:v1
       - key: CLIENT_URL
         sync: false  
       - key: IMAGEKIT_PRIVATE_KEY
