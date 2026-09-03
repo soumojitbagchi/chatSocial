@@ -219,8 +219,8 @@ export const chatApi = {
     const res = await api.put<ApiResponse<ApiMessage>>(`/messages/${messageId}`, payload);
     return res.data.data;
   },
-  async deleteMessage(messageId: string): Promise<void> {
-    await api.delete(`/messages/${messageId}`);
+  async deleteMessage(messageId: string, deleteType: 'forMe' | 'forEveryone' = 'forEveryone'): Promise<void> {
+    await api.delete(`/messages/${messageId}?deleteType=${deleteType}`);
   },
 
   async uploadAttachment(file: File | Blob, fileName?: string): Promise<{ url: string; fileId?: string; fileName: string; fileSize: string; fileType: string; name: string }> {

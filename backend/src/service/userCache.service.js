@@ -20,7 +20,20 @@ const AUTH_PROFILE_TTL = { min: 60, max: 90 };
 const MAX_SEARCH_CODE_POINTS = 100;
 
 const toId = (value) => {
-    const source = value?.id ?? value?._id ?? value;
+    let source;
+    if (value && typeof value === "object") {
+        if (typeof value.toHexString === "function") {
+            source = value.toHexString();
+        } else if (typeof value._id !== "undefined") {
+            source = typeof value._id?.toHexString === "function" ? value._id.toHexString() : value._id;
+        } else if (typeof value.id === "string") {
+            source = value.id;
+        } else {
+            source = value;
+        }
+    } else {
+        source = value;
+    }
     const id = source?.toString?.() ?? "";
     if (!/^[a-f0-9]{24}$/i.test(id)) {
         throw new TypeError("Cached user data requires a valid id");

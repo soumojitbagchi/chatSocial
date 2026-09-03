@@ -20,7 +20,7 @@ export interface UseChatReturn {
   sendMessage: (text: string, type?: string, meta?: Record<string, unknown>) => Promise<void>;
   editMessage: (messageId: string, text: string) => Promise<void>;
   createNewContact: (name: string) => Promise<void>;
-  deleteMessage: (messageId: string) => Promise<void>;
+  deleteMessage: (messageId: string, deleteType?: 'forMe' | 'forEveryone') => Promise<void>;
   addReaction: (messageId: string, emoji: string) => void;
   loadBackendMessages: (roomId: string) => Promise<void>;
   fetchBackendRooms: () => Promise<void>;
@@ -644,7 +644,7 @@ export function useChat(): UseChatReturn {
   }, [fetchBackendRooms]);
 
   // Delete message & re-fetch
-  const deleteMessage = useCallback(async (messageId: string) => {
+  const deleteMessage = useCallback(async (messageId: string, deleteType: 'forMe' | 'forEveryone' = 'forEveryone') => {
     setMessages((prev) => {
       const updated = (prev[activeChatId] || []).filter((m) => m.id !== messageId);
       chatStorage.saveRoomMessages(activeChatId, updated);
@@ -653,9 +653,9 @@ export function useChat(): UseChatReturn {
         [activeChatId]: updated
       };
     });
-    socketService.deleteMessage(messageId);
+    socketService.deleteMessage(messageId, deleteType);
     try {
-      await chatApi.deleteMessage(messageId);
+      await chatApi.deleteMessage(messageId, deleteType);
       await loadBackendMessages(activeChatId);
     } catch {
       // Saved locally

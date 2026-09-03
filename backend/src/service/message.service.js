@@ -139,7 +139,12 @@ export const getAllMessages = async (param1, param2, param3, param4) => {
     const parsedPage = Math.max(Number(page) || 1, 1);
     const skip = (parsedPage - 1) * parsedLimit;
 
-    const messages = await Message.find({ roomId, deleted: { $ne: true } })
+    const filter = { roomId, deleted: { $ne: true } };
+    if (requesterId && mongoose.Types.ObjectId.isValid(requesterId)) {
+        filter.deletedFor = { $ne: new mongoose.Types.ObjectId(requesterId) };
+    }
+
+    const messages = await Message.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parsedLimit)
@@ -216,16 +221,19 @@ export const updateMessage = async (param1, param2, param3) => {
 /**
  * Delete a message (soft delete) with ownership validation
  */
-export const deleteMessage = async (param1, param2) => {
+export const deleteMessage = async (param1, param2, param3) => {
     let messageId;
     let userId;
+    let deleteType = "forEveryone";
 
     if (typeof param1 === "object" && param1 !== null) {
         messageId = param1.messageId || param1.id || param1._id;
         userId = param1.userId;
+        deleteType = param1.deleteType || param1.type || "forEveryone";
     } else {
         messageId = param1;
         userId = param2;
+        if (param3) deleteType = param3;
     }
 
     if (!messageId) {
@@ -242,25 +250,58 @@ export const deleteMessage = async (param1, param2) => {
     }
 
     const isOwner = userId && message.userId.toString() === userId.toString();
-    
+    const room = await Room.findById(message.roomId);
+
+    const isParticipant = room && (
+        (Array.isArray(room.members) && room.members.some((m) => m && m.toString() === userId?.toString())) ||
+        (room.createdBy && room.createdBy.toString() === userId?.toString()) ||
+        (room.roomname && room.roomname.includes(userId?.toString()))
+    );
+
     let isAuthorized = isOwner;
-    if (userId && !isAuthorized) {
-        const room = await Room.findById(message.roomId);
-        if (room && !room.isDirect) {
-            isAuthorized = Boolean(
-                (room.createdBy && room.createdBy.toString() === userId.toString()) ||
-                (Array.isArray(room.admins) && room.admins.some((a) => a && a.toString() === userId.toString()))
-            );
-        }
+    if (userId && !isAuthorized && room && !room.isDirect) {
+        isAuthorized = Boolean(
+            (room.createdBy && room.createdBy.toString() === userId.toString()) ||
+            (Array.isArray(room.admins) && room.admins.some((a) => a && a.toString() === userId.toString()))
+        );
     }
 
+    const normalizedDeleteType = (deleteType || "").toLowerCase() === "forme" ? "forMe" : "forEveryone";
+
+    if (normalizedDeleteType === "forMe") {
+        if (!userId || (!isOwner && !isParticipant)) {
+            throw new Error("Unauthorized: You must be a chat participant to delete this message for yourself");
+        }
+
+        if (!Array.isArray(message.deletedFor)) {
+            message.deletedFor = [];
+        }
+        const userObjectId = new mongoose.Types.ObjectId(userId);
+        if (!message.deletedFor.some((id) => id.toString() === userId.toString())) {
+            message.deletedFor.push(userObjectId);
+        }
+        await message.save();
+
+        const populated = await Message.findById(message._id).populate("userId", "name username avatar").lean();
+        return {
+            ...populated,
+            deleteType: "forMe",
+            deletedForUserId: userId.toString(),
+        };
+    }
+
+    // deleteType is forEveryone / forever
     if (userId && !isAuthorized) {
-        throw new Error("Unauthorized: You can only delete your own messages");
+        throw new Error("Unauthorized: You can only delete forever your own messages");
     }
 
     message.deleted = true;
     message.text = "This message was deleted";
     await message.save();
 
-    return await Message.findById(message._id).populate("userId", "name username avatar").lean();
+    const populated = await Message.findById(message._id).populate("userId", "name username avatar").lean();
+    return {
+        ...populated,
+        deleteType: "forEveryone",
+    };
 };

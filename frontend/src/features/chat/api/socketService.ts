@@ -176,8 +176,8 @@ class SocketService {
     this.emit('editMessage', { messageId, newMessage });
   }
 
-  public deleteMessage(messageId: string) {
-    this.emit('deleteMessage', { messageId });
+  public deleteMessage(messageId: string, deleteType: 'forMe' | 'forEveryone' = 'forEveryone') {
+    this.emit('deleteMessage', { messageId, deleteType });
   }
 
   public getMessages(roomId: string, limit: number = 50, page: number = 1) {

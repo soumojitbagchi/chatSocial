@@ -412,39 +412,45 @@ export const sendVerificationEmailController = async (req, res) => {
     }
 };
 
-export const verifyEmailController = async (req, res) => {
+/**
+ * Verify user using email (supports verification by token, OTP, or direct email)
+ */
+export const verifyUserUsingEmail = async ({ email, token, otp, userId } = {}) => {
+    const cleanEmail = email ? email.trim().toLowerCase() : null;
+    const cleanToken = token ? token.trim() : null;
+    const cleanOtp = otp ? otp.toString().trim() : null;
+
+    let user = null;
+
+    if (cleanToken) {
+        user = await userData.findOne({
+            emailVerificationToken: cleanToken,
+            emailVerificationExpires: { $gt: new Date() },
+        });
+    } else if (cleanOtp) {
+        const query = {
+            emailOtp: cleanOtp,
+            emailOtpExpires: { $gt: new Date() },
+        };
+        if (userId) query._id = userId;
+        else if (cleanEmail) query.email = cleanEmail;
+        user = await userData.findOne(query);
+    } else if (cleanEmail) {
+        user = await userData.findOne({ email: cleanEmail });
+    } else if (userId) {
+        user = await userData.findById(userId);
+    }
+
+    if (!user) {
+        const error = new Error("Invalid or expired verification code / link");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const userToVerify = user;
+    let verifiedUser = null;
     try {
-        const token = req.body?.token || req.query?.token;
-        const otp = req.body?.otp ? req.body.otp.toString().trim() : null;
-        const email = req.body?.email ? req.body.email.trim().toLowerCase() : null;
-        const userId = req.user?.id || req.user?._id;
-
-        let user = null;
-
-        if (token) {
-            user = await userData.findOne({
-                emailVerificationToken: token,
-                emailVerificationExpires: { $gt: new Date() },
-            });
-        } else if (otp) {
-            const query = {
-                emailOtp: otp,
-                emailOtpExpires: { $gt: new Date() },
-            };
-            if (userId) query._id = userId;
-            else if (email) query.email = email;
-            user = await userData.findOne(query);
-        }
-
-        if (!user) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid or expired verification code / link",
-            });
-        }
-
-        const userToVerify = user;
-        user = await userCache.runCoherentMutation({
+        verifiedUser = await userCache.runCoherentMutation({
             invalidate: () => userCache.invalidateAuthProfiles([userToVerify._id]),
             mutate: async () => {
                 userToVerify.isEmailVerified = true;
@@ -455,28 +461,70 @@ export const verifyEmailController = async (req, res) => {
                 await userToVerify.save();
                 return userToVerify;
             },
-            prime: (verifiedUser) => userCache.primeAuthProfile(verifiedUser),
+            prime: (u) => userCache.primeAuthProfile(u),
         });
+    } catch (cacheError) {
+        if (cacheError?.code === "REDIS_UNAVAILABLE") {
+            userToVerify.isEmailVerified = true;
+            userToVerify.emailVerificationToken = null;
+            userToVerify.emailVerificationExpires = null;
+            userToVerify.emailOtp = null;
+            userToVerify.emailOtpExpires = null;
+            await userToVerify.save();
+            verifiedUser = userToVerify;
+        } else {
+            throw cacheError;
+        }
+    }
 
-        void sendWelcomeEmail({ to: user.email, name: user.name });
+    void sendWelcomeEmail({ to: verifiedUser.email, name: verifiedUser.name });
+
+    return {
+        id: verifiedUser._id,
+        name: verifiedUser.name,
+        email: verifiedUser.email,
+        username: verifiedUser.username,
+        isEmailVerified: true,
+        avatar: verifiedUser.avatar || "",
+        about: verifiedUser.about || "",
+    };
+};
+
+export const verifyEmailController = async (req, res) => {
+    try {
+        const token = req.body?.token || req.query?.token;
+        const otp = req.body?.otp;
+        const email = req.body?.email || req.query?.email;
+        const userId = req.user?.id || req.user?._id;
+
+        if (!token && !otp && !email && !userId) {
+            return res.status(400).json({
+                success: false,
+                message: "Verification token, OTP, or email is required",
+            });
+        }
+
+        const verifiedUserDto = await verifyUserUsingEmail({ email, token, otp, userId });
 
         return res.status(200).json({
             success: true,
             message: "Email verified successfully!",
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                username: user.username,
-                isEmailVerified: true,
-                avatar: user.avatar || "",
-                about: user.about || "",
-            },
+            user: verifiedUserDto,
         });
     } catch (error) {
         console.error("verifyEmailController error:", error);
-        return respondWithAuthError(res, error, "Failed to verify email", 500, "always");
+        const statusCode = error.statusCode || 400;
+        return respondWithAuthError(res, error, error.message || "Failed to verify email", statusCode, "always");
     }
 };
 
-export default { login, register, googleAuth, getMe, logout, sendVerificationEmailController, verifyEmailController };
+export default {
+    login,
+    register,
+    googleAuth,
+    getMe,
+    logout,
+    sendVerificationEmailController,
+    verifyEmailController,
+    verifyUserUsingEmail,
+};

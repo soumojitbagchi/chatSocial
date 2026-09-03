@@ -75,11 +75,12 @@ const messageHandlers = (io, socket) => {
         }
     });
 
-    // Delete message (soft delete)
+    // Delete message (soft delete for everyone or delete for me)
     socket.on("deleteMessage", async (data = {}) => {
         try {
             const payload = parsePayload(data);
             const messageId = payload.messageId || payload.id || payload._id;
+            const deleteType = payload.deleteType || payload.type || "forEveryone";
 
             if (!messageId) {
                 return socket.emit("message:error", { message: "Message ID is required" });
@@ -88,14 +89,25 @@ const messageHandlers = (io, socket) => {
             const deletedMessage = await messageService.deleteMessage({
                 messageId,
                 userId: currentUserId,
+                deleteType,
             });
 
             const roomId = deletedMessage.roomId.toString();
-            io.to(roomId).emit("messageDeleted", {
-                messageId,
-                roomId,
-                message: deletedMessage,
-            });
+            if (deletedMessage.deleteType === "forMe") {
+                socket.emit("messageDeleted", {
+                    messageId,
+                    roomId,
+                    message: deletedMessage,
+                    deleteType: "forMe",
+                });
+            } else {
+                io.to(roomId).emit("messageDeleted", {
+                    messageId,
+                    roomId,
+                    message: deletedMessage,
+                    deleteType: "forEveryone",
+                });
+            }
         } catch (error) {
             console.error("Error in deleteMessage:", error.message);
             socket.emit("message:error", { message: error.message || "Failed to delete message" });

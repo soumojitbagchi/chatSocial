@@ -95,7 +95,7 @@ export interface ChatAreaProps {
   onOpenDetails?: () => void;
   onNewChat?: () => void;
   isOnline?: boolean;
-  onDeleteMessage?: (msgId: string) => void;
+  onDeleteMessage?: (msgId: string, deleteType?: 'forMe' | 'forEveryone') => void;
   onDeleteChat?: (chatId: string) => void;
   onLoadMoreMessages?: () => void;
   hasMoreMessages?: boolean;
@@ -821,26 +821,71 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           <span>{starredMsgIds.has(msg.id) ? 'Unstar' : 'Star'}</span>
                         </button>
 
-                        {onDeleteMessage && (isMe || activeChat?.isAdmin) && (
-                          <button
-                            type="button"
-                            className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
-                            onPointerDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onDeleteMessage(msg.id);
-                              setActiveMenuMsgId(null);
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onDeleteMessage(msg.id);
-                              setActiveMenuMsgId(null);
-                            }}
-                          >
-                            <Trash2 size={13} />
-                            <span>Delete</span>
-                          </button>
+                        {onDeleteMessage && (
+                          <>
+                            {isMe || activeChat?.isAdmin ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
+                                  onPointerDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDeleteMessage(msg.id, 'forEveryone');
+                                    setActiveMenuMsgId(null);
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDeleteMessage(msg.id, 'forEveryone');
+                                    setActiveMenuMsgId(null);
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Delete for everyone</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="w-full px-3 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300 flex items-center gap-2 cursor-pointer"
+                                  onPointerDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDeleteMessage(msg.id, 'forMe');
+                                    setActiveMenuMsgId(null);
+                                  }}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onDeleteMessage(msg.id, 'forMe');
+                                    setActiveMenuMsgId(null);
+                                  }}
+                                >
+                                  <Trash2 size={13} className="text-slate-400" />
+                                  <span>Delete for me</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="w-full px-3 py-1.5 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2 cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1.5"
+                                onPointerDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDeleteMessage(msg.id, 'forMe');
+                                  setActiveMenuMsgId(null);
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDeleteMessage(msg.id, 'forMe');
+                                  setActiveMenuMsgId(null);
+                                }}
+                              >
+                                <Trash2 size={13} />
+                                <span>Delete for me</span>
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

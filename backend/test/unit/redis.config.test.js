@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import {
     buildRedisOptions,
     RedisConfigurationError,
+    RedisUnavailableError,
+    connectRedis,
+    closeRedis,
+    startRedisAutoReconnect,
+    stopRedisAutoReconnect,
+    isRedisReady,
 } from "../../src/config/redis.js";
 
 test("buildRedisOptions accepts a Redis URL without exposing it in validation errors", () => {
@@ -88,4 +94,40 @@ test("buildRedisOptions requires complete split configuration and a safe prefix"
         }),
         /REDIS_KEY_PREFIX/
     );
+});
+
+test("buildRedisOptions allows split configuration without password", () => {
+    const options = buildRedisOptions({
+        REDIS_HOST: "127.0.0.1",
+        REDIS_PORT: "6379",
+    });
+
+    assert.equal(options.password, undefined);
+    assert.equal(options.socket.host, "127.0.0.1");
+    assert.equal(options.socket.port, 6379);
+});
+
+test("connectRedis handles unreachable host safely and closeRedis cleans up", async () => {
+    await closeRedis();
+    assert.equal(isRedisReady(), false);
+
+    await assert.rejects(
+        () => connectRedis({
+            REDIS_HOST: "127.0.0.1",
+            REDIS_PORT: "1", // Unreachable port
+        }),
+        RedisUnavailableError
+    );
+
+    assert.equal(isRedisReady(), false);
+    await closeRedis();
+});
+
+test("startRedisAutoReconnect and stopRedisAutoReconnect manage timer safely", () => {
+    startRedisAutoReconnect({ REDIS_HOST: "127.0.0.1", REDIS_PORT: "1" }, 100000);
+    // Double start should be safe
+    startRedisAutoReconnect({ REDIS_HOST: "127.0.0.1", REDIS_PORT: "1" }, 100000);
+    stopRedisAutoReconnect();
+    // Double stop should be safe
+    stopRedisAutoReconnect();
 });

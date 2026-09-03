@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import mongoose from "mongoose";
 import connectDB from "./src/config/connectDB.js";
-import { closeRedis, connectRedis } from "./src/config/redis.js";
+import { closeRedis, connectRedis, startRedisAutoReconnect } from "./src/config/redis.js";
 import { createServer } from "http";
 import app from "./src/app.js";
 import { Server } from "socket.io";
@@ -55,8 +55,12 @@ const shutdown = async (signal) => {
 const startServer = async () => {
     try {
         await connectDB();
-        await connectRedis();
-
+        try {
+            await connectRedis();
+        } catch (redisError) {
+            console.error("[redis] Initial connection failed, running in degraded cache mode:", redisError.message);
+            startRedisAutoReconnect();
+        }
         httpServer = createServer(app);
         const isAllowedOrigin = (origin) => {
             if (!origin) return true;

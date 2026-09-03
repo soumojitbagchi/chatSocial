@@ -18,7 +18,7 @@ export interface UseMessageReturn {
   fetchMessages: (targetRoomId?: string, limit?: number, page?: number) => Promise<ChatMessage[]>;
   sendMessage: (text: string, type?: ChatMessage['type'], meta?: Record<string, unknown>, targetRoomId?: string) => Promise<ChatMessage | null>;
   editMessage: (messageId: string, newText: string, targetRoomId?: string) => Promise<boolean>;
-  deleteMessage: (messageId: string, targetRoomId?: string) => Promise<boolean>;
+  deleteMessage: (messageId: string, targetRoomId?: string, deleteType?: 'forMe' | 'forEveryone') => Promise<boolean>;
   addReaction: (messageId: string, emoji: string, targetRoomId?: string) => void;
   clearError: () => void;
 }
@@ -208,7 +208,7 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
 
   // Delete message
   const deleteMessage = useCallback(
-    async (messageId: string, targetRoomId?: string): Promise<boolean> => {
+    async (messageId: string, targetRoomId?: string, deleteType: 'forMe' | 'forEveryone' = 'forEveryone'): Promise<boolean> => {
       const activeRoom = targetRoomId || roomId;
       if (!messageId) return false;
 
@@ -222,11 +222,11 @@ export function useMessage(options?: string | UseMessageOptions): UseMessageRetu
       });
 
       // 2. Socket emission
-      socketService.deleteMessage(messageId);
+      socketService.deleteMessage(messageId, deleteType);
 
       // 3. REST delete
       try {
-        await chatApi.deleteMessage(messageId);
+        await chatApi.deleteMessage(messageId, deleteType);
         return true;
       } catch (err) {
         console.warn('REST message delete failed:', err);

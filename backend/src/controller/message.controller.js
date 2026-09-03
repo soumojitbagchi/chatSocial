@@ -98,9 +98,11 @@ export const deleteMessageController = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
+        const deleteType = req.query?.deleteType || req.body?.deleteType || req.query?.type || req.body?.type || "forEveryone";
         const message = await messageService.deleteMessage({
             messageId,
             userId,
+            deleteType,
         });
         res.status(200).json({ success: true, data: message });
     } catch (error) {

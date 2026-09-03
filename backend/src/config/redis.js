@@ -7,7 +7,8 @@ const TRANSIENT_UNHEALTHY_MS = 5000;
 
 let redisClient = null;
 let unhealthyUntil = 0;
-
+let connectingPromise = null;
+let reconnectTimer = null;
 export class RedisConfigurationError extends Error {
     constructor(message) {
         super(message);
@@ -87,7 +88,9 @@ export const buildRedisOptions = (env = process.env) => {
 
     const host = env.REDIS_HOST?.trim();
     const port = Number(env.REDIS_PORT);
-    const password = env.REDIS_PASSWORD;
+    const password = typeof env.REDIS_PASSWORD === "string" && env.REDIS_PASSWORD.length > 0
+        ? env.REDIS_PASSWORD
+        : undefined;
 
     if (!host) {
         throw new RedisConfigurationError("REDIS_HOST is required when REDIS_URL is not set");
@@ -95,10 +98,6 @@ export const buildRedisOptions = (env = process.env) => {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
         throw new RedisConfigurationError("REDIS_PORT must be an integer between 1 and 65535");
     }
-    if (typeof password !== "string" || password.length === 0) {
-        throw new RedisConfigurationError("REDIS_PASSWORD is required when REDIS_URL is not set");
-    }
-
     const username = env.REDIS_USERNAME?.trim();
     const tls = parseBoolean(env.REDIS_TLS, "REDIS_TLS");
 
@@ -140,54 +139,117 @@ export const markRedisUnhealthy = (error, { staleRisk = false } = {}) => {
     console.error(`[redis] marked unavailable (${safeErrorLabel(error)})`);
 };
 
+export const startRedisAutoReconnect = (env = process.env, intervalMs = 15000) => {
+    if (reconnectTimer) return;
+    reconnectTimer = setInterval(async () => {
+        if (isRedisReady() || connectingPromise) return;
+        try {
+            await connectRedis(env);
+            console.log("[redis] Reconnected successfully in background");
+        } catch {
+            // Keep quiet during periodic background reconnect retries
+        }
+    }, intervalMs);
+    reconnectTimer.unref?.();
+};
+
+export const stopRedisAutoReconnect = () => {
+    if (reconnectTimer) {
+        clearInterval(reconnectTimer);
+        reconnectTimer = null;
+    }
+};
+
 export const connectRedis = async (env = process.env) => {
     if (redisClient?.isReady) return redisClient;
+    if (connectingPromise) return connectingPromise;
 
-    const client = createClient(buildRedisOptions(env));
-    redisClient = client;
+    connectingPromise = (async () => {
+        if (redisClient) {
+            try {
+                if (redisClient.isOpen) await redisClient.destroy();
+                else await redisClient.disconnect().catch(() => {});
+            } catch {
+                // Ignore teardown error on stale client
+            }
+            redisClient = null;
+        }
 
-    client.on("error", (error) => {
-        console.error(`[redis] client error (${safeErrorLabel(error)})`);
-    });
-    client.on("end", () => {
-        console.warn("[redis] connection closed");
-    });
+        const client = createClient(buildRedisOptions(env));
+        redisClient = client;
+
+        client.on("error", (error) => {
+            markRedisUnhealthy(error);
+            console.error(`[redis] client error (${safeErrorLabel(error)})`);
+        });
+        client.on("ready", () => {
+            unhealthyUntil = 0;
+            console.log("[redis] client ready");
+        });
+        client.on("end", () => {
+            markRedisUnhealthy(new RedisUnavailableError("Redis connection closed"));
+            console.warn("[redis] connection closed");
+        });
+
+        try {
+            await client.connect();
+            const commandClient = client.withAbortSignal(AbortSignal.timeout(COMMAND_TIMEOUT_MS));
+            await commandClient.ping();
+            unhealthyUntil = 0;
+            console.log("Connected to Redis");
+            return client;
+        } catch (error) {
+            try {
+                if (client.isOpen) await client.destroy();
+                else await client.disconnect().catch(() => {});
+            } catch {
+                // Ignore disconnect errors
+            }
+            if (redisClient === client) {
+                redisClient = null;
+            }
+            throw new RedisUnavailableError(`Redis connection failed (${safeErrorLabel(error)})`);
+        }
+    })();
 
     try {
-        await client.connect();
-        const commandClient = client.withAbortSignal(AbortSignal.timeout(COMMAND_TIMEOUT_MS));
-        await commandClient.ping();
-        unhealthyUntil = 0;
-        console.log("Connected to Redis");
-        return client;
-    } catch (error) {
-        if (client.isOpen) client.destroy();
-        redisClient = null;
-        throw new RedisUnavailableError(`Redis connection failed (${safeErrorLabel(error)})`);
+        return await connectingPromise;
+    } finally {
+        connectingPromise = null;
     }
 };
 
 export const closeRedis = async () => {
+    stopRedisAutoReconnect();
+    connectingPromise = null;
     const client = redisClient;
     redisClient = null;
     unhealthyUntil = 0;
 
-    if (!client?.isOpen) return;
+    if (!client) return;
 
     let timeout;
     try {
-        await Promise.race([
-            client.close(),
-            new Promise((_, reject) => {
-                timeout = setTimeout(
-                    () => reject(new Error("Redis close timed out")),
-                    COMMAND_TIMEOUT_MS
-                );
-                timeout.unref?.();
-            }),
-        ]);
+        if (client.isOpen) {
+            await Promise.race([
+                client.close(),
+                new Promise((_, reject) => {
+                    timeout = setTimeout(
+                        () => reject(new Error("Redis close timed out")),
+                        COMMAND_TIMEOUT_MS
+                    );
+                    timeout.unref?.();
+                }),
+            ]);
+        } else {
+            await client.disconnect().catch(() => {});
+        }
     } catch {
-        if (client.isOpen) client.destroy();
+        try {
+            if (client.isOpen) await client.destroy();
+        } catch {
+            // Ignore destroy errors
+        }
     } finally {
         clearTimeout(timeout);
     }
