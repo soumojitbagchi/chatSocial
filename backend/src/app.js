@@ -56,6 +56,18 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+app.get("/health", (req, res) => {
+    const mongoReady = mongoose.connection.readyState === 1;
+    return res.status(200).json({
+        success: true,
+        status: "live",
+        dependencies: {
+            mongodb: mongoReady ? "ready" : "unavailable",
+            redis: isRedisReady() ? "ready" : "degraded",
+        },
+    });
+});
+
 app.get("/health/ready", (req, res) => {
     const mongoReady = mongoose.connection.readyState === 1;
     const redisReady = isRedisReady();

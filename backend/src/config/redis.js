@@ -41,6 +41,9 @@ const safeErrorLabel = (error) => {
 };
 
 const reconnectStrategy = (retries) => {
+    // Fail fast on initial connect so connectRedis() rejects (~7s) instead
+    // of hanging forever; startRedisAutoReconnect() creates a fresh client
+    // every 15s so a dropped client still recovers without a restart.
     if (retries >= 6) {
         return new RedisUnavailableError("Redis reconnect attempts exhausted");
     }

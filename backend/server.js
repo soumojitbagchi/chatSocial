@@ -59,8 +59,12 @@ const startServer = async () => {
             await connectRedis();
         } catch (redisError) {
             console.error("[redis] Initial connection failed, running in degraded cache mode:", redisError.message);
-            startRedisAutoReconnect();
         }
+        // Always run background reconnect: if the client later exhausts its
+        // 6 retry attempts and gives up, this creates a fresh client every
+        // 15s so Redis recovers without a process restart. Auth stays up
+        // meanwhile via Mongo fallback (see auth.controller fallbacks).
+        startRedisAutoReconnect();
         httpServer = createServer(app);
         const isAllowedOrigin = (origin) => {
             if (!origin) return true;
