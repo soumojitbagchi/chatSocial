@@ -38,6 +38,7 @@ export class P2PMesh {
   private callType: 'audio' | 'video' = 'audio';
   private callbacks: P2PMeshCallbacks = {};
   private unbinds: Array<() => void> = [];
+  private generation = 0;
 
   getLocalStream(): MediaStream | null {
     return this.localStream;
@@ -51,6 +52,7 @@ export class P2PMesh {
     callbacks?: P2PMeshCallbacks;
   }): Promise<MediaStream> {
     this.leave();
+    const gen = this.generation;
     this.callId = options.callId;
     this.userId = String(options.userId);
     this.callType = options.type || 'audio';
@@ -62,6 +64,16 @@ export class P2PMesh {
         ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
         : false,
     });
+    if (gen !== this.generation) {
+      stream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          // ignore
+        }
+      });
+      throw new Error('Call ended while acquiring media');
+    }
     this.localStream = stream;
     this.callbacks.onLocalStream?.(stream);
 
@@ -253,6 +265,7 @@ export class P2PMesh {
   }
 
   leave(): void {
+    this.generation += 1;
     for (const peerId of [...this.pcs.keys()]) {
       try {
         this.pcs.get(peerId)?.close();
@@ -261,6 +274,15 @@ export class P2PMesh {
       }
     }
     this.pcs.clear();
+    for (const stream of this.peerStreams.values()) {
+      stream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          // ignore
+        }
+      });
+    }
     this.peerStreams.clear();
     this.restarted.clear();
     for (const el of this.audioElements.values()) {

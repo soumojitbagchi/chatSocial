@@ -23,6 +23,7 @@ export class MediaService {
   private onRemoteStreamCallback: RemoteStreamCallback | null = null;
   private onLocalStreamCallback: LocalStreamCallback | null = null;
   private onMediaStateCallback: MediaStateCallback | null = null;
+  private generation = 0;
 
   /**
    * Initialize mediasoup Device and WebRTC transports for a call
@@ -35,6 +36,7 @@ export class MediaService {
     onMediaStateChange?: MediaStateCallback;
   }): Promise<void> {
     this.cleanup();
+    const gen = this.generation;
 
     this.currentCallId = options.callId;
     this.callType = options.type || 'audio';
@@ -127,10 +129,15 @@ export class MediaService {
       this.recvTransport = recvTransport;
 
       // 5. Acquire local media (Mic / Camera) and produce tracks
-      await this.publishLocalMedia();
+      await this.publishLocalMedia(gen);
 
       // 6. Consume any existing producers in the call
       await this.consumeExistingProducers();
+
+      if (gen !== this.generation) {
+        this.cleanup();
+        throw new Error('Call ended while initializing media');
+      }
     } catch (error) {
       console.error('[mediaService] Failed to initialize call media:', error);
       if (this.onMediaStateCallback) {
@@ -144,7 +151,7 @@ export class MediaService {
   /**
    * Acquire local audio/video media stream and start producing on SendTransport
    */
-  private async publishLocalMedia(): Promise<void> {
+  private async publishLocalMedia(gen: number): Promise<void> {
     if (!this.sendTransport || !this.device) return;
 
     try {
@@ -162,6 +169,16 @@ export class MediaService {
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (gen !== this.generation) {
+        stream.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {
+            // ignore
+          }
+        });
+        throw new Error('Call ended while acquiring media');
+      }
       this.localStream = stream;
 
       if (this.onLocalStreamCallback) {
@@ -402,6 +419,7 @@ export class MediaService {
    * Clean up all active mediasoup transports, producers, consumers, and media streams
    */
   public cleanup(): void {
+    this.generation += 1;
     // 1. Close consumers
     for (const [, consumer] of this.consumers) {
       try {
@@ -463,6 +481,15 @@ export class MediaService {
       this.audioElement = null;
     }
 
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // Ignore
+        }
+      });
+    }
     this.remoteStream = null;
     this.device = null;
     this.currentCallId = null;

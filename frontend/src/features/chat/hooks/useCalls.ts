@@ -649,6 +649,16 @@ export function useCalls(): UseCallsReturn {
     };
   }, [saveCallLog, fetchCallLogs]);
 
+  useEffect(() => {
+    if (activeCall) return;
+    cleanupMedia();
+  }, [activeCall, cleanupMedia]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', cleanupMedia);
+    return () => window.removeEventListener('pagehide', cleanupMedia);
+  }, [cleanupMedia]);
+
   return {
     calls,
     missedCalls,

@@ -107,6 +107,9 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
+    return () => {
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    };
   }, [localStream, isConnected, isVideoCall]);
 
   // Bind remote video stream
@@ -114,6 +117,9 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
+    return () => {
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    };
   }, [remoteStream, isConnected, isVideoCall]);
 
   const formatDuration = (sec: number) => {
