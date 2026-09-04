@@ -11,13 +11,18 @@ export interface User {
   phone?: string;
   about?: string;
   isEmailVerified?: boolean;
+  authProvider?: 'local' | 'google' | 'both';
 }
 
 export interface AuthResponse {
   message: string;
   success: boolean;
   user: User;
-  token: string;
+  token?: string;
+  requiresVerification?: boolean;
+  email?: string;
+  userId?: string;
+  code?: string;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL
@@ -96,10 +101,10 @@ export const authService = {
           ...res.data.user,
           id: String(res.data.user.id || res.data.user._id || ''),
         };
-        localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
-        if (res.data.token) {
-          localStorage.setItem('chatSocial_token', res.data.token);
-        }
+        // Manual signup requires email verification — no session token yet.
+        // Keep pending user for UX, but do NOT treat as authenticated.
+        localStorage.setItem('chatSocial_pendingVerification', JSON.stringify({ email: userObj.email, userId: userObj.id }));
+        localStorage.removeItem('chatSocial_token');
         return { ...res.data, user: userObj };
       }
       throw new Error(res.data.message || 'Registration failed');
@@ -187,6 +192,7 @@ export const authService = {
       };
       localStorage.setItem('chatSocial_user', JSON.stringify(userObj));
       localStorage.setItem('chatSocial_token', res.data.token);
+      localStorage.removeItem('chatSocial_pendingVerification');
       return { ...res.data, user: userObj };
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -242,6 +248,7 @@ export const authService = {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('chatSocial_user');
         localStorage.removeItem('chatSocial_token');
+        localStorage.removeItem('chatSocial_pendingVerification');
         chatStorage.clearAll();
       }
     }

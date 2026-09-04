@@ -80,8 +80,15 @@ export function useAuth(): UseAuthReturn {
     setError(null);
     try {
       const res = await authService.register(credentials);
-      setUser(res.user);
-      setToken(res.token);
+      // Manual signup: no session until email verified.
+      // Google signup (via googleLogin) returns a token and signs in directly.
+      if (res.token) {
+        setUser(res.user);
+        setToken(res.token);
+      } else {
+        setUser(null);
+        setToken(null);
+      }
       setIsLoading(false);
       setIsVerifying(false);
       return res.user;

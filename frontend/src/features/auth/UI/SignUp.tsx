@@ -19,6 +19,7 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   const { register, googleLogin } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,10 +43,11 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
     setIsLoading(true);
 
     try {
-      await register({
+      const newUser = await register({
         name: name.trim(),
         email: email.trim(),
         username: username.trim() || undefined,
@@ -53,7 +55,16 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
         password,
       });
       setIsLoading(false);
-      handleSuccessRedirect();
+      // Manual signup always requires email verification — never auto-enter chat.
+      // Google path (handleGoogleLogin) signs in directly with no OTP.
+      if (newUser && newUser.isEmailVerified) {
+        handleSuccessRedirect();
+      } else {
+        setSuccessMessage(
+          "Account created! Please check your email for the 6-digit verification code, then sign in to verify."
+        );
+        setTimeout(() => navigate("/signin", { replace: true }), 1800);
+      }
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Failed to create account. Please try again.";
@@ -68,8 +79,10 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
     }
 
     setErrorMessage("");
+    setSuccessMessage("");
     setIsLoading(true);
     try {
+      // Google accounts are pre-verified by Google — no email OTP required.
       await googleLogin(response.credential);
       handleSuccessRedirect();
     } catch (err: unknown) {
@@ -128,6 +141,12 @@ export function SignUp({ onLoginSuccess, onSwitchToSignIn, onBackToHome }: SignU
               <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
                 <AlertCircle size={15} className="shrink-0" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
+                <span>{successMessage}</span>
               </div>
             )}
 

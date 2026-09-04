@@ -19,6 +19,8 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
   const { login, googleLogin } = useAuthContext();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [infoMessage, setInfoMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +38,8 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMessage("");
+    setInfoMessage("");
+    setNeedsVerification(false);
     setIsLoading(true);
 
     try {
@@ -46,6 +50,21 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "Invalid credentials";
       setErrorMessage(msg);
+      // Manual accounts must verify email first; Google accounts never hit this.
+      if (/verify your email/i.test(msg)) {
+        setNeedsVerification(true);
+      }
+    }
+  };
+
+  const handleResendCode = async () => {
+    setInfoMessage("");
+    try {
+      const { authService } = await import("../api/authService");
+      await authService.sendVerificationEmail(identifier.includes("@") ? identifier.trim() : undefined);
+      setInfoMessage("Verification code resent. Please check your inbox.");
+    } catch {
+      setInfoMessage("Could not resend code. Please try again.");
     }
   };
 
@@ -113,9 +132,26 @@ export function SignIn({ onLoginSuccess, onSwitchToSignUp, onBackToHome }: SignI
             </div>
 
             {errorMessage && (
-              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
-                <AlertCircle size={15} className="shrink-0" />
-                <span>{errorMessage}</span>
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                {needsVerification && (
+                  <button
+                    type="button"
+                    onClick={handleResendCode}
+                    className="self-start font-semibold text-[#f2552c] hover:underline cursor-pointer bg-transparent border-0 p-0"
+                  >
+                    Resend verification code
+                  </button>
+                )}
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs">
+                <span>{infoMessage}</span>
               </div>
             )}
 
