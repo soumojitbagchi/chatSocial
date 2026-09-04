@@ -9,10 +9,11 @@ if (!process.env.MONGO_URI) {
 }
 
 const connectDB = async () => {
-    const uri = process.env.MONGO_URI || "mongodb://localhost:27017/chatSocial";
+    const uri = process.env.MONGO_URI;
     try {
-        await mongoose.connect(uri);
-        console.log("Connected to MongoDB");
+        await mongoose.connect(uri).then(()=>
+            console.log("Connected to MongoDB")
+        )
     } catch (err) {
         console.error("MongoDB connection error:", err);
         throw err;

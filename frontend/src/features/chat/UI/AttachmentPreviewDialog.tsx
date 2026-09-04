@@ -135,7 +135,7 @@ export const AttachmentPreviewDialog: React.FC<AttachmentPreviewDialogProps> = (
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5"
+      className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto bg-slate-950/85 p-2 backdrop-blur-md sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSending) onCancel();
       }}
@@ -148,7 +148,7 @@ export const AttachmentPreviewDialog: React.FC<AttachmentPreviewDialogProps> = (
         aria-describedby="attachment-preview-description"
         aria-busy={isSending}
         tabIndex={-1}
-        className="my-auto flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-[#12151b] dark:text-white"
+        className="my-auto flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-[#12151b] dark:text-white"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
           <div className="min-w-0">
@@ -156,7 +156,7 @@ export const AttachmentPreviewDialog: React.FC<AttachmentPreviewDialogProps> = (
               Send to {destinationName}
             </h2>
             <p id="attachment-preview-description" className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Review this attachment before sending.
+              Full-size preview. Send forwards it, Cancel goes back without sending.
             </p>
           </div>
           <button
@@ -171,12 +171,12 @@ export const AttachmentPreviewDialog: React.FC<AttachmentPreviewDialogProps> = (
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          <div className="flex min-h-52 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-[#0b0d11] sm:min-h-72">
+          <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-[#0b0d11] sm:min-h-96">
             {attachment.messageType === 'photo' && attachment.previewUrl ? (
               <img
                 src={attachment.previewUrl}
                 alt={`Preview of ${attachment.file.name}`}
-                className="max-h-[52vh] w-full object-contain"
+                className="max-h-[68vh] w-full object-contain"
               />
             ) : attachment.messageType === 'video' && attachment.previewUrl ? (
               <video
@@ -185,7 +185,7 @@ export const AttachmentPreviewDialog: React.FC<AttachmentPreviewDialogProps> = (
                 playsInline
                 preload="metadata"
                 aria-label={`Preview of ${attachment.file.name}`}
-                className="max-h-[52vh] w-full bg-black object-contain"
+                className="max-h-[68vh] w-full bg-black object-contain"
               />
             ) : (
               <div className="flex max-w-full flex-col items-center px-6 py-10 text-center">

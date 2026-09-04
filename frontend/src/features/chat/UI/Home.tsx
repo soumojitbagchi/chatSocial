@@ -239,6 +239,9 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
       {activeTab === 'calls' && (
         <CallsSection
           calls={calls.calls}
+          missedCalls={calls.missedCalls}
+          unseenMissedCount={calls.unseenMissedCount}
+          onMarkMissedSeen={calls.markMissedSeen}
           onStartCall={(name, callType, avatar) => {
             const foundChat = chat.chats.find((c) => c.name.toLowerCase() === name.toLowerCase() || c.id === name || c.targetUserId === name);
             const contactId = foundChat?.targetUserId || foundChat?.id || name;

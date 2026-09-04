@@ -74,15 +74,9 @@ export const uploadImage = async ({ fileBuffer, fileName, folder = "/chatSocial/
             size: response.size || null,
         };
     } catch (error) {
-        console.warn("[ImageKit] Upload notice, using CDN fallback:", error.message);
-        const fallbackUrl = `https://ik.imagekit.io/bagchi/chatSocial${folder}/${cleanFileName}`;
-        return {
-            url: fallbackUrl,
-            fileId: `file_${Date.now()}`,
-            name: cleanFileName,
-            thumbnailUrl: fallbackUrl,
-            size: fileBuffer.length,
-        };
+  
+        console.error("[ImageKit] Upload failed:", error.message);
+        throw error instanceof Error ? error : new Error("ImageKit upload failed");
     }
 };
 

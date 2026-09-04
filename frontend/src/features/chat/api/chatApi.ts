@@ -331,12 +331,42 @@ export const chatApi = {
     });
     return res.data.data;
   },
-  async getCallLogs(): Promise<ApiCallLog[]> {
+  async getCallLogs(section: 'all' | 'missed' = 'all'): Promise<ApiCallLog[]> {
     try {
-      const res = await api.get<ApiResponse<ApiCallLog[]>>('/calls');
+      const res = await api.get<ApiResponse<ApiCallLog[]>>('/calls', { params: { section } });
       return res.data?.data || [];
     } catch {
       return [];
+    }
+  },
+
+  async getMissedCalls(): Promise<{ calls: ApiCallLog[]; unseenMissedCount: number }> {
+    try {
+      const res = await api.get<ApiResponse<ApiCallLog[]> & { meta?: { unseenMissedCount?: number } }>('/calls/missed');
+      return {
+        calls: res.data?.data || [],
+        unseenMissedCount: res.data?.meta?.unseenMissedCount ?? 0,
+      };
+    } catch {
+      return { calls: [], unseenMissedCount: 0 };
+    }
+  },
+
+  async getUnseenMissedCount(): Promise<number> {
+    try {
+      const res = await api.get<ApiResponse<{ unseenMissedCount: number }>>('/calls/unseen-count');
+      return res.data?.data?.unseenMissedCount ?? 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  async markMissedSeen(ids?: string[]): Promise<number> {
+    try {
+      const res = await api.patch<ApiResponse<{ unseenMissedCount: number }>>('/calls/seen', ids ? { ids } : {});
+      return res.data?.data?.unseenMissedCount ?? 0;
+    } catch {
+      return 0;
     }
   },
 
@@ -363,6 +393,8 @@ export interface ApiCallLog {
   time: string;
   createdAt?: string;
   otherUserId?: string;
+  seen?: boolean;
+  isMissed?: boolean;
 }
 
 export interface ApiStoryItem {

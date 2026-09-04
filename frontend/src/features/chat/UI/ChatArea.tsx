@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import type { ChatItem } from './ChatList';
 import { chatApi } from '../api/chatApi';
+import ChatImage from './ChatImage';
 import AttachmentPreviewDialog, {
   PendingAttachment,
   PendingAttachmentKind,
@@ -143,6 +144,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [isSendingAttachment, setIsSendingAttachment] = useState(false);
   const [isSendingText, setIsSendingText] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
@@ -167,6 +169,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const clearPendingAttachment = useCallback(() => {
     revokePreviewUrl();
     setPendingAttachment(null);
+    setIsPreviewExpanded(false);
     setUploadError(null);
     setIsSendingAttachment(false);
     isSendingAttachmentRef.current = false;
@@ -323,6 +326,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setUploadError(null);
     hasPendingAttachmentRef.current = true;
     setPendingAttachment({ file, kind, messageType, previewUrl });
+    // Open preview mode immediately on device select.
+    // Cancel collapses back to the inline chip (file kept),
+    // Send forwards it, chip X discards it.
+    setIsPreviewExpanded(true);
   }, [revokePreviewUrl, validateAttachment]);
 
   const handleFileSelection = useCallback((event: React.ChangeEvent<HTMLInputElement>, kind: PendingAttachmentKind) => {
@@ -337,6 +344,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (pendingAttachment.kind === 'media') mediaInputRef.current?.click();
     else docInputRef.current?.click();
   }, [pendingAttachment]);
+
+  const expandPreview = useCallback(() => {
+    if (!pendingAttachment) return;
+    setUploadError(null);
+    setIsPreviewExpanded(true);
+  }, [pendingAttachment]);
+
+  const collapsePreview = useCallback(() => {
+    if (isSendingAttachmentRef.current) return;
+    setIsPreviewExpanded(false);
+  }, []);
 
   const handleSendAttachment = useCallback(async () => {
     if (!pendingAttachment || isSendingAttachmentRef.current) return;
@@ -716,27 +734,28 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         )}
                       </div>
                     ) : msg.type === 'video' ? (
-                      <div className="cs-photo-card">
+                      <div className="cs-photo-card" style={{ maxWidth: 320 }}>
                         <video
                           src={msg.imageUrl || msg.photoUrl || msg.audioUrl || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string)}
                           controls
                           playsInline
-                          className="rounded-xl max-h-64 w-full object-cover bg-black"
+                          preload="metadata"
+                          style={{ width: '100%', maxWidth: 320, maxHeight: 240 }}
+                          className="rounded-xl w-full object-contain bg-black"
                         />
                         {msg.caption && msg.caption !== 'Video' && msg.caption !== '📹 Video' && !msg.caption.startsWith('attach_') && (
                           <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
                         )}
                       </div>
                     ) : (msg.type === 'photo' || msg.imageUrl || msg.photoUrl || msg.meta?.imageUrl || msg.meta?.photoUrl) ? (
-                      <div className="cs-photo-card">
-                        <img
+                      <div className="cs-photo-card" style={{ maxWidth: 320 }}>
+                        <ChatImage
                           src={msg.imageUrl || msg.photoUrl || (msg.meta?.imageUrl as string) || (msg.meta?.photoUrl as string) || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string)}
                           alt={msg.caption || 'Photo'}
-                          className="rounded-xl max-h-64 w-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                          onClick={() => {
-                            const url = msg.imageUrl || msg.photoUrl || (msg.meta?.imageUrl as string) || (msg.meta?.photoUrl as string) || (msg.meta?.url as string) || (msg.meta?.mediaUrl as string);
-                            if (url) window.open(url, '_blank');
-                          }}
+                          fileName={msg.fileName || msg.caption}
+                          maxWidth={320}
+                          maxHeight={240}
+                          onOpenFull={(url) => window.open(url, '_blank')}
                         />
                         {msg.caption && msg.caption !== 'Photo' && msg.caption !== '📷 Photo' && !msg.caption.startsWith('attach_') && (
                           <p className={`mt-1.5 text-xs ${isMe ? 'text-white/90' : 'text-slate-900 dark:text-slate-100'}`}>{msg.caption}</p>
@@ -1019,7 +1038,56 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         onChange={(event) => handleFileSelection(event, 'document')}
       />
 
-      {pendingAttachment && (
+      {pendingAttachment && !isPreviewExpanded && (
+        <div className="px-4 pt-2">
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={expandPreview}
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              title="Tap to preview before sending"
+              aria-label={`Preview ${pendingAttachment.file.name} before sending`}
+            >
+              <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                {pendingAttachment.messageType === 'photo' && pendingAttachment.previewUrl ? (
+                  <img src={pendingAttachment.previewUrl} alt="" className="h-full w-full object-cover" />
+                ) : pendingAttachment.messageType === 'video' && pendingAttachment.previewUrl ? (
+                  <video src={pendingAttachment.previewUrl} className="h-full w-full object-cover" preload="metadata" />
+                ) : (
+                  <FileText size={20} className="text-indigo-500" />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                  {pendingAttachment.file.name}
+                </span>
+                <span className="mt-0.5 block text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  Tap to preview → Send or Cancel
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={expandPreview}
+              className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 cursor-pointer"
+            >
+              Preview
+            </button>
+            <button
+              type="button"
+              onClick={clearPendingAttachment}
+              disabled={isSendingAttachment}
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 cursor-pointer"
+              title="Remove attachment"
+              aria-label="Remove attachment"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendingAttachment && isPreviewExpanded && (
         <AttachmentPreviewDialog
           attachment={pendingAttachment}
           destinationName={activeChat.name}
@@ -1028,7 +1096,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           error={uploadError}
           onCaptionChange={setInputText}
           onReplace={handleReplaceAttachment}
-          onCancel={clearPendingAttachment}
+          onCancel={collapsePreview}
           onSend={handleSendAttachment}
         />
       )}
