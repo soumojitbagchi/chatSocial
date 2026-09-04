@@ -360,11 +360,15 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
           isVideoOff={calls.activeCall.isVideoOff}
           localStream={calls.localStream}
           remoteStream={calls.remoteStream}
+          remoteStreams={calls.remoteStreams}
+          peerNames={calls.peerNames}
+          sfu={calls.activeCall.sfu}
           onAcceptCall={calls.acceptCall}
           onRejectCall={calls.rejectCall}
           onEndCall={calls.endCall}
           onToggleMute={calls.toggleMute}
           onToggleVideo={calls.toggleVideo}
+          onInvitePeer={calls.invitePeer}
         />
       )}
 

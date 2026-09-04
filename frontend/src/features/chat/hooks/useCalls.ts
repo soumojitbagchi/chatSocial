@@ -3,6 +3,8 @@ import { CallLogItem } from '../UI/CallsSection';
 import { socketService } from '../api/socketService';
 import { callService } from '../api/callService';
 import { mediaService } from '../api/mediaService';
+import { p2pMesh } from '../api/p2pMeshService';
+import { authService } from '../../auth/api/authService';
 import { chatApi } from '../api/chatApi';
 export interface ActiveCallState {
   callId?: string;
@@ -15,6 +17,8 @@ export interface ActiveCallState {
   statusMessage?: string;
   isMuted?: boolean;
   isVideoOff?: boolean;
+  sfu?: boolean;
+  peerIds?: string[];
 }
 
 export interface UseCallsReturn {
@@ -24,8 +28,11 @@ export interface UseCallsReturn {
   activeCall: ActiveCallState | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteStreams: Record<string, MediaStream>;
+  peerNames: Record<string, string>;
   markMissedSeen: (ids?: string[]) => Promise<void>;
   refreshCallHistory: () => Promise<void>;
+  invitePeer: (targetUserId: string, name?: string) => Promise<void>;
   startCall: (
     contactIdOrName: string,
     contactNameOrType?: string | 'audio' | 'video',
@@ -57,6 +64,8 @@ export function useCalls(): UseCallsReturn {
   const [activeCall, setActiveCall] = useState<ActiveCallState | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [peerNames, setPeerNames] = useState<Record<string, string>>({});
   const [missedCalls, setMissedCalls] = useState<CallLogItem[]>([]);
   const [unseenMissedCount, setUnseenMissedCount] = useState(0);
 
@@ -151,6 +160,98 @@ export function useCalls(): UseCallsReturn {
   };
 
 
+  const cleanupMedia = useCallback(() => {
+    mediaService.cleanup();
+    p2pMesh.leave();
+    setLocalStream(null);
+    setRemoteStream(null);
+    setRemoteStreams({});
+  }, []);
+
+  const currentUserId = useCallback(() => {
+    const u = authService.getStoredUser();
+    return String(u?.id || u?._id || '');
+  }, []);
+
+  const startMedia = useCallback(async (callId: string, type: 'audio' | 'video', sfu: boolean, peerIds: string[]) => {
+    if (sfu) {
+      await mediaService.initCallMedia({
+        callId,
+        type,
+        onRemoteStream: (stream) => {
+          setRemoteStream(new MediaStream(stream.getTracks()));
+          setRemoteStreams((prev) => {
+            const first = Object.keys(prev)[0];
+            if (first) return prev;
+            return { ...prev, [peerIds[0] || 'peer']: new MediaStream(stream.getTracks()) };
+          });
+          callStartTimeRef.current = Date.now();
+          setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+        },
+        onLocalStream: (stream) => {
+          setLocalStream(stream);
+        },
+        onMediaStateChange: (state) => {
+          if (state === 'connected') {
+            callStartTimeRef.current = Date.now();
+            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+          } else if (state === 'disconnected' || state === 'failed') {
+            setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
+          }
+        },
+      });
+      return;
+    }
+
+    await p2pMesh.join({
+      callId,
+      userId: currentUserId(),
+      type,
+      peerIds,
+      callbacks: {
+        onLocalStream: (stream) => {
+          setLocalStream(stream);
+        },
+        onPeerStream: (peerId, stream) => {
+          setRemoteStreams((prev) => ({ ...prev, [peerId]: stream }));
+          setRemoteStream((prev) => prev || stream);
+          callStartTimeRef.current = Date.now();
+          setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+        },
+        onPeerLeft: (peerId) => {
+          setRemoteStreams((prev) => {
+            const next = { ...prev };
+            delete next[peerId];
+            return next;
+          });
+        },
+        onMediaStateChange: (peerId, state) => {
+          if (state === 'connected') {
+            callStartTimeRef.current = Date.now();
+            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
+          } else if (state === 'disconnected' || state === 'failed') {
+            setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
+          }
+        },
+      },
+    });
+  }, [currentUserId]);
+
+  const invitePeer = useCallback(async (targetUserId: string, name?: string) => {
+    const current = activeCallRef.current;
+    if (!current?.callId || !targetUserId) return;
+    if (p2pMesh.peerCount() + 1 >= 6) {
+      setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Call is full (max 6 for P2P)' } : null));
+      return;
+    }
+    try {
+      await callService.inviteToCall(current.callId, targetUserId);
+      if (name) setPeerNames((prev) => ({ ...prev, [targetUserId]: name }));
+    } catch (err) {
+      console.error('[useCalls] Failed to invite peer:', err);
+    }
+  }, []);
+
   const startCall = useCallback(
     async (
       arg1: string,
@@ -177,6 +278,7 @@ export function useCalls(): UseCallsReturn {
         avatar = arg4;
       }
       mediaService.primeAudio();
+      p2pMesh.primeAudio();
       try {
         const newCall: ActiveCallState = {
           contactId,
@@ -206,6 +308,7 @@ export function useCalls(): UseCallsReturn {
           statusMessage: errMsg,
         });
         mediaService.cleanup();
+        p2pMesh.leave();
         setTimeout(() => setActiveCall(null), 2500);
       }
     },
@@ -217,38 +320,17 @@ export function useCalls(): UseCallsReturn {
 
     try {
       mediaService.primeAudio();
+      p2pMesh.primeAudio();
       setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connecting media...' } : null));
       await callService.acceptCall(current.callId);
-
-      await mediaService.initCallMedia({
-        callId: current.callId,
-        type: current.type,
-        onRemoteStream: (stream) => {
-          setRemoteStream(new MediaStream(stream.getTracks()));
-          callStartTimeRef.current = Date.now();
-          setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
-        },
-        onLocalStream: (stream) => {
-          setLocalStream(stream);
-        },
-        onMediaStateChange: (state) => {
-          if (state === 'connected') {
-            callStartTimeRef.current = Date.now();
-            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
-          } else if (state === 'disconnected' || state === 'failed') {
-            setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
-          }
-        },
-      });
+      await startMedia(current.callId, current.type, current.sfu === true, [current.contactId]);
     } catch (error) {
       console.error('[useCalls] Failed to accept call:', error);
       setActiveCall((prev) => (prev ? { ...prev, status: 'error', statusMessage: 'Media device error' } : null));
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setTimeout(() => setActiveCall(null), 2000);
     }
-  }, []);
+  }, [startMedia, cleanupMedia]);
 
   const rejectCall = useCallback(
     async (reason: string = 'Call declined') => {
@@ -272,20 +354,23 @@ export function useCalls(): UseCallsReturn {
         void fetchCallLogs();
       }
 
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setActiveCall(null);
     },
-    [saveCallLog, fetchCallLogs]
+    [saveCallLog, fetchCallLogs, cleanupMedia]
   );
 
   const endCall = useCallback(
     async (reason: string = 'Call ended by user') => {
       const current = activeCallRef.current;
       if (current && current.callId) {
+        const isGroupMesh = current.sfu !== true && p2pMesh.peerCount() > 1;
         try {
-          await callService.endCall(current.callId, reason);
+          if (isGroupMesh) {
+            await callService.leaveMeshCall(current.callId);
+          } else {
+            await callService.endCall(current.callId, reason);
+          }
         } catch {}
 
         const durationSec = callStartTimeRef.current ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) : 0;
@@ -305,21 +390,23 @@ export function useCalls(): UseCallsReturn {
       }
 
       callStartTimeRef.current = null;
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setActiveCall(null);
     },
-    [saveCallLog, fetchCallLogs]
+    [saveCallLog, fetchCallLogs, cleanupMedia]
   );
 
   const toggleMute = useCallback(() => {
-    const isMuted = mediaService.toggleMute();
+    const sfuMuted = mediaService.toggleMute();
+    const p2pMuted = p2pMesh.toggleMute();
+    const isMuted = sfuMuted || p2pMuted;
     setActiveCall((prev) => (prev ? { ...prev, isMuted } : null));
   }, []);
 
   const toggleVideo = useCallback(() => {
-    const isVideoOff = mediaService.toggleVideo();
+    const sfuOff = mediaService.toggleVideo();
+    const p2pOff = p2pMesh.toggleVideo();
+    const isVideoOff = sfuOff || p2pOff;
     setActiveCall((prev) => (prev ? { ...prev, isVideoOff } : null));
   }, []);
 
@@ -343,6 +430,8 @@ export function useCalls(): UseCallsReturn {
           name?: string;
           type?: 'audio' | 'video';
           callType?: 'audio' | 'video';
+          sfu?: boolean;
+          peerIds?: string[];
         };
 
         if (activeCallRef.current) {
@@ -366,7 +455,10 @@ export function useCalls(): UseCallsReturn {
             status: 'ringing',
             statusMessage: `Incoming ${data.type === 'video' || data.callType === 'video' ? 'Video' : 'Audio'} Call...`,
             isMuted: false,
+            sfu: data.sfu === true,
+            peerIds: data.peerIds || [data.callerId],
           });
+          setPeerNames((prev) => ({ ...prev, [data.callerId]: resolvedName }));
         }
       }
     };
@@ -385,12 +477,14 @@ export function useCalls(): UseCallsReturn {
         avatar?: string;
         name?: string;
         type?: 'audio' | 'video';
+        sfu?: boolean;
       };
       const callId = data.callId || current.callId;
       if (!callId) return;
 
       const resolvedAvatar = data.acceptorAvatar || data.avatar || current.avatar;
       const resolvedName = data.acceptorName || data.name || current.contactName;
+      const sfu = data.sfu === true;
 
       try {
         setActiveCall((prev) =>
@@ -402,29 +496,11 @@ export function useCalls(): UseCallsReturn {
                 avatar: resolvedAvatar,
                 status: 'connected',
                 statusMessage: 'Connecting media...',
+                sfu,
               }
             : null
         );
-        await mediaService.initCallMedia({
-          callId,
-          type: current.type,
-          onRemoteStream: (stream) => {
-            setRemoteStream(new MediaStream(stream.getTracks()));
-            callStartTimeRef.current = Date.now();
-            setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
-          },
-          onLocalStream: (stream) => {
-            setLocalStream(stream);
-          },
-          onMediaStateChange: (state) => {
-            if (state === 'connected') {
-              callStartTimeRef.current = Date.now();
-              setActiveCall((prev) => (prev ? { ...prev, status: 'connected', statusMessage: 'Connected' } : null));
-            } else if (state === 'disconnected' || state === 'failed') {
-              setActiveCall((prev) => (prev ? { ...prev, statusMessage: 'Reconnecting...' } : null));
-            }
-          },
-        });
+        await startMedia(callId, current.type, sfu, [current.contactId]);
       } catch (err) {
         console.error('[useCalls] Error initializing caller media on call:accepted:', err);
       }
@@ -472,9 +548,7 @@ export function useCalls(): UseCallsReturn {
         });
         void fetchCallLogs();
       }
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'rejected' ? null : prev));
       }, 2000);
@@ -508,9 +582,7 @@ export function useCalls(): UseCallsReturn {
         void fetchCallLogs();
       }
       callStartTimeRef.current = null;
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'ended' ? null : prev));
       }, 1500);
@@ -525,9 +597,7 @@ export function useCalls(): UseCallsReturn {
       const message = data?.message || 'Call error';
 
       setActiveCall((prev) => (prev ? { ...prev, status: 'error', statusMessage: message } : null));
-      mediaService.cleanup();
-      setLocalStream(null);
-      setRemoteStream(null);
+      cleanupMedia();
       setTimeout(() => {
         setActiveCall((prev) => (prev?.status === 'error' ? null : prev));
       }, 2500);
@@ -536,9 +606,34 @@ export function useCalls(): UseCallsReturn {
     const unbindError = socketService.on('call:error', handleError);
     const unbindErrorLegacy = socketService.on('call-error', handleError);
 
+    const unbindPeerJoined = socketService.on('call:peer-joined', (payload: unknown) => {
+      const data = (payload || {}) as { callId?: string; peerId?: string };
+      const current = activeCallRef.current;
+      if (!current?.callId || data.callId !== current.callId || !data.peerId) return;
+      if (current.sfu === true) return;
+      setPeerNames((prev) => ({ ...prev, [data.peerId as string]: prev[data.peerId as string] || `User ${(data.peerId as string).slice(-4)}` }));
+      void p2pMesh.addPeer(data.peerId).catch((err) => {
+        console.error('[useCalls] Failed to connect mesh peer:', err);
+      });
+    });
+
+    const unbindPeerLeft = socketService.on('call:peer-left', (payload: unknown) => {
+      const data = (payload || {}) as { callId?: string; peerId?: string };
+      const current = activeCallRef.current;
+      if (!current?.callId || data.callId !== current.callId || !data.peerId) return;
+      p2pMesh.leavePeer(data.peerId);
+      setRemoteStreams((prev) => {
+        const next = { ...prev };
+        delete next[data.peerId as string];
+        return next;
+      });
+    });
+
     return () => {
       unbindHistory();
       unbindMissed();
+      unbindPeerJoined();
+      unbindPeerLeft();
       unbindIncoming();
       unbindIncomingLegacy();
       unbindAccepted();
@@ -561,8 +656,11 @@ export function useCalls(): UseCallsReturn {
     activeCall,
     localStream,
     remoteStream,
+    remoteStreams,
+    peerNames,
     markMissedSeen,
     refreshCallHistory,
+    invitePeer,
     startCall,
     acceptCall,
     rejectCall,

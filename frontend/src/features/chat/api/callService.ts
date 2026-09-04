@@ -70,6 +70,30 @@ export class CallService {
     });
   }
 
+  public sendP2POffer(callId: string, targetUserId: string, payload: unknown): void {
+    socketService.emit('call:p2p-offer', { callId, targetUserId, payload });
+  }
+
+  public sendP2PAnswer(callId: string, targetUserId: string, payload: unknown): void {
+    socketService.emit('call:p2p-answer', { callId, targetUserId, payload });
+  }
+
+  public sendP2PIce(callId: string, targetUserId: string, payload: unknown): void {
+    socketService.emit('call:p2p-ice', { callId, targetUserId, payload });
+  }
+
+  public async inviteToCall(callId: string, targetUserId: string): Promise<{ callId: string; targetUserId: string; peerIds: string[] }> {
+    return socketService.request('call:invite', { callId, targetUserId });
+  }
+
+  public async joinMeshCall(callId: string): Promise<{ callId: string; type: 'audio' | 'video'; peerIds: string[]; sfu: boolean }> {
+    return socketService.request('call:join', { callId });
+  }
+
+  public async leaveMeshCall(callId: string): Promise<{ ok: boolean; ended: boolean }> {
+    return socketService.request('call:leave', { callId });
+  }
+
   /**
    * Mediasoup Signaling: Get Router RTP capabilities for call session
    */

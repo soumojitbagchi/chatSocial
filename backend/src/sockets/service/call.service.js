@@ -9,8 +9,12 @@ import callSessionManager, {
     setCallRejected,
     setCallEnded,
     clearAllSessions,
+    addParticipantToSession,
+    removeParticipantFromSession,
+    getSessionPeerIds,
 } from "./callSession.manager.js";
 import mediaService from "./media.service.js";
+import { isMediasoupAvailable } from "./mediasoupWorker.js";
 import { recordCallLog } from "../../service/callLog.service.js";
 /**
  * Call Service
@@ -21,6 +25,7 @@ export { isUserInCall, getCallById, getCallByUserId, getCallBySocketId };
 
 export const getUserCall = (userId) => getCallByUserId(userId);
 export const getSocketCall = (socketId) => getCallBySocketId(socketId);
+export const getCallPeers = (callId, excludeUserId = null) => getSessionPeerIds(callId, excludeUserId);
 
 /**
  * Initiate a new 1-to-1 call
@@ -72,8 +77,11 @@ export const acceptCall = async ({ receiverId, receiverSocketId, callId }) => {
 
     session = setCallAccepted(session.callId, receiverId, receiverSocketId);
 
-    // Initialize mediasoup router for the call session
-    await mediaService.initializeCallRouter(session.callId);
+    // SFU router boots lazily on first media request. Skipping it here lets
+    // P2P-only deployments accept calls with no mediasoup installed.
+    if (isMediasoupAvailable()) {
+        await mediaService.initializeCallRouter(session.callId);
+    }
 
     console.log(`[callService] Accepted call [callId=${session.callId}] by user ${receiverId}`);
     return session;
@@ -171,6 +179,94 @@ export const endCall = async ({ userId, socketId, callId, reason = "Call ended" 
     return result;
 };
 
+export const inviteToCall = ({ inviterId, callId, targetUserId }) => {
+    if (!inviterId || !targetUserId) {
+        const err = new Error("Inviter ID and Target User ID are required");
+        err.code = "INVALID_PARAMETERS";
+        throw err;
+    }
+
+    const session = callId ? getCallById(callId) : getCallByUserId(inviterId);
+    if (!session) {
+        const err = new Error("No active call found to invite into");
+        err.code = "CALL_NOT_FOUND";
+        throw err;
+    }
+
+    const strInviter = String(inviterId);
+    const strTarget = String(targetUserId);
+    if (!session.participants.has(strInviter)) {
+        const err = new Error("Only call participants can invite others");
+        err.code = "UNAUTHORIZED";
+        throw err;
+    }
+    if (strInviter === strTarget) {
+        const err = new Error("Cannot invite yourself");
+        err.code = "CANNOT_CALL_SELF";
+        throw err;
+    }
+    if (session.participants.has(strTarget)) {
+        const err = new Error("User is already in this call");
+        err.code = "ALREADY_IN_CALL";
+        throw err;
+    }
+    if (isUserInCall(strTarget)) {
+        const err = new Error("Target user is busy in another call");
+        err.code = "USER_BUSY";
+        throw err;
+    }
+
+    // Reserve the slot now so concurrent invites respect MAX_MESH_PEERS.
+    addParticipantToSession(session.callId, strTarget, null, "invited");
+
+    return {
+        callId: session.callId,
+        type: session.type,
+        inviterId: strInviter,
+        targetUserId: strTarget,
+        peerIds: getSessionPeerIds(session.callId, strTarget),
+    };
+};
+
+export const joinCall = ({ userId, socketId, callId }) => {
+    const session = callId ? getCallById(callId) : getCallByUserId(userId);
+    if (!session) {
+        const err = new Error("No active call found to join");
+        err.code = "CALL_NOT_FOUND";
+        throw err;
+    }
+
+    const strUserId = String(userId);
+    if (!session.participants.has(strUserId)) {
+        const err = new Error("You were not invited to this call");
+        err.code = "UNAUTHORIZED";
+        throw err;
+    }
+
+    const participant = session.participants.get(strUserId);
+    participant.socketId = socketId ? String(socketId) : participant.socketId;
+    participant.role = participant.role === "invited" ? "member" : participant.role;
+
+    return {
+        callId: session.callId,
+        type: session.type,
+        peerIds: getSessionPeerIds(session.callId, strUserId),
+    };
+};
+
+export const leaveCall = ({ userId, callId }) => {
+    const session = callId ? getCallById(callId) : getCallByUserId(userId);
+    if (!session) return { ended: true, peerIds: [] };
+
+    const remaining = removeParticipantFromSession(session.callId, String(userId));
+    const peerIds = getSessionPeerIds(session.callId);
+    if (remaining < 2) {
+        setCallEnded(session.callId, "Last participants left");
+        return { ended: true, callId: session.callId, peerIds };
+    }
+    return { ended: false, callId: session.callId, peerIds };
+};
+
 /**
  * Clean up call on socket disconnect
  */
@@ -229,10 +325,14 @@ export default {
     getUserCall,
     getSocketCall,
     getCallById,
+    getCallPeers,
     initiateCall,
     acceptCall,
     rejectCall,
     endCall,
+    inviteToCall,
+    joinCall,
+    leaveCall,
     handleDisconnect,
     clearAllCalls,
 };

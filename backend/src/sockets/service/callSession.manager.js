@@ -18,6 +18,10 @@ export const CALL_STATUS = {
     ENDED: "ended",
 };
 
+// P2P mesh budget: upstream cost grows per peer. Warn at 4, enforce at 6.
+export const MESH_SOFT_CAP = 4;
+export const MAX_MESH_PEERS = 6;
+
 // Primary in-memory maps
 // callId -> CallSession
 const activeCalls = new Map();
@@ -349,6 +353,69 @@ export const getTransportInfo = (transportId) => transportIndex.get(transportId)
 export const getProducerInfo = (producerId) => producerIndex.get(producerId) || null;
 export const getConsumerInfo = (consumerId) => consumerIndex.get(consumerId) || null;
 
+export const addParticipantToSession = (callId, userId, socketId = null, role = "member") => {
+    const session = getCallById(callId);
+    if (!session) {
+        const err = new Error("Call not found");
+        err.code = "CALL_NOT_FOUND";
+        throw err;
+    }
+
+    const strUserId = String(userId);
+    if (session.participants.has(strUserId)) {
+        return session.participants.get(strUserId);
+    }
+
+    if (session.participants.size >= MAX_MESH_PEERS) {
+        const err = new Error(`Call is full (max ${MAX_MESH_PEERS} participants for P2P mesh)`);
+        err.code = "MESH_FULL";
+        throw err;
+    }
+
+    if (session.status === CALL_STATUS.ENDED || session.status === CALL_STATUS.REJECTED) {
+        const err = new Error("Call has already ended");
+        err.code = "CALL_ALREADY_ENDED";
+        throw err;
+    }
+
+    const participant = {
+        userId: strUserId,
+        socketId: socketId ? String(socketId) : null,
+        role,
+        sendTransport: null,
+        recvTransport: null,
+        producers: new Map(),
+        consumers: new Map(),
+    };
+    session.participants.set(strUserId, participant);
+    userCallMap.set(strUserId, session.callId);
+    if (socketId) {
+        socketCallMap.set(String(socketId), session.callId);
+    }
+    return participant;
+};
+
+export const removeParticipantFromSession = (callId, userId) => {
+    const session = getCallById(callId);
+    if (!session) return 0;
+
+    const strUserId = String(userId);
+    const participant = session.participants.get(strUserId);
+    if (participant?.socketId) {
+        socketCallMap.delete(participant.socketId);
+    }
+    session.participants.delete(strUserId);
+    userCallMap.delete(strUserId);
+    return session.participants.size;
+};
+
+export const getSessionPeerIds = (callId, excludeUserId = null) => {
+    const session = getCallById(callId);
+    if (!session) return [];
+    const exclude = excludeUserId ? String(excludeUserId) : null;
+    return [...session.participants.keys()].filter((id) => id !== exclude);
+};
+
 /**
  * Clean up all indexes and references for a call session
  */
@@ -397,12 +464,17 @@ export const clearAllSessions = () => {
 
 export default {
     CALL_STATUS,
+    MESH_SOFT_CAP,
+    MAX_MESH_PEERS,
     isUserInCall,
     getCallById,
     getCallByUserId,
     getCallBySocketId,
     createCallSession,
     updateParticipantSocket,
+    addParticipantToSession,
+    removeParticipantFromSession,
+    getSessionPeerIds,
     setCallAccepted,
     setCallActive,
     setCallRejected,

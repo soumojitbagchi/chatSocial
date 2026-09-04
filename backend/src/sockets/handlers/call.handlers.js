@@ -5,6 +5,7 @@ import * as presenceService from "../service/presence.service.js";
 import * as callService from "../service/call.service.js";
 import * as mediaService from "../service/media.service.js";
 import { recordCallLog, markMissedSeen } from "../../service/callLog.service.js";
+import { isMediasoupAvailable } from "../service/mediasoupWorker.js";
 import callSessionManager, { getCallById } from "../service/callSession.manager.js";
 
 /**
@@ -212,6 +213,7 @@ const callHandlers = (io, socket) => {
                 name: callerName,
                 type: session.type,
                 callType: session.type,
+                sfu: isMediasoupAvailable(),
             };
             emitToUser(io, targetUserId, "call:incoming", incomingPayload);
             emitToUser(io, targetUserId, "incoming-call", incomingPayload); // legacy
@@ -281,6 +283,7 @@ const callHandlers = (io, socket) => {
                 name: acceptorName,
                 acceptorSocketId: socket.id,
                 type: session.type,
+                sfu: isMediasoupAvailable(),
             };
             // Notify caller
             emitToUser(io, session.callerId, "call:accepted", acceptedPayload);
@@ -292,6 +295,7 @@ const callHandlers = (io, socket) => {
                 callId: session.callId,
                 status: "accepted",
                 type: session.type,
+                sfu: isMediasoupAvailable(),
             };
 
             sendResponse(callback, "call:accepted", response);
@@ -394,6 +398,160 @@ const callHandlers = (io, socket) => {
 
     socket.on("call:end", handleCallEnd);
     socket.on("end-call", handleCallEnd); // legacy alias
+
+    const relayP2P = (event) => async (rawPayload = {}) => {
+        try {
+            const data = parsePayload(rawPayload);
+            const callId = data.callId;
+            const targetUserId = data.targetUserId ? String(data.targetUserId) : null;
+            if (!callId || !targetUserId) return;
+
+            const session = callService.getCallById(callId);
+            if (!session?.participants.has(String(currentUserId))) return;
+            if (!session.participants.has(targetUserId)) return;
+
+            emitToUser(io, targetUserId, event, {
+                callId,
+                fromUserId: String(currentUserId),
+                targetUserId,
+                payload: data.payload ?? null,
+            });
+        } catch (error) {
+            console.error(`[callHandlers] Error in ${event}:`, error.message);
+        }
+    };
+
+    socket.on("call:p2p-offer", relayP2P("call:p2p-offer"));
+    socket.on("call:p2p-answer", relayP2P("call:p2p-answer"));
+    socket.on("call:p2p-ice", relayP2P("call:p2p-ice"));
+
+    socket.on("call:invite", async (rawPayload = {}, callback) => {
+        try {
+            const data = parsePayload(rawPayload);
+            const targetUserId = data.targetUserId ? String(data.targetUserId) : null;
+            if (!targetUserId) {
+                return sendResponse(callback, null, null, {
+                    code: "INVALID_PARAMETERS",
+                    message: "Target user ID is required to invite",
+                });
+            }
+
+            const result = await callService.inviteToCall({
+                inviterId: currentUserId,
+                callId: data.callId,
+                targetUserId,
+            });
+
+            let inviterName = currentUsername;
+            let inviterAvatar = "";
+            if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(currentUserId)) {
+                try {
+                    const inviterDoc = await User.findById(currentUserId).select("name username avatar").lean();
+                    if (inviterDoc) {
+                        inviterName = inviterDoc.name || inviterDoc.username || currentUsername;
+                        inviterAvatar = inviterDoc.avatar || "";
+                    }
+                } catch {
+                    // fall back to socket identity
+                }
+            }
+
+            emitToUser(io, targetUserId, "call:incoming", {
+                callId: result.callId,
+                callerId: currentUserId,
+                callerName: inviterName,
+                callerAvatar: inviterAvatar,
+                avatar: inviterAvatar,
+                name: inviterName,
+                type: result.type,
+                callType: result.type,
+                isGroupInvite: true,
+                peerIds: result.peerIds,
+                sfu: isMediasoupAvailable(),
+            });
+
+            sendResponse(callback, "call:invited", {
+                callId: result.callId,
+                targetUserId,
+                peerIds: result.peerIds,
+            });
+        } catch (error) {
+            console.error("[callHandlers] Error in call:invite:", error);
+            sendResponse(callback, null, null, {
+                code: error.code || "MEDIA_ERROR",
+                message: error.message || "Failed to invite user to call",
+            });
+        }
+    });
+
+    socket.on("call:join", async (rawPayload = {}, callback) => {
+        try {
+            const data = parsePayload(rawPayload);
+            const result = await callService.joinCall({
+                userId: currentUserId,
+                socketId: socket.id,
+                callId: data.callId,
+            });
+
+            result.peerIds
+                .filter((peerId) => peerId !== String(currentUserId))
+                .forEach((peerId) => {
+                    emitToUser(io, peerId, "call:peer-joined", {
+                        callId: result.callId,
+                        peerId: String(currentUserId),
+                    });
+                });
+
+            sendResponse(callback, "call:joined", {
+                callId: result.callId,
+                type: result.type,
+                peerIds: result.peerIds,
+                sfu: isMediasoupAvailable(),
+            });
+        } catch (error) {
+            console.error("[callHandlers] Error in call:join:", error);
+            sendResponse(callback, null, null, {
+                code: error.code || "MEDIA_ERROR",
+                message: error.message || "Failed to join call",
+            });
+        }
+    });
+
+    socket.on("call:leave", async (rawPayload = {}, callback) => {
+        try {
+            const data = parsePayload(rawPayload);
+            const result = await callService.leaveCall({
+                userId: currentUserId,
+                callId: data.callId,
+            });
+
+            if (result.ended) {
+                (result.peerIds || []).forEach((peerId) => {
+                    emitToUser(io, peerId, "call:ended", {
+                        callId: result.callId,
+                        fromUserId: String(currentUserId),
+                        reason: "Peer left",
+                    });
+                });
+                if (result.callId) emitHistoryUpdated(io, currentUserId);
+            } else {
+                result.peerIds.forEach((peerId) => {
+                    emitToUser(io, peerId, "call:peer-left", {
+                        callId: result.callId,
+                        peerId: String(currentUserId),
+                    });
+                });
+            }
+
+            sendResponse(callback, "call:left", { ok: true, ended: result.ended });
+        } catch (error) {
+            console.error("[callHandlers] Error in call:leave:", error);
+            sendResponse(callback, null, null, {
+                code: error.code || "MEDIA_ERROR",
+                message: error.message || "Failed to leave call",
+            });
+        }
+    });
 
     // ==========================================
     // 2. MEDIASOUP MEDIA SIGNALING EVENTS

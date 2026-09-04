@@ -8,6 +8,7 @@ import {
   VideoOff,
   ShieldCheck,
   Volume2,
+  UserPlus,
 } from 'lucide-react';
 
 export interface CallModalProps {
@@ -21,12 +22,39 @@ export interface CallModalProps {
   isVideoOff?: boolean;
   localStream?: MediaStream | null;
   remoteStream?: MediaStream | null;
+  remoteStreams?: Record<string, MediaStream>;
+  peerNames?: Record<string, string>;
+  sfu?: boolean;
   onAcceptCall?: () => void;
   onRejectCall?: () => void;
   onEndCall: () => void;
   onToggleMute?: () => void;
   onToggleVideo?: () => void;
+  onInvitePeer?: (userId: string) => void;
 }
+
+const RemoteTile: React.FC<{ stream: MediaStream; label: string; video: boolean }> = ({ stream, label, video }) => {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+  return (
+    <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-white/10 min-h-[140px] flex items-center justify-center">
+      {video ? (
+        <video ref={ref} autoPlay playsInline className="w-full h-full object-cover" />
+      ) : (
+        <div className="flex flex-col items-center gap-1 py-6">
+          <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold text-lg">
+            {label.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/60 text-[10px] font-semibold text-white truncate max-w-[90%]">
+        {label}
+      </span>
+    </div>
+  );
+};
 
 export const CallModal: React.FC<CallModalProps> = ({
   contactName,
@@ -39,17 +67,25 @@ export const CallModal: React.FC<CallModalProps> = ({
   isVideoOff = false,
   localStream = null,
   remoteStream = null,
+  remoteStreams,
+  peerNames = {},
+  sfu,
   onAcceptCall,
   onRejectCall,
   onEndCall,
   onToggleMute,
   onToggleVideo,
+  onInvitePeer,
 }) => {
   const [callDuration, setCallDuration] = useState(0);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteInput, setInviteInput] = useState('');
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const isConnected = status === 'connected';
+  const isGroup = remoteStreams ? Object.keys(remoteStreams).length > 1 : false;
+  const meshFull = remoteStreams ? Object.keys(remoteStreams).length + 1 >= 6 : false;
   const isIncomingRinging = direction === 'incoming' && status === 'ringing';
   const isOutgoingCalling = direction === 'outgoing' && (status === 'calling' || status === 'ringing');
   const isEndedOrRejected = status === 'ended' || status === 'rejected' || status === 'error';
@@ -111,14 +147,32 @@ export const CallModal: React.FC<CallModalProps> = ({
         <div className="relative z-10 text-center space-y-1 w-full">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[11px] font-mono text-emerald-400">
             <ShieldCheck size={13} />
-            <span>MEDIASOUP SFU ENCRYPTED</span>
+            <span>{sfu === true ? 'SFU ENCRYPTED' : 'P2P ENCRYPTED'}</span>
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight mt-2">{contactName || 'User'}</h2>
           <p className="text-xs font-mono text-white/80 font-medium">{getSubStatusText()}</p>
         </div>
 
-        {/* Center Content: Video or Avatar */}
-        {isVideoCall && isConnected ? (
+        {/* Center Content: group grid, 1-1 video, or avatar */}
+        {isGroup && isConnected ? (
+          <div className="relative z-10 w-full flex-1 my-4 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(remoteStreams || {}).map(([peerId, stream]) => (
+                <RemoteTile
+                  key={peerId}
+                  stream={stream}
+                  label={peerNames[peerId] || `User ${peerId.slice(-4)}`}
+                  video={isVideoCall}
+                />
+              ))}
+            </div>
+            {meshFull && (
+              <p className="mt-2 text-center text-[11px] font-medium text-amber-400">
+                Mesh full — 6 participants max on P2P
+              </p>
+            )}
+          </div>
+        ) : isVideoCall && isConnected ? (
           <div className="relative z-10 w-full flex-1 my-4 flex items-center justify-center rounded-2xl overflow-hidden bg-slate-950 border border-white/10 min-h-[300px]">
             {/* Remote Video Stream */}
             <video
@@ -181,7 +235,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               {status === 'connected' ? (
                 <span className="flex items-center gap-1.5 text-emerald-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  SFU Media Active
+                  {sfu === true ? 'SFU Media Active' : 'P2P Media Active'}
                 </span>
               ) : status === 'calling' ? (
                 <span>Calling recipient...</span>
@@ -248,9 +302,47 @@ export const CallModal: React.FC<CallModalProps> = ({
               >
                 <PhoneOff size={24} />
               </button>
+
+              {/* Add participant (P2P mesh group) */}
+              {onInvitePeer && isConnected && sfu !== true && !meshFull && (
+                <button
+                  onClick={() => setShowInvite((v) => !v)}
+                  className="w-13 h-13 rounded-full flex items-center justify-center transition-all cursor-pointer bg-white/10 hover:bg-white/20 text-white"
+                  title="Add participant"
+                >
+                  <UserPlus size={22} />
+                </button>
+              )}
             </>
           )}
         </div>
+
+        {showInvite && onInvitePeer && (
+          <form
+            className="relative z-10 w-full flex items-center gap-2 mt-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!inviteInput.trim()) return;
+              onInvitePeer(inviteInput.trim());
+              setInviteInput('');
+              setShowInvite(false);
+            }}
+          >
+            <input
+              autoFocus
+              value={inviteInput}
+              onChange={(e) => setInviteInput(e.target.value)}
+              placeholder="User ID to add..."
+              className="flex-1 h-10 px-3 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            />
+            <button
+              type="submit"
+              className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
+            >
+              Add
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
