@@ -4,7 +4,50 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendVerificationEmail, sendWelcomeEmail } from "../service/email.service.js";
 import { OAuth2Client } from "google-auth-library";
-import userCache from "../service/userCache.service.js";
+import userCache, { toAuthUserDto } from "../service/userCache.service.js";
+
+const isRedisUnavailable = (error) => error?.code === "REDIS_UNAVAILABLE";
+
+// Auth must stay up when Redis is down: try the cached mutation first,
+// fall back to direct Mongo on REDIS_UNAVAILABLE. Cache prime is best-effort.
+const runAuthMutationFallback = async ({ invalidate, mutate, prime }) => {
+    try {
+        return await userCache.runCoherentMutation({ invalidate, mutate, prime });
+    } catch (error) {
+        if (!isRedisUnavailable(error)) throw error;
+        console.warn("[auth] Redis unavailable, proceeding without cache");
+        const result = await mutate();
+        if (prime) {
+            try {
+                await prime(result);
+            } catch {
+                // Prime is best-effort in degraded mode.
+            }
+        }
+        return result;
+    }
+};
+
+const primeAuthProfileFallback = async (user) => {
+    try {
+        return await userCache.primeAuthProfile(user);
+    } catch (error) {
+        if (!isRedisUnavailable(error)) throw error;
+        console.warn("[auth] Redis unavailable, skipping auth profile prime");
+        return toAuthUserDto(user);
+    }
+};
+
+const getAuthProfileFallback = async (userId, loader) => {
+    try {
+        return await userCache.getAuthProfile(userId, loader);
+    } catch (error) {
+        if (!isRedisUnavailable(error)) throw error;
+        console.warn("[auth] Redis unavailable, loading auth profile from DB");
+        const loaded = await loader();
+        return loaded ? toAuthUserDto(loaded) : null;
+    }
+};
 
 const respondWithAuthError = (
     res,
@@ -87,7 +130,20 @@ export const login = async (req, res) => {
             });
         }
 
-        const cachedUser = await userCache.primeAuthProfile(isUserExists);
+        // Manual (local-only) accounts must verify email before signing in.
+        // Google-linked accounts (google/both) are pre-verified by Google.
+        if (isUserExists.authProvider === "local" && !isUserExists.isEmailVerified) {
+            return res.status(403).json({
+                message: "Please verify your email before signing in. Check your inbox for the verification code.",
+                success: false,
+                code: "EMAIL_NOT_VERIFIED",
+                requiresVerification: true,
+                email: isUserExists.email,
+                userId: isUserExists._id,
+            });
+        }
+
+        const cachedUser = await primeAuthProfileFallback(isUserExists);
         const token = issueSession(res, isUserExists);
 
         return res.status(200).json({
@@ -124,6 +180,18 @@ export const register = async (req, res) => {
             const emailTaken = isUserExists.email === cleanEmail;
             const usernameTaken = isUserExists.username === cleanUsername;
 
+            // Email already linked to Google — manual signup must not collide.
+            // Guide user to "Continue with Google" instead.
+            if (emailTaken && (isUserExists.googleId || isUserExists.authProvider !== "local")) {
+                return res.status(409).json({
+                    message: "This email is linked to Google sign-in. Please use 'Continue with Google' instead.",
+                    success: false,
+                    conflict: "email",
+                    provider: isUserExists.authProvider || "google",
+                    requiresVerification: false,
+                });
+            }
+
             let message = "User already exists";
             if (emailTaken && usernameTaken) {
                 message = "Both this email and username are already registered. Please sign in instead.";
@@ -146,7 +214,7 @@ export const register = async (req, res) => {
         const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
 
         let createdUserId = null;
-        const user = await userCache.runCoherentMutation({
+        const user = await runAuthMutationFallback({
             invalidate: () => userCache.invalidateDirectoryAndAuth(
                 createdUserId ? [createdUserId] : []
             ),
@@ -174,33 +242,24 @@ export const register = async (req, res) => {
             verificationToken,
             otp: emailOtp,
         });
-        if (!process.env.JWT_KEY) {
-            throw new Error("JWT_KEY environment variable is not defined");
-        }
 
-        const token = jwt.sign(
-            { id: user._id, email: user.email, username: user.username },
-            process.env.JWT_KEY,
-            { expiresIn: "24h" }
-        );
-
-        const isProd = process.env.NODE_ENV === "production";
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: isProd,
-            sameSite: isProd ? "none" : "lax",
-            maxAge: 24 * 60 * 60 * 1000
-        });
-
+        // Manual signup: email verification REQUIRED.
+        // Do NOT issue a session here — user must verify OTP/token first,
+        // then sign in. This keeps Google (verified) and manual (unverified)
+        // flows from colliding.
         return res.status(201).json({
-            message: "User created successfully",
+            message: "Account created. Please verify your email with the code sent to your inbox.",
             success: true,
+            requiresVerification: true,
+            email: user.email,
+            userId: user._id,
             user: {
                 id: user._id,
                 name: user.name,
                 email: user.email,
                 username: user.username,
                 isEmailVerified: false,
+                authProvider: "local",
                 avatar: user.avatar || "",
                 about: user.about || "",
                 phone: user.phone || "",
@@ -258,7 +317,7 @@ export const googleAuth = async (req, res) => {
             const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
             let createdUserId = null;
-            user = await userCache.runCoherentMutation({
+            user = await runAuthMutationFallback({
                 invalidate: () => userCache.invalidateDirectoryAndAuth(
                     createdUserId ? [createdUserId] : []
                 ),
@@ -280,11 +339,29 @@ export const googleAuth = async (req, res) => {
             });
         } else {
             const existingUser = user;
-            user = await userCache.runCoherentMutation({
+            // Same email previously registered manually: link Google,
+            // do NOT require email OTP — Google already verified the email.
+            // A different Google account on the same email is a conflict.
+            if (existingUser.googleId && existingUser.googleId !== payload.sub) {
+                return res.status(409).json({
+                    success: false,
+                    message: "This email is already linked to a different Google account.",
+                    conflict: "email",
+                });
+            }
+            user = await runAuthMutationFallback({
                 invalidate: () => userCache.invalidateDirectoryAndAuth([existingUser._id]),
                 mutate: async () => {
+                    const hadGoogleLinked = Boolean(existingUser.googleId && existingUser.googleId === payload.sub);
+                    const wasLocalOnly = existingUser.authProvider === "local" && !hadGoogleLinked;
                     existingUser.googleId = payload.sub;
-                    existingUser.authProvider = "google";
+                    // Preserve local password login: local -> both, not google-only.
+                    if (wasLocalOnly) {
+                        existingUser.authProvider = "both";
+                    } else if (!existingUser.authProvider || existingUser.authProvider === "local") {
+                        existingUser.authProvider = "google";
+                    }
+
                     existingUser.isEmailVerified = true;
                     existingUser.emailVerificationToken = null;
                     existingUser.emailVerificationExpires = null;
@@ -305,12 +382,14 @@ export const googleAuth = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Google sign-in successful",
+            requiresVerification: false,
             user: {
                 id: user._id,
                 name: user.name,
                 email: user.email,
                 username: user.username,
                 isEmailVerified: true,
+                authProvider: user.authProvider || "google",
                 avatar: user.avatar || "",
                 about: user.about || "",
                 phone: user.phone || "",
@@ -331,9 +410,9 @@ export const googleAuth = async (req, res) => {
 
 export const getMe = async (req, res) => {
     try {
-        const user = await userCache.getAuthProfile(req.user.id, () => (
+        const user = await getAuthProfileFallback(req.user.id, () => (
             userData.findById(req.user.id)
-                .select("name email username isEmailVerified avatar about phone")
+                .select("name email username isEmailVerified authProvider avatar about phone")
                 .lean()
         ));
         if (!user) {
@@ -385,6 +464,14 @@ export const sendVerificationEmailController = async (req, res) => {
             return res.status(400).json({ success: false, message: "Email is already verified" });
         }
 
+        // Google-only accounts never need email OTP — Google already verified.
+        if (user.googleId && user.authProvider === "google") {
+            return res.status(400).json({
+                success: false,
+                message: "Google accounts are already verified. Please use 'Continue with Google'.",
+            });
+        }
+
         const verificationToken = crypto.randomBytes(32).toString("hex");
         const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
         const emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
@@ -413,12 +500,20 @@ export const sendVerificationEmailController = async (req, res) => {
 };
 
 /**
- * Verify user using email (supports verification by token, OTP, or direct email)
+ * Verify user using email (requires proof: verification token or OTP).
+ * Email/userId alone are only scoping helpers, never sufficient proof.
  */
 export const verifyUserUsingEmail = async ({ email, token, otp, userId } = {}) => {
     const cleanEmail = email ? email.trim().toLowerCase() : null;
     const cleanToken = token ? token.trim() : null;
     const cleanOtp = otp ? otp.toString().trim() : null;
+
+    // Proof is mandatory — prevents marking any email verified without OTP/token.
+    if (!cleanToken && !cleanOtp) {
+        const error = new Error("Verification token or OTP is required");
+        error.statusCode = 400;
+        throw error;
+    }
 
     let user = null;
 
@@ -435,16 +530,26 @@ export const verifyUserUsingEmail = async ({ email, token, otp, userId } = {}) =
         if (userId) query._id = userId;
         else if (cleanEmail) query.email = cleanEmail;
         user = await userData.findOne(query);
-    } else if (cleanEmail) {
-        user = await userData.findOne({ email: cleanEmail });
-    } else if (userId) {
-        user = await userData.findById(userId);
     }
 
     if (!user) {
         const error = new Error("Invalid or expired verification code / link");
         error.statusCode = 400;
         throw error;
+    }
+
+    // Google-linked accounts are already verified — no OTP flow needed.
+    // Return idempotently without resending welcome mail.
+    if (user.isEmailVerified && !user.emailOtp && !user.emailVerificationToken) {
+        return {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            username: user.username,
+            isEmailVerified: true,
+            avatar: user.avatar || "",
+            about: user.about || "",
+        };
     }
 
     const userToVerify = user;
@@ -495,12 +600,12 @@ export const verifyEmailController = async (req, res) => {
         const token = req.body?.token || req.query?.token;
         const otp = req.body?.otp;
         const email = req.body?.email || req.query?.email;
-        const userId = req.user?.id || req.user?._id;
+        const userId = req.user?.id || req.user?._id || req.body?.userId;
 
-        if (!token && !otp && !email && !userId) {
+        if (!token && !otp) {
             return res.status(400).json({
                 success: false,
-                message: "Verification token, OTP, or email is required",
+                message: "Verification token or OTP is required",
             });
         }
 

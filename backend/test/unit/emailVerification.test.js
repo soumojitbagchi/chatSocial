@@ -70,30 +70,20 @@ test("Email Verification Flow - Scenario 2: Verify user using valid OTP", async 
     }
 });
 
-test("Email Verification Flow - Scenario 3: Verify user directly by email", async () => {
-    const fakeUserId = new mongoose.Types.ObjectId();
-    const email = "direct@example.com";
-
-    const fakeUser = {
-        _id: fakeUserId,
-        name: "Direct User",
-        email,
-        username: "directuser",
-        isEmailVerified: false,
-        save: async function () { this.saved = true; return this; },
-    };
-
+test("Email Verification Flow - Scenario 3: Rejects email-only verification without OTP/token", async () => {
     const origFindOne = userData.findOne;
-    userData.findOne = async (query) => {
-        if (query.email === email) return fakeUser;
+    let findOneCalled = false;
+    userData.findOne = async () => {
+        findOneCalled = true;
         return null;
     };
 
     try {
-        const result = await verifyUserUsingEmail({ email });
-        assert.equal(result.isEmailVerified, true);
-        assert.equal(result.email, email);
-        assert.equal(fakeUser.isEmailVerified, true);
+        await assert.rejects(
+            () => verifyUserUsingEmail({ email: "direct@example.com" }),
+            /Verification token or OTP is required/
+        );
+        assert.equal(findOneCalled, false);
     } finally {
         userData.findOne = origFindOne;
     }
@@ -121,6 +111,6 @@ test("Email Verification Flow - Scenario 4: Rejects expired or invalid token/OTP
 test("Email Verification Flow - Scenario 5: Rejects when no parameters are provided", async () => {
     await assert.rejects(
         () => verifyUserUsingEmail({}),
-        /Invalid or expired verification code \/ link/
+        /Verification token or OTP is required/
     );
 });
