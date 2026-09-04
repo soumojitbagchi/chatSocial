@@ -19,9 +19,13 @@ export interface ActiveCallState {
 
 export interface UseCallsReturn {
   calls: CallLogItem[];
+  missedCalls: CallLogItem[];
+  unseenMissedCount: number;
   activeCall: ActiveCallState | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  markMissedSeen: (ids?: string[]) => Promise<void>;
+  refreshCallHistory: () => Promise<void>;
   startCall: (
     contactIdOrName: string,
     contactNameOrType?: string | 'audio' | 'video',
@@ -53,6 +57,8 @@ export function useCalls(): UseCallsReturn {
   const [activeCall, setActiveCall] = useState<ActiveCallState | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [missedCalls, setMissedCalls] = useState<CallLogItem[]>([]);
+  const [unseenMissedCount, setUnseenMissedCount] = useState(0);
 
   const activeCallRef = useRef<ActiveCallState | null>(null);
   useEffect(() => {
@@ -63,7 +69,10 @@ export function useCalls(): UseCallsReturn {
 
   const fetchCallLogs = useCallback(async () => {
     try {
-      const dbLogs = await chatApi.getCallLogs();
+      const [dbLogs, missed] = await Promise.all([
+        chatApi.getCallLogs('all'),
+        chatApi.getMissedCalls(),
+      ]);
       if (Array.isArray(dbLogs)) {
         setCalls(dbLogs as CallLogItem[]);
         if (typeof window !== 'undefined') {
@@ -74,8 +83,25 @@ export function useCalls(): UseCallsReturn {
           }
         }
       }
+      setMissedCalls((missed.calls || []) as CallLogItem[]);
+      setUnseenMissedCount(missed.unseenMissedCount || 0);
     } catch {}
   }, []);
+
+  // Backwards-compatible alias (History section refresh).
+  const refreshCallHistory = fetchCallLogs;
+
+  const markMissedSeen = useCallback(async (ids?: string[]) => {
+    // Optimistic: clear red immediately, confirm from server after.
+    setCalls((prev) => prev.map((c) => (c.direction === 'missed' && !c.seen ? { ...c, seen: true } : c)));
+    setMissedCalls((prev) => prev.map((c) => (!c.seen ? { ...c, seen: true } : c)));
+    setUnseenMissedCount(0);
+    try {
+      const remaining = await chatApi.markMissedSeen(ids);
+      setUnseenMissedCount(remaining);
+      if (remaining > 0) void fetchCallLogs();
+    } catch {}
+  }, [fetchCallLogs]);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -298,6 +324,13 @@ export function useCalls(): UseCallsReturn {
   }, []);
 
   useEffect(() => {
+    // Server-side history changed (missed recorded, seen marked elsewhere).
+    const unbindHistory = socketService.on('call:history-updated', () => {
+      void fetchCallLogs();
+    });
+    const unbindMissed = socketService.on('call:missed', () => {
+      void fetchCallLogs();
+    });
     const handleIncoming = (payload: unknown) => {
       if (payload && typeof payload === 'object') {
         const data = payload as {
@@ -504,6 +537,8 @@ export function useCalls(): UseCallsReturn {
     const unbindErrorLegacy = socketService.on('call-error', handleError);
 
     return () => {
+      unbindHistory();
+      unbindMissed();
       unbindIncoming();
       unbindIncomingLegacy();
       unbindAccepted();
@@ -521,9 +556,13 @@ export function useCalls(): UseCallsReturn {
 
   return {
     calls,
+    missedCalls,
+    unseenMissedCount,
     activeCall,
     localStream,
     remoteStream,
+    markMissedSeen,
+    refreshCallHistory,
     startCall,
     acceptCall,
     rejectCall,

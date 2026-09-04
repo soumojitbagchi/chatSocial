@@ -4,6 +4,7 @@ import Room from "../../model/room.model.js";
 import * as presenceService from "../service/presence.service.js";
 import * as callService from "../service/call.service.js";
 import * as mediaService from "../service/media.service.js";
+import { recordCallLog, markMissedSeen } from "../../service/callLog.service.js";
 import callSessionManager, { getCallById } from "../service/callSession.manager.js";
 
 /**
@@ -28,6 +29,13 @@ const emitToUser = (io, userId, eventName, payload) => {
     const socketIds = presenceService.getUserSocketIds(userId);
     socketIds.forEach((sid) => {
         io.to(sid).emit(eventName, payload);
+    });
+};
+
+// Tell online parties to refetch call history (missed badge, sections).
+const emitHistoryUpdated = (io, ...userIds) => {
+    userIds.filter(Boolean).forEach((userId) => {
+        emitToUser(io, String(userId), "call:history-updated", { updatedAt: new Date().toISOString() });
     });
 };
 
@@ -124,6 +132,18 @@ const callHandlers = (io, socket) => {
             // Check if target user is online
             const isOnline = presenceService.isUserOnline(targetUserId);
             if (!isOnline) {
+                // Store the missed call so it shows in the receiver's
+                // Missed section (red/unseen) when they next open the app.
+                void recordCallLog({
+                    callerId: currentUserId,
+                    receiverId: targetUserId,
+                    callId: `call_${Date.now()}`,
+                    type: callType,
+                    status: "missed",
+                    duration: 0,
+                    startedAt: new Date(),
+                    endedAt: new Date(),
+                });
                 const rejectPayload = {
                     callerId: currentUserId,
                     targetUserId,
@@ -132,6 +152,7 @@ const callHandlers = (io, socket) => {
                 };
                 socket.emit("call:rejected", rejectPayload);
                 socket.emit("call-rejected", rejectPayload); // legacy
+                emitHistoryUpdated(io, currentUserId);
                 return sendResponse(callback, null, rejectPayload);
             }
 
@@ -313,6 +334,7 @@ const callHandlers = (io, socket) => {
 
                 emitToUser(io, result.callerId, "call:rejected", rejectPayload);
                 emitToUser(io, result.callerId, "call-rejected", rejectPayload); // legacy
+                emitHistoryUpdated(io, result.callerId, result.receiverId);
             }
 
             sendResponse(callback, null, { ok: true, reason });
@@ -357,6 +379,7 @@ const callHandlers = (io, socket) => {
                 emitToUser(io, result.callerId, "call-ended", endedPayload); // legacy
                 emitToUser(io, result.receiverId, "call:ended", endedPayload);
                 emitToUser(io, result.receiverId, "call-ended", endedPayload); // legacy
+                emitHistoryUpdated(io, result.callerId, result.receiverId);
             }
 
             sendResponse(callback, null, { ok: true });
@@ -686,7 +709,32 @@ const callHandlers = (io, socket) => {
     });
 
     // ==========================================
-    // 3. DISCONNECT CLEANUP
+    // 3. CALL HISTORY EVENTS
+    // ==========================================
+
+    /**
+     * Mark missed calls as seen
+     * Event: "call:mark-seen"
+     * Payload: { ids?: string[] } (omitted => all unseen missed)
+     */
+    socket.on("call:mark-seen", async (rawPayload = {}, callback) => {
+        try {
+            const data = parsePayload(rawPayload);
+            const ids = Array.isArray(data.ids) ? data.ids : null;
+            const result = await markMissedSeen(currentUserId, ids);
+            emitHistoryUpdated(io, currentUserId);
+            sendResponse(callback, "call:seen-updated", { ok: true, ...result });
+        } catch (error) {
+            console.error("[callHandlers] Error in call:mark-seen:", error);
+            sendResponse(callback, null, null, {
+                code: "HISTORY_ERROR",
+                message: error.message || "Failed to mark missed calls as seen",
+            });
+        }
+    });
+
+    // ==========================================
+    // 4. DISCONNECT CLEANUP
     // ==========================================
 
     socket.on("disconnect", async () => {
@@ -700,6 +748,7 @@ const callHandlers = (io, socket) => {
                 };
                 emitToUser(io, result.peerId, "call:ended", endedPayload);
                 emitToUser(io, result.peerId, "call-ended", endedPayload); // legacy
+                emitHistoryUpdated(io, result.peerId, currentUserId);
             }
         } catch (err) {
             console.error(`[callHandlers] Error in socket disconnect cleanup:`, err);
