@@ -140,7 +140,7 @@ test("auth profile priming stores only the allowlisted fields", async () => {
     assert.ok(entry);
     const value = JSON.parse(entry[1]);
     assert.deepEqual(Object.keys(value), [
-        "id", "name", "email", "username", "isEmailVerified", "avatar", "about", "phone",
+        "id", "name", "email", "username", "isEmailVerified", "authProvider", "avatar", "about", "phone",
     ]);
     assert.equal(JSON.stringify(value).includes("google-secret"), false);
     assert.equal(JSON.stringify(value).includes("verification-secret"), false);

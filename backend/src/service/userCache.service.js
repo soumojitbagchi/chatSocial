@@ -63,6 +63,7 @@ export const toAuthUserDto = (user) => {
         email: toStringValue(user.email),
         username: toStringValue(user.username),
         isEmailVerified: Boolean(user.isEmailVerified),
+        authProvider: toStringValue(user.authProvider, "local"),
         avatar: toStringValue(user.avatar),
         about: toStringValue(user.about),
         phone: toStringValue(user.phone),
