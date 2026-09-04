@@ -72,7 +72,7 @@ export function LandingPage({ onSignIn, onSignUp, onOpenApp }: LandingPageProps)
             </footer>
           </div>
           <div className="landing-presence-note">
-            <div className="landing-avatar landing-avatar-small">J</div>
+            <div className="landing-avatar landing-avatar-small">S</div>
             <span><strong>Bagchi joined</strong> the conversation</span>
           </div>
         </section>
