@@ -33,6 +33,14 @@ const callSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        // Users that have seen this log entry. A missed call is "unseen"
+        // (rendered red) for the receiver until they open the Missed section.
+        // Old documents without this field are treated as unseen.
+        seenBy: {
+            type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+            default: [],
+            index: true,
+        },
         startedAt: {
             type: Date,
             default: Date.now,
@@ -49,6 +57,7 @@ const callSchema = new mongoose.Schema(
 
 callSchema.index({ caller: 1, createdAt: -1 });
 callSchema.index({ receiver: 1, createdAt: -1 });
+callSchema.index({ receiver: 1, status: 1, createdAt: -1 });
 
 const Call = mongoose.model("Call", callSchema);
 

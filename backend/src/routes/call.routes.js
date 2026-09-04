@@ -1,6 +1,9 @@
 import express from "express";
 import {
-    getCallLogsController,
+    getCallHistoryController,
+    getMissedCallsController,
+    getUnseenMissedCountController,
+    markMissedSeenController,
     deleteCallLogController,
     clearCallLogsController,
 } from "../controller/call.controller.js";
@@ -10,7 +13,11 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get("/", getCallLogsController);
+// Order matters: specific paths before "/".
+router.get("/missed", getMissedCallsController);
+router.get("/unseen-count", getUnseenMissedCountController);
+router.get("/", getCallHistoryController);
+router.patch("/seen", markMissedSeenController);
 router.delete("/", clearCallLogsController);
 router.delete("/:id", deleteCallLogController);
 
