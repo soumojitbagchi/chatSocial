@@ -22,9 +22,12 @@ const registerSocketHandler = (io) => {
                     };
                     return next();
                 } catch {
-                    next(new Error("Unauthorized: Invalid token"));
+                    return next(new Error("Unauthorized: Invalid token"));
                 }
             }
+
+            // No token supplied — allow query fallback (used by older clients).
+            // A supplied-but-invalid token above already fails closed.
 
             const queryUserId = socket.handshake.query?.userId;
             const queryUsername = socket.handshake.query?.username;

@@ -13,6 +13,7 @@ import StoryViewerModal from './StoryViewerModal';
 import EditProfileModal from './EditProfileModal';
 import ContactDetailsModal from './ContactDetailsModal';
 import { useChatContext } from '../hooks/useChatContext';
+import { chatApi } from '../api/chatApi';
 import '../style/components.css';
 
 export interface HomeProps {
@@ -52,7 +53,14 @@ export const Home: React.FC<HomeProps> = ({ onLogout }) => {
     }
   }, [activeTab, fetchRooms, loadMsgs, activeChatId, fetchGroupRooms]);
 
-  const isUserOnline = (userId?: string) => Boolean(userId && socket?.onlineUsers?.includes(userId));
+  const isUserOnline = (userId?: string) => {
+    if (!userId) return false;
+    const needle = String(userId).trim();
+    if (!needle) return false;
+    // Compare as strings: socket ids list holds Mongo userIds, chat ids hold roomIds.
+    // Direct chats must therefore supply targetUserId (see useChat mapping).
+    return Boolean(socket?.onlineUsers?.map(String).includes(needle));
+  };
   const direct1to1Chats = useMemo(() => {
     return chat.chats.filter((c) => !c.isGroup);
   }, [chat.chats]);

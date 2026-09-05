@@ -9,27 +9,35 @@ class SocketService {
   private currentToken: string | null = null;
   private currentUserId: string | null = null;
 
-  public connect(url?: string): Socket {
-    const socketUrl =
+  public connect(url?: string, opts?: { token?: string; userId?: string; username?: string }): Socket {
+    const rawBase =
       url ||
       (typeof window !== 'undefined' && import.meta.env.VITE_API_URL
-        ? import.meta.env.VITE_API_URL
+        ? String(import.meta.env.VITE_API_URL)
         : 'https://chatsocial.onrender.com');
-    let token = '';
-    let userId = '';
-    let username = '';
+    // Socket.IO lives at the server root, not under /api. Strip a trailing
+    // /api (or /api/) if VITE_API_URL was configured with it.
+    const socketUrl = rawBase.replace(/\/api\/?$/, '').replace(/\/+$/, '') || rawBase;
+    let token = opts?.token ?? '';
+    let userId = opts?.userId ?? '';
+    let username = opts?.username ?? '';
     if (typeof window !== 'undefined') {
-      token = localStorage.getItem('chatSocial_token') || '';
+      if (!token) token = localStorage.getItem('chatSocial_token') || '';
       try {
         const stored = localStorage.getItem('chatSocial_user');
         if (stored) {
           const parsed = JSON.parse(stored);
-          userId = parsed.id || parsed._id || '';
-          username = parsed.username || parsed.name || '';
+          if (!userId) userId = parsed.id || parsed._id || '';
+          if (!username) username = parsed.username || parsed.name || '';
         }
       } catch {
         // Ignore JSON parse error
       }
+      // Explicit session (AuthContext) wins over stale localStorage. This matters
+      // when two accounts share one browser profile across tabs.
+      if (opts?.userId) userId = opts.userId;
+      if (opts?.token) token = opts.token;
+      if (opts?.username) username = opts.username;
     }
 
     if (this.socket) {
@@ -55,6 +63,8 @@ class SocketService {
     this.socket.on('connect', () => {
       this.connected = true;
       this.emit('online', {});
+      this.emit('getOnlineUsers', {});
+      this.emit('presence:sync', {});
       this.notifyListeners('connect', { socketId: this.socket?.id });
     });
 

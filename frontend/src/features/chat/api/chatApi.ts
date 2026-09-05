@@ -7,15 +7,38 @@ export interface ApiResponse<T = unknown> {
   [key: string]: unknown;
 }
 
+export interface ApiRoomContactUser {
+  id: string;
+  _id?: string;
+  name: string;
+  username?: string;
+  avatar?: string;
+  about?: string;
+}
+
+export interface ApiRoomMember {
+  _id?: string;
+  id?: string;
+  name?: string;
+  username?: string;
+  avatar?: string;
+  about?: string;
+}
+
 export interface ApiRoom {
   _id: string;
   id?: string;
   roomname: string;
+  displayName?: string;
   description: string;
   createdBy?: string;
   avatar?: string;
   createdAt: string;
   updatedAt: string;
+  isDirect?: boolean;
+  isPrivate?: boolean;
+  members?: Array<ApiRoomMember | string>;
+  contactUser?: ApiRoomContactUser | null;
 }
 
 export interface ApiMessageUser {

@@ -101,6 +101,145 @@ const mergeChatMessages = (existing: ChatMessage[], incoming: ChatMessage[]) => 
   return merged;
 };
 
+const getMemberId = (member: unknown): string => {
+  if (!member) return '';
+  if (typeof member === 'string') return member;
+  if (typeof member === 'object') {
+    const m = member as Record<string, unknown>;
+    const raw = m._id ?? m.id;
+    return typeof raw === 'string' ? raw : String(raw ?? '');
+  }
+  return '';
+};
+
+const getMemberName = (member: unknown): string => {
+  if (member && typeof member === 'object') {
+    const m = member as Record<string, unknown>;
+    if (typeof m.name === 'string' && m.name) return m.name;
+    if (typeof m.username === 'string' && m.username) return m.username;
+  }
+  return '';
+};
+
+const getMemberAvatar = (member: unknown): string => {
+  if (member && typeof member === 'object') {
+    const m = member as Record<string, unknown>;
+    if (typeof m.avatar === 'string') return m.avatar;
+  }
+  return '';
+};
+
+/**
+ * Map a backend room to a ChatItem, preserving the 1-to-1 counterpart id.
+ * The online indicator compares userIds, NOT roomIds — so targetUserId is required.
+ */
+const mapApiRoomToChatItem = (r: ApiRoom, currentUserId: string): ChatItem => {
+  const roomId = String(r._id);
+  const rawRoomname = typeof r.roomname === 'string' ? r.roomname : 'Chat';
+  const isDirect = Boolean(r.isDirect) || rawRoomname.startsWith('direct_');
+  const createdAt = r.createdAt || (r as unknown as { createdAt?: string }).createdAt;
+
+  if (isDirect) {
+    // Preferred: backend-resolved counterpart.
+    const contact = r.contactUser;
+    if (contact) {
+      const contactId = String(contact.id || contact._id || '');
+      const displayName = contact.name || r.displayName || rawRoomname;
+      if (contactId) {
+        return {
+          id: roomId,
+          targetUserId: contactId,
+          name: displayName,
+          initials: displayName.slice(0, 2).toUpperCase(),
+          avatar: contact.avatar || r.avatar || '',
+          avatarBg: '#6f7771',
+          lastMessage: r.description || 'No messages yet',
+          time: new Date(createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          unread: 0,
+          online: false,
+          isGroup: false,
+          statusText: contact.about || r.description || 'Direct conversation',
+        };
+      }
+    }
+
+    // Fallback: derive counterpart from populated members.
+    if (Array.isArray(r.members) && r.members.length > 0) {
+      const other = r.members.find((m) => getMemberId(m) && getMemberId(m) !== String(currentUserId || ''))
+        || r.members[0];
+      const otherId = getMemberId(other);
+      const otherName = getMemberName(other) || r.displayName || rawRoomname;
+      if (otherId) {
+        return {
+          id: roomId,
+          targetUserId: otherId,
+          name: otherName,
+          initials: otherName.slice(0, 2).toUpperCase(),
+          avatar: getMemberAvatar(other) || r.avatar || '',
+          avatarBg: '#6f7771',
+          lastMessage: r.description || 'No messages yet',
+          time: new Date(createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          unread: 0,
+          online: false,
+          isGroup: false,
+          statusText: r.description || 'Direct conversation',
+        };
+      }
+    }
+
+    // Last resort: parse direct_<id1>_<id2> roomname for the peer id.
+    const match = rawRoomname.match(/^direct_([a-f0-9]{24})_([a-f0-9]{24})$/i);
+    if (match) {
+      const peerId = match[1] === String(currentUserId) ? match[2] : match[1];
+      const displayName = r.displayName && !r.displayName.startsWith('direct_') ? r.displayName : 'Direct Message';
+      return {
+        id: roomId,
+        targetUserId: peerId,
+        name: displayName,
+        initials: displayName.slice(0, 2).toUpperCase(),
+        avatar: r.avatar || '',
+        avatarBg: '#6f7771',
+        lastMessage: r.description || 'No messages yet',
+        time: new Date(createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        unread: 0,
+        online: false,
+        isGroup: false,
+        statusText: r.description || 'Direct conversation',
+      };
+    }
+  }
+
+  const groupName = (r.displayName && !r.displayName.startsWith('direct_') ? r.displayName : rawRoomname) || 'Group';
+  return {
+    id: roomId,
+    name: groupName,
+    initials: groupName.slice(0, 2).toUpperCase(),
+    avatar: r.avatar || '',
+    avatarBg: '#6f7771',
+    lastMessage: r.description || 'No messages yet',
+    time: new Date(createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    unread: 0,
+    online: false,
+    isGroup: !isDirect,
+    statusText: r.description || 'Group conversation',
+  };
+};
+
+const mapApiRoomToRecent = (r: ApiRoom, currentUserId: string): RecentChatUser => {
+  const chat = mapApiRoomToChatItem(r, currentUserId);
+  return {
+    id: `recent-${r._id}`,
+    targetUserId: chat.targetUserId,
+    name: chat.name,
+    fullName: chat.name,
+    avatar: chat.avatar,
+    initials: chat.initials,
+    avatarBg: chat.avatarBg,
+    online: false,
+    chatId: String(r._id),
+  };
+};
+
 export function useChat(): UseChatReturn {
   // Initialize from persistent storage so refresh NEVER loses messages or rooms
   const [chats, setChats] = useState<ChatItem[]>(() => chatStorage.getChats());
@@ -155,34 +294,30 @@ export function useChat(): UseChatReturn {
     try {
       const backendRooms = await chatApi.getRooms();
       if (backendRooms && Array.isArray(backendRooms) && backendRooms.length > 0) {
-        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
-          id: r._id,
-          name: r.roomname,
-          initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
-          lastMessage: r.description || 'No messages yet',
-          time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unread: 0,
-          online: true,
-          statusText: r.description || 'Public Room'
-        }));
+        const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => mapApiRoomToChatItem(r, currentUserId));
 
         setChats((prev) => {
-          const combined = [...mappedChats, ...prev];
-          const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-          chatStorage.saveChats(unique);
-          return unique;
+          // Preserve per-chat UI state (lastMessage/unread) from cache, but always
+          // refresh identity fields (targetUserId/name/avatar/isGroup) from server.
+          const prevById = new Map(prev.map((item) => [item.id, item]));
+          const merged = mappedChats.map((mapped) => {
+            const cached = prevById.get(mapped.id);
+            if (!cached) return mapped;
+            return {
+              ...mapped,
+              lastMessage: cached.lastMessage || mapped.lastMessage,
+              time: cached.time || mapped.time,
+              unread: cached.unread ?? 0,
+            };
+          });
+          prev.forEach((cached) => {
+            if (!merged.some((m) => m.id === cached.id)) merged.push(cached);
+          });
+          chatStorage.saveChats(merged);
+          return merged;
         });
 
-        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
-          id: `recent-${r._id}`,
-          name: r.roomname,
-          fullName: r.roomname,
-          initials: r.roomname.slice(0, 2).toUpperCase(),
-          avatarBg: '#6f7771',
-          online: true,
-          chatId: r._id
-        }));
+        const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => mapApiRoomToRecent(r, currentUserId));
 
         setRecentChats(recents);
         chatStorage.saveRecent(recents);
@@ -197,7 +332,7 @@ export function useChat(): UseChatReturn {
     } catch (err) {
       console.warn('Could not fetch backend rooms, using local persistent storage.', err);
     }
-  }, []);
+  }, [currentUserId]);
 
   // Initial fetch on mount & window focus
   useEffect(() => {
@@ -205,34 +340,28 @@ export function useChat(): UseChatReturn {
 
     chatApi.getRooms().then((backendRooms) => {
       if (!isSubscribed || !backendRooms || !Array.isArray(backendRooms) || backendRooms.length === 0) return;
-      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => ({
-        id: r._id,
-        name: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: '#6f7771',
-        lastMessage: r.description || 'No messages yet',
-        time: new Date(r.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        unread: 0,
-        online: true,
-        statusText: r.description || 'Public Room'
-      }));
+      const mappedChats: ChatItem[] = backendRooms.map((r: ApiRoom) => mapApiRoomToChatItem(r, currentUserId));
 
       setChats((prev) => {
-        const combined = [...mappedChats, ...prev];
-        const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
-        chatStorage.saveChats(unique);
-        return unique;
+        const prevById = new Map(prev.map((item) => [item.id, item]));
+        const merged = mappedChats.map((mapped) => {
+          const cached = prevById.get(mapped.id);
+          if (!cached) return mapped;
+          return {
+            ...mapped,
+            lastMessage: cached.lastMessage || mapped.lastMessage,
+            time: cached.time || mapped.time,
+            unread: cached.unread ?? 0,
+          };
+        });
+        prev.forEach((cached) => {
+          if (!merged.some((m) => m.id === cached.id)) merged.push(cached);
+        });
+        chatStorage.saveChats(merged);
+        return merged;
       });
 
-      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => ({
-        id: `recent-${r._id}`,
-        name: r.roomname,
-        fullName: r.roomname,
-        initials: r.roomname.slice(0, 2).toUpperCase(),
-        avatarBg: '#6f7771',
-        online: true,
-        chatId: r._id
-      }));
+      const recents: RecentChatUser[] = backendRooms.slice(0, 6).map((r: ApiRoom) => mapApiRoomToRecent(r, currentUserId));
       setRecentChats(recents);
       chatStorage.saveRecent(recents);
 
